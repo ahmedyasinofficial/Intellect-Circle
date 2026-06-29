@@ -1,0 +1,307 @@
+{
+  "admin": {
+    "email": "intellectcircle.official4@gmail.com",
+    "passwordHash": "898c201cfb2e075d710cf099437059fb0ce21117e361fe90050c807b53ef47ca",
+    "web3formsKey": ""
+  },
+  "seo": {
+    "home": {
+      "title": "Intellect Circle — Youth Learning Community in Punjab",
+      "description": "A refined, selective, and structured intellectual circle for youth in Punjab, Pakistan. Share knowledge, engage in deep discussions, and grow together."
+    },
+    "about": {
+      "title": "Our Identity & Mission — Intellect Circle",
+      "description": "Explore our vision, core values, history, and what makes Intellect Circle a unique peer-led intellectual community for youth."
+    },
+    "sessions": {
+      "title": "Sessions & Recap Blog — Intellect Circle",
+      "description": "Stay updated on upcoming presentations, browse past session archives, and read recap articles of our structured peer talks."
+    },
+    "team": {
+      "title": "Meet the Core Leadership — Intellect Circle",
+      "description": "Meet the dedicated youth steering Intellect Circle: President, Operations, Media, Impact, and Core Members."
+    },
+    "apply": {
+      "title": "Join Our Community — Intellect Circle Application",
+      "description": "Apply to join Intellect Circle. We look for serious, motivated youth aged 17–30 in Punjab, Pakistan."
+    },
+    "contact": {
+      "title": "Get in Touch — Intellect Circle",
+      "description": "Reach out to the Intellect Circle team. Submit contact inquiries or find our social media handles and email address."
+    }
+  },
+  "home": {
+    "hero": {
+      "headline": "Intellect Circle",
+      "tagline": "A structured learning community for young intellects in Punjab.",
+      "description": "Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.",
+      "ctaApplyLabel": "Apply to Join",
+      "ctaLearnLabel": "Learn More"
+    },
+    "stats": [
+      {
+        "id": "members",
+        "label": "Members",
+        "value": 78
+      },
+      {
+        "id": "sessions",
+        "label": "Sessions Held",
+        "value": 36
+      },
+      {
+        "id": "topics",
+        "label": "Topics Covered",
+        "value": 28
+      },
+      {
+        "id": "cities",
+        "label": "Cities Reached",
+        "value": 3
+      }
+    ],
+    "aboutTeaser": {
+      "title": "What is Intellect Circle?",
+      "subtitle": "A selective peer-to-peer knowledge sharing community built on structure and mutual respect.",
+      "columns": [
+        {
+          "title": "What We Do",
+          "description": "Members meet for structured one-hour sessions where they share insights from their areas of expertise."
+        },
+        {
+          "title": "How We Meet",
+          "description": "Four sessions monthly. Alternating formats: interactive discussions and deep-dive presentations with Q&A."
+        },
+        {
+          "title": "Why It Matters",
+          "description": "To bridge fields of study, master public speaking, and surround ourselves with driven peers."
+        }
+      ]
+    },
+    "featuredSessionId": "session-1",
+    "socialFeed": {
+      "useWidget": false,
+      "widgetCode": "",
+      "posts": [
+        {
+          "id": "post-1",
+          "platform": "instagram",
+          "imageUrl": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=400&q=80",
+          "caption": "A snapshot from our latest session on 'Decentralized Systems'. Active learning in action.",
+          "link": "https://instagram.com/intellectcircle",
+          "likes": 48
+        },
+        {
+          "id": "post-2",
+          "platform": "linkedin",
+          "imageUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=400&q=80",
+          "caption": "Honored to host our 30th session last weekend. Proud of the discussions our members are bringing to the table.",
+          "link": "https://linkedin.com",
+          "likes": 112
+        },
+        {
+          "id": "post-3",
+          "platform": "instagram",
+          "imageUrl": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
+          "caption": "Why structure matters: A breakdown of our 60-minute session format that keeps discussions focused.",
+          "link": "https://instagram.com/intellectcircle",
+          "likes": 56
+        }
+      ]
+    },
+    "ctaSection": {
+      "headline": "Ready to expand your intellectual horizons?",
+      "subheadline": "Applications are open for our upcoming cohort in Punjab.",
+      "buttonLabel": "Apply for Membership"
+    }
+  },
+  "about": {
+    "vision": {
+      "title": "Our Vision",
+      "text": "To nurture a generation of articulate, critically thinking leaders who bridge diverse disciplines to drive intellectual progress in Pakistan."
+    },
+    "mission": {
+      "title": "Our Mission",
+      "text": "To provide a structured, peer-led forum where ambitious youth (ages 17–30) share expertise, practice rhetoric, and engage in high-signal discussions."
+    },
+    "values": [
+      {
+        "id": "val-1",
+        "icon": "book",
+        "title": "Intellectual Rigor",
+        "description": "We choose substance over superficiality. Every session is researched and structured."
+      },
+      {
+        "id": "val-2",
+        "icon": "users",
+        "title": "Peer-to-Peer Growth",
+        "description": "Every member is both a teacher and a student. We learn from each other's diverse domains."
+      },
+      {
+        "id": "val-3",
+        "icon": "clock",
+        "title": "Respect for Structure",
+        "description": "We value time. Our 60-minute sessions start, run, and end precisely as scheduled."
+      }
+    ],
+    "founderStory": {
+      "title": "How it Started",
+      "text": "Intellect Circle began as a small gathering of students in Lahore who were frustrated by the lack of focused spaces for serious learning outside standard curricula. We wanted a forum that bypassed small talk in favor of structured knowledge exchange. What started with four friends has grown into a highly selective, multi-city youth network."
+    },
+    "differences": [
+      {
+        "title": "Strict Time Limits",
+        "description": "60 minutes, zero filler. Every second of our sessions is optimized for learning."
+      },
+      {
+        "title": "Diverse Domains",
+        "description": "From quantum mechanics to medieval poetry, our presentations cross all academic and professional fields."
+      },
+      {
+        "title": "Selective Peer Network",
+        "description": "We screen all applicants to maintain a highly motivated, curious, and respectful community."
+      },
+      {
+        "title": "No Passive Listeners",
+        "description": "Every member must present their area of expertise. Contribution is a prerequisite."
+      }
+    ]
+  },
+  "sessions": [
+    {
+      "id": "session-1",
+      "title": "An Introduction to Modern Game Theory",
+      "presenter": "Ahmad Yasin",
+      "date": "July 12, 2026",
+      "time": "18:00 PKT",
+      "format": "30min talk + Q&A",
+      "isUpcoming": true,
+      "summary": "Exploring strategic interaction, Nash equilibria, and how mathematical models help us understand conflict and cooperation in daily life."
+    },
+    {
+      "id": "session-2",
+      "title": "The Science of Neural Plasticity",
+      "presenter": "Zainab Shah",
+      "date": "June 25, 2026",
+      "time": "18:00 PKT",
+      "format": "Interactive discussion",
+      "isUpcoming": false,
+      "summary": "How our brains structurally reorganize in response to learning, habit formation, and trauma, with practical applications for cognitive enhancement."
+    },
+    {
+      "id": "session-3",
+      "title": "Deciphering Macroeconomics in Developing Nations",
+      "presenter": "Fatima Ali",
+      "date": "June 11, 2026",
+      "time": "18:00 PKT",
+      "format": "30min talk + Q&A",
+      "isUpcoming": false,
+      "summary": "Analyzing inflation, foreign reserves, and fiscal deficits with a specific focus on structural reforms in Pakistan's economy."
+    }
+  ],
+  "blog": [
+    {
+      "id": "blog-1",
+      "title": "Neural Plasticity: Re-wiring the Mind for Continuous Learning",
+      "date": "June 27, 2026",
+      "author": "Zainab Shah",
+      "excerpt": "A deep dive recap of our 35th session, detailing how neural pathways form and how we can systematically optimize our cognitive focus.",
+      "content": "During our most recent session, we explored the fascinating world of neuroscience, focusing on neural plasticity. For years, the scientific consensus was that the adult brain was relatively fixed. We now know this is incorrect: the brain retains its capacity to adapt and change throughout our lives.\n\n### Key Takeaways\n1. **Synaptic Pruning**: The brain eliminates pathways that are not actively used, while strengthening those that are reinforced. Consistent practice is literally structural architecture.\n2. **The Role of Focus**: High attention triggers the release of acetylcholine, a neurotransmitter that marks active synapses for modification.\n3. **Rest as a Catalyst**: While learning occurs during high-focus states, actual structural changes (myelination) take place during deep sleep and recovery.\n\nOur members engaged in a lively Q&A session discussing how these principles apply to breaking bad habits and mastering complex professional skillsets in short timeframes."
+    },
+    {
+      "id": "blog-2",
+      "title": "Economic Reforms: Understanding the Deficit Challenge",
+      "date": "June 13, 2026",
+      "author": "Fatima Ali",
+      "excerpt": "A summary of our macroeconomic analysis session, breaking down Pakistan's current fiscal hurdles in plain English.",
+      "content": "Macroeconomics is often viewed as dry, but when applied to the current economic landscape of Pakistan, it becomes a crucial study of our collective future. Our 34th session broke down fiscal policy, IMF packages, and structural reforms.\n\nWe discussed the difference between balance of trade deficits and fiscal deficits, how currency devaluation affects local manufacturing, and the role of youth entrepreneurship in expanding the tax base.\n\nThe session concluded with a debate on policy priorities: should the state focus on export incentives, or should it prioritize aggressive tax collection restructuring? The diversity of views among our members—from economics graduates to engineers—highlighted the strength of Intellect Circle's cross-disciplinary approach."
+    }
+  ],
+  "team": [
+    {
+      "id": "team-1",
+      "name": "Ahmad Yasin",
+      "role": "President",
+      "bio": "Software engineer interested in decentralization, systems design, and political philosophy.",
+      "photo": "/uploads/Photo_004.png"
+    },
+    {
+      "id": "team-2",
+      "name": "Muhammad Rehan",
+      "role": "Head of Operations",
+      "bio": "Neuroscience researcher dedicated to structured operational design and community growth.",
+      "photo": ""
+    },
+    {
+      "id": "team-3",
+      "name": "Ahmad Yasin",
+      "role": "Head of Media",
+      "bio": "Visual designer and writer focusing on storytelling and clean digital presentation.",
+      "photo": ""
+    },
+    {
+      "id": "team-4",
+      "name": "Muhammad Juanid",
+      "role": "Head of Growth & Impact",
+      "bio": "Development specialist working on extending youth access to learning platforms across Punjab.",
+      "photo": ""
+    }
+  ],
+  "contact": {
+    "email": "intellectcircle.official4@gmail.com",
+    "whatsapp": "",
+    "instagram": "https://instagram.com/intellectcircle",
+    "linkedin": "https://www.linkedin.com/company/intellect-circle/",
+    "facebook": "https://www.facebook.com/profile.php?id=61590726385267",
+    "address": "Punjab, Pakistan"
+  },
+  "submissions": {
+    "applications": [
+      {
+        "id": "app-1782739186363",
+        "name": "Ali",
+        "email": "ali@gmail.com",
+        "age": "23",
+        "city": "Lahore",
+        "occupation": "CS student",
+        "whyJoin": "I want to learn and i thingk ai alksgkalsdjfkd dn sadfiksja kwndvkjsdf ljd",
+        "topic": "dsf lasdfdf s. sdf",
+        "heardAbout": "Instagram",
+        "heardAboutOther": "",
+        "heardAboutCombined": "Instagram",
+        "submittedAt": "2026-06-29T13:19:46.363Z"
+      },
+      {
+        "id": "app-1782732365970",
+        "name": "Ahmed",
+        "age": "23",
+        "city": "Lahore",
+        "occupation": "Clinical Psychology Student",
+        "whyJoin": "I want to explore it what is actually going on as my interest much align with the vision of intellect circle\n",
+        "topic": "Mental Health in Pakistan's Univsersities",
+        "heardAbout": "Friend",
+        "submittedAt": "2026-06-29T11:26:05.970Z"
+      },
+      {
+        "id": "app-1",
+        "name": "Bilal Khan",
+        "age": "22",
+        "city": "Faisalabad",
+        "occupation": "Undergraduate Physics Student",
+        "whyJoin": "I want to surround myself with individuals who read widely and discuss topics beyond social media trends.",
+        "topic": "The Quantum Zeno Effect in Modern Physics",
+        "heardAbout": "Friend recommendation",
+        "submittedAt": "2026-06-28T14:32:00Z"
+      }
+    ],
+    "contacts": [
+      {
+        "id": "con-1",
+        "name": "Sarah Ahmed",
+        "email": "sarah@gmail.com",
+        "message": "Hi, I would like to know if you plan to launch a physical chapter in Multan soon?",
+        "submittedAt": "2026-06-29T10:15:00Z"
+      }
+    ]
+  }
+}
