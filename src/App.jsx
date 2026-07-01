@@ -16,7 +16,10 @@ function App() {
     const local = localStorage.getItem('ic_website_data');
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        // Don't load submissions from localStorage - always fetch fresh from API
+        delete parsed.submissions;
+        return parsed;
       } catch (e) {
         console.error('Failed to parse cached local data, resetting to defaults.', e);
       }
@@ -24,7 +27,26 @@ function App() {
     return defaultData;
   });
 
-  // 2. Routing State (Hash-based)
+  // 2. On mount: fetch latest data from database via API
+  useEffect(() => {
+    const fetchLatestData = async () => {
+      try {
+        const response = await fetch('/api/get-data');
+        if (response.ok) {
+          const cloudData = await response.json();
+          if (cloudData) {
+            setData(cloudData);
+            localStorage.setItem('ic_website_data', JSON.stringify(cloudData));
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load fresh database content, using local fallback:', error);
+      }
+    };
+    fetchLatestData();
+  }, []);
+
+  // 3. Routing State (Hash-based)
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash;
     if (hash === '#/about') return 'about';
@@ -48,7 +70,6 @@ function App() {
       else if (hash === '#/admin') setCurrentPage('admin');
       else {
         setCurrentPage('home');
-        // Ensure default hash is updated
         if (hash !== '#/' && hash !== '') {
           window.history.replaceState(null, '', '#/');
         }
@@ -68,7 +89,7 @@ function App() {
     window.scrollTo(0, 0);
   }, []);
 
-  // 3. SEO Dynamic Update
+  // 4. SEO Dynamic Update
   useEffect(() => {
     if (!data || !data.seo) return;
     const pageSeo = data.seo[currentPage] || data.seo.home;
@@ -85,34 +106,115 @@ function App() {
     }
   }, [currentPage, data]);
 
-  // 4. Save Data Function (Vite API in dev, LocalStorage in prod)
+  // 5. Save Configuration Database
   const saveDatabase = async (updatedData) => {
     setData(updatedData);
-    localStorage.setItem('ic_website_data', JSON.stringify(updatedData));
+    // Cache config only (not submissions) in localStorage
+    const toCache = { ...updatedData };
+    delete toCache.submissions;
+    localStorage.setItem('ic_website_data', JSON.stringify(toCache));
 
-    // If in development mode, write to disk
-    if (import.meta.env.DEV) {
-      try {
-        const response = await fetch('/api/save-data', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updatedData, null, 2),
-        });
-        const resJson = await response.json();
-        if (!resJson.success) {
-          console.error('Failed to write changes to local disk data.json:', resJson.error);
-        } else {
-          console.log('CMS changes successfully saved to src/data.json.');
-        }
-      } catch (err) {
-        console.error('API connection failed during dev database save:', err);
+    try {
+      const response = await fetch('/api/save-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData),
+      });
+      const resJson = await response.json();
+      if (!resJson.success) {
+        console.error('Failed to write changes to cloud database:', resJson.error);
+      } else {
+        console.log('CMS changes successfully saved to cloud database.');
       }
+    } catch (err) {
+      console.error('API connection failed during cloud database save:', err);
     }
   };
 
-  // 5. Admin Authentication State
+  // 5b. Refresh data from backend (used by Admin to get fresh submissions)
+  const refreshData = (freshData) => {
+    if (freshData) {
+      setData(freshData);
+    }
+  };
+
+  // 6. Submissions Handlers
+  const submitApplication = async (newApplication) => {
+    setData(prev => {
+      const updated = { ...prev };
+      if (!updated.submissions) updated.submissions = { applications: [], contacts: [] };
+      if (!updated.submissions.applications) updated.submissions.applications = [];
+      updated.submissions.applications.unshift(newApplication);
+      localStorage.setItem('ic_website_data', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      const response = await fetch('/api/submit-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newApplication)
+      });
+      const resJson = await response.json();
+      if (!resJson.success) {
+        console.error('Failed to save application to cloud database:', resJson.error);
+      }
+    } catch (err) {
+      console.error('API connection failed during application submit:', err);
+    }
+  };
+
+  const submitContact = async (newContact) => {
+    setData(prev => {
+      const updated = { ...prev };
+      if (!updated.submissions) updated.submissions = { applications: [], contacts: [] };
+      if (!updated.submissions.contacts) updated.submissions.contacts = [];
+      updated.submissions.contacts.unshift(newContact);
+      localStorage.setItem('ic_website_data', JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      const response = await fetch('/api/submit-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newContact)
+      });
+      const resJson = await response.json();
+      if (!resJson.success) {
+        console.error('Failed to save contact inquiry to cloud database:', resJson.error);
+      }
+    } catch (err) {
+      console.error('API connection failed during contact submit:', err);
+    }
+  };
+
+  const deleteSubmission = async (type, id) => {
+    setData(prev => {
+      const updated = { ...prev };
+      if (updated.submissions && updated.submissions[type]) {
+        updated.submissions[type] = updated.submissions[type].filter(s => s.id !== id);
+        localStorage.setItem('ic_website_data', JSON.stringify(updated));
+      }
+      return updated;
+    });
+
+    try {
+      const response = await fetch('/api/delete-submission', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      const resJson = await response.json();
+      if (!resJson.success) {
+        console.error('Failed to delete submission from cloud database:', resJson.error);
+      }
+    } catch (err) {
+      console.error('API connection failed during submission delete:', err);
+    }
+  };
+
+  // 7. Admin Authentication State
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
     return sessionStorage.getItem('ic_admin_logged_in') === 'true';
   });
@@ -128,7 +230,7 @@ function App() {
     window.location.hash = '#/';
   };
 
-  // 6. Navigation helper
+  // 8. Navigation helper
   const navigateTo = (page) => {
     window.location.hash = page === 'home' ? '#/' : `#/${page}`;
   };
@@ -143,17 +245,19 @@ function App() {
       case 'team':
         return <Team data={data} saveDatabase={saveDatabase} />;
       case 'apply':
-        return <Apply data={data} saveDatabase={saveDatabase} />;
+        return <Apply data={data} submitApplication={submitApplication} />;
       case 'contact':
-        return <Contact data={data} saveDatabase={saveDatabase} />;
+        return <Contact data={data} submitContact={submitContact} />;
       case 'admin':
         return (
           <Admin
             data={data}
             saveDatabase={saveDatabase}
+            deleteSubmission={deleteSubmission}
             isLoggedIn={isAdminLoggedIn}
             onLogin={handleAdminLogin}
             onLogout={handleAdminLogout}
+            refreshData={refreshData}
           />
         );
       case 'home':

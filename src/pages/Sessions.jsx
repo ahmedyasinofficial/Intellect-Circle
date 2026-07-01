@@ -88,25 +88,32 @@ function Sessions({ data, navigateTo }) {
               <h2 className="sessions-list-header">Upcoming Presentations</h2>
               {upcomingSessions.length > 0 ? (
                 upcomingSessions.map((session) => (
-                  <div className="upcoming-card" key={session.id}>
-                    <span className="session-badge">Next Session</span>
-                    <h3 style={{ fontSize: '1.75rem', marginBottom: '15px' }}>{session.title}</h3>
-                    <p style={{ fontSize: '1.05rem', marginBottom: '25px' }}>{session.summary}</p>
-                    
-                    <div className="session-meta-list" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                      <div className="session-meta-item">
-                        <span className="label">Presenter:</span>
-                        <span className="val">{session.presenter}</span>
-                      </div>
-                      <div className="session-meta-item">
-                        <span className="label">Date:</span>
-                        <span className="val">{session.date} {session.time ? `at ${session.time}` : ''}</span>
-                      </div>
-                      <div className="session-meta-item">
-                        <span className="label">Format:</span>
-                        <span className="val">{session.format}</span>
+                  <div className={`upcoming-card ${session.photo ? 'has-photo' : ''}`} key={session.id}>
+                    <div className="upcoming-content">
+                      <span className="session-badge">Next Session</span>
+                      <h3 style={{ fontSize: '1.75rem', marginBottom: '15px' }}>{session.title}</h3>
+                      <p style={{ fontSize: '1.05rem', marginBottom: '25px' }}>{session.summary}</p>
+                      
+                      <div className="session-meta-list" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+                        <div className="session-meta-item">
+                          <span className="label">Presenter:</span>
+                          <span className="val">{session.presenter}</span>
+                        </div>
+                        <div className="session-meta-item">
+                          <span className="label">Date:</span>
+                          <span className="val">{session.date} {session.time ? `at ${session.time}` : ''}</span>
+                        </div>
+                        <div className="session-meta-item">
+                          <span className="label">Format:</span>
+                          <span className="val">{session.format}</span>
+                        </div>
                       </div>
                     </div>
+                    {session.photo && (
+                      <div className="upcoming-graphic">
+                        <img src={session.photo} alt={session.title} />
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -197,7 +204,7 @@ function Sessions({ data, navigateTo }) {
                   3 Online + 1 Physical
                 </h3>
                 <p style={{ fontSize: '0.9rem' }}>
-                  Three sessions are held online for accessibility. The fourth is a physical meetup — real faces, real conversations, real community.
+                  Three sessions are held online for accessibility. The fourth is a physical meetup: real faces, real conversations, real community.
                 </p>
               </div>
 

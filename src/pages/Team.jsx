@@ -23,22 +23,16 @@ function Team({ data, saveDatabase }) {
     return (firstInitial + lastInitial).toUpperCase();
   };
 
-  // Helper to get specialized skills based on role
-  const getSkillsForRole = (role, name) => {
-    const r = role.toLowerCase();
-    const n = name.toLowerCase();
-    if (r.includes('president') || n.includes('ahmad')) {
-      return ['Systems Design', 'Philosophy', 'Software'];
-    }
-    if (r.includes('operations') || n.includes('zainab')) {
-      return ['Neuroscience', 'Project Mgmt', 'Research'];
-    }
-    if (r.includes('media') || n.includes('fatima')) {
-      return ['Visual Design', 'Creative Writing', 'Media'];
-    }
-    if (r.includes('growth') || r.includes('impact') || n.includes('hamza')) {
-      return ['Community Growth', 'Impact Strategy', 'Youth Access'];
-    }
+
+  // Helper to get fallback skills if none defined on member
+  const getSkills = (member) => {
+    if (member.skills && member.skills.length > 0) return member.skills;
+    // Fallback based on role keywords
+    const r = (member.role || '').toLowerCase();
+    if (r.includes('president')) return ['Systems Design', 'Philosophy', 'Leadership'];
+    if (r.includes('operations')) return ['Operations', 'Project Mgmt', 'Research'];
+    if (r.includes('media')) return ['Visual Design', 'Storytelling', 'Media'];
+    if (r.includes('growth') || r.includes('impact')) return ['Community Growth', 'Impact Strategy', 'Youth Access'];
     return ['Peer Learning', 'Youth Mentor', 'Community Builder'];
   };
 
@@ -159,7 +153,7 @@ function Team({ data, saveDatabase }) {
         <div className="container">
           <div className="team-grid">
             {team.map((member) => {
-              const skills = getSkillsForRole(member.role, member.name);
+              const skills = getSkills(member);
               return (
                 <div className="team-card premium" key={member.id}>
                   <div className="team-avatar-wrapper">

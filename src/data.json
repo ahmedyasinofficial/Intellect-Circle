@@ -6,27 +6,27 @@
   },
   "seo": {
     "home": {
-      "title": "Intellect Circle — Youth Learning Community in Punjab",
+      "title": "Intellect Circle - Youth Learning Community in Punjab",
       "description": "A refined, selective, and structured intellectual circle for youth in Punjab, Pakistan. Share knowledge, engage in deep discussions, and grow together."
     },
     "about": {
-      "title": "Our Identity & Mission — Intellect Circle",
+      "title": "Our Identity & Mission - Intellect Circle",
       "description": "Explore our vision, core values, history, and what makes Intellect Circle a unique peer-led intellectual community for youth."
     },
     "sessions": {
-      "title": "Sessions & Recap Blog — Intellect Circle",
+      "title": "Sessions & Recap Blog - Intellect Circle",
       "description": "Stay updated on upcoming presentations, browse past session archives, and read recap articles of our structured peer talks."
     },
     "team": {
-      "title": "Meet the Core Leadership — Intellect Circle",
+      "title": "Meet the Core Leadership - Intellect Circle",
       "description": "Meet the dedicated youth steering Intellect Circle: President, Operations, Media, Impact, and Core Members."
     },
     "apply": {
-      "title": "Join Our Community — Intellect Circle Application",
-      "description": "Apply to join Intellect Circle. We look for serious, motivated youth aged 17–30 in Punjab, Pakistan."
+      "title": "Join Our Community - Intellect Circle Application",
+      "description": "Apply to join Intellect Circle. We look for serious, motivated youth aged 17-30 in Punjab, Pakistan."
     },
     "contact": {
-      "title": "Get in Touch — Intellect Circle",
+      "title": "Get in Touch - Intellect Circle",
       "description": "Reach out to the Intellect Circle team. Submit contact inquiries or find our social media handles and email address."
     }
   },
@@ -42,22 +42,22 @@
       {
         "id": "members",
         "label": "Members",
-        "value": 78
+        "value": "78"
       },
       {
         "id": "sessions",
         "label": "Sessions Held",
-        "value": 36
+        "value": "36"
       },
       {
         "id": "topics",
         "label": "Topics Covered",
-        "value": 28
+        "value": "28"
       },
       {
         "id": "cities",
         "label": "Cities Reached",
-        "value": 3
+        "value": "4"
       }
     ],
     "aboutTeaser": {
@@ -175,8 +175,10 @@
       "date": "July 12, 2026",
       "time": "18:00 PKT",
       "format": "30min talk + Q&A",
+      "summary": "Exploring strategic interaction, Nash equilibria, and how mathematical models help us understand conflict and cooperation in daily life.",
       "isUpcoming": true,
-      "summary": "Exploring strategic interaction, Nash equilibria, and how mathematical models help us understand conflict and cooperation in daily life."
+      "takeaways": [],
+      "photo": "/uploads/An Introduction to Modern Game Theory.png"
     },
     {
       "id": "session-2",
@@ -214,37 +216,57 @@
       "date": "June 13, 2026",
       "author": "Fatima Ali",
       "excerpt": "A summary of our macroeconomic analysis session, breaking down Pakistan's current fiscal hurdles in plain English.",
-      "content": "Macroeconomics is often viewed as dry, but when applied to the current economic landscape of Pakistan, it becomes a crucial study of our collective future. Our 34th session broke down fiscal policy, IMF packages, and structural reforms.\n\nWe discussed the difference between balance of trade deficits and fiscal deficits, how currency devaluation affects local manufacturing, and the role of youth entrepreneurship in expanding the tax base.\n\nThe session concluded with a debate on policy priorities: should the state focus on export incentives, or should it prioritize aggressive tax collection restructuring? The diversity of views among our members—from economics graduates to engineers—highlighted the strength of Intellect Circle's cross-disciplinary approach."
+      "content": "Macroeconomics is often viewed as dry, but when applied to the current economic landscape of Pakistan, it becomes a crucial study of our collective future. Our 34th session broke down fiscal policy, IMF packages, and structural reforms.\n\nWe discussed the difference between balance of trade deficits and fiscal deficits, how currency devaluation affects local manufacturing, and the role of youth entrepreneurship in expanding the tax base.\n\nThe session concluded with a debate on policy priorities: should the state focus on export incentives, or should it prioritize aggressive tax collection restructuring? The diversity of views among our members: from economics graduates to engineers, highlighted the strength of Intellect Circle's cross-disciplinary approach."
     }
   ],
   "team": [
     {
       "id": "team-1",
       "name": "Ahmad Yasin",
-      "role": "President",
-      "bio": "Software engineer interested in decentralization, systems design, and political philosophy.",
-      "photo": "/uploads/Photo_004.png"
+      "role": "Founder & President, Intellect Circles",
+      "bio": "Clinical Psychology student passionate about human behavior, critical thinking, and youth empowerment.",
+      "photo": "/uploads/Photo_004.png",
+      "skills": [
+        "Psychology",
+        "Research",
+        "Leadership"
+      ]
     },
     {
       "id": "team-2",
       "name": "Muhammad Rehan",
       "role": "Head of Operations",
-      "bio": "Neuroscience researcher dedicated to structured operational design and community growth.",
-      "photo": ""
+      "bio": "Software engineer dedicated to structured operational design and community growth.",
+      "photo": "",
+      "skills": [
+        "Systems Design",
+        "Project Mgmt",
+        "Research"
+      ]
     },
     {
       "id": "team-3",
-      "name": "Ahmad Yasin",
+      "name": "Hamdan",
       "role": "Head of Media",
       "bio": "Visual designer and writer focusing on storytelling and clean digital presentation.",
-      "photo": ""
+      "photo": "",
+      "skills": [
+        "Visual Design",
+        "Creative Writing",
+        "Media"
+      ]
     },
     {
       "id": "team-4",
       "name": "Muhammad Juanid",
       "role": "Head of Growth & Impact",
       "bio": "Development specialist working on extending youth access to learning platforms across Punjab.",
-      "photo": ""
+      "photo": "",
+      "skills": [
+        "Community Growth",
+        "Impact Strategy",
+        "Youth Access"
+      ]
     }
   ],
   "contact": {
@@ -295,6 +317,13 @@
       }
     ],
     "contacts": [
+      {
+        "id": "con-1782750353925",
+        "name": "Aslam",
+        "email": "aslam@gmail.com",
+        "message": "[Message for Officer: Ahmad Yasin (President)]\n\nI want to talk to you",
+        "submittedAt": "2026-06-29T16:25:53.925Z"
+      },
       {
         "id": "con-1",
         "name": "Sarah Ahmed",

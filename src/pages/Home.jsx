@@ -27,9 +27,10 @@ function HeroCanvas() {
       constructor() {
         this.x = Math.random() * width;
         this.y = Math.random() * height;
-        this.vx = (Math.random() - 0.5) * 0.4;
-        this.vy = (Math.random() - 0.5) * 0.4;
-        this.radius = Math.random() * 2 + 1.5;
+        this.vx = (Math.random() - 0.5) * 0.65;
+        this.vy = (Math.random() - 0.5) * 0.65;
+        this.radius = Math.random() * 2.5 + 2.0; // 2.0 to 4.5px
+        this.colorType = Math.random() > 0.4 ? 'gold' : 'blue';
       }
 
       update() {
@@ -44,13 +45,17 @@ function HeroCanvas() {
       draw() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(201, 168, 76, 0.45)'; // Champagne gold particles
+        if (this.colorType === 'gold') {
+          ctx.fillStyle = 'rgba(201, 168, 76, 0.4)'; // Lower opacity champagne gold for readability
+        } else {
+          ctx.fillStyle = 'rgba(74, 85, 104, 0.25)'; // Slate blue
+        }
         ctx.fill();
       }
     }
 
     const particles = [];
-    const particleCount = Math.min(80, Math.floor((width * height) / 12000));
+    const particleCount = Math.min(100, Math.floor((width * height) / 9500));
     for (let i = 0; i < particleCount; i++) {
       particles.push(new Particle());
     }
@@ -87,12 +92,12 @@ function HeroCanvas() {
           const dx = particles[i].x - mouse.x;
           const dy = particles[i].y - mouse.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 150) {
+          if (dist < 170) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(mouse.x, mouse.y);
-            ctx.strokeStyle = `rgba(201, 168, 76, ${0.35 * (1 - dist / 150)})`;
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = `rgba(201, 168, 76, ${0.25 * (1 - dist / 170)})`; // Lower opacity gold mouse connection
+            ctx.lineWidth = 1.2;
             ctx.stroke();
           }
         }
@@ -103,12 +108,12 @@ function HeroCanvas() {
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist < 110) {
+          if (dist < 130) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(74, 85, 104, ${0.15 * (1 - dist / 110)})`; // Slate blue line
-            ctx.lineWidth = 0.8;
+            ctx.strokeStyle = `rgba(74, 85, 104, ${0.14 * (1 - dist / 130)})`; // Lower opacity slate blue line
+            ctx.lineWidth = 0.95;
             ctx.stroke();
           }
         }
@@ -463,10 +468,23 @@ function Home({ data, navigateTo }) {
             </div>
             
             <div className="featured-session">
-              <div className="featured-graphic" style={{ backgroundColor: 'var(--primary-light)', padding: '40px', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'center' }}>
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
+              <div className="featured-graphic" style={{ 
+                borderRadius: 'var(--radius-md)', 
+                overflow: 'hidden', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                backgroundColor: 'var(--primary-light)', 
+                minHeight: '240px',
+                aspectRatio: '16/10'
+              }}>
+                {featuredSession.photo ? (
+                  <img src={featuredSession.photo} alt={featuredSession.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                )}
               </div>
               <div className="featured-info">
                 <span className="session-badge">

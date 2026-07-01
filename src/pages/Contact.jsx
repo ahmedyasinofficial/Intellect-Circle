@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-function Contact({ data, saveDatabase }) {
+function Contact({ data, submitContact }) {
   const admin = data.admin || {};
   const contact = data.contact || {};
 
@@ -62,13 +62,7 @@ function Contact({ data, saveDatabase }) {
     };
 
     // 1. Save to CMS database
-    const updatedData = { ...data };
-    if (!updatedData.submissions) updatedData.submissions = { applications: [], contacts: [] };
-    if (!updatedData.submissions.contacts) updatedData.submissions.contacts = [];
-    
-    updatedData.submissions.contacts.unshift(newContactMessage);
-    
-    await saveDatabase(updatedData);
+    await submitContact(newContactMessage);
 
     // 2. Relay via Web3Forms
     if (admin.web3formsKey) {
@@ -260,7 +254,7 @@ function Contact({ data, saveDatabase }) {
                       type="email"
                       id="email"
                       name="email"
-                      placeholder="e.g. you@example.com"
+                      placeholder=""
                       className="form-input"
                       value={formData.email}
                       onChange={handleChange}
@@ -275,7 +269,7 @@ function Contact({ data, saveDatabase }) {
                       id="message"
                       name="message"
                       className="form-input form-textarea"
-                      placeholder="Write your inquiry detail here..."
+                      placeholder=""
                       value={formData.message}
                       onChange={handleChange}
                       disabled={isSubmitting}

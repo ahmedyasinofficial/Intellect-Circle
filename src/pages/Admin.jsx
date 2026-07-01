@@ -22,9 +22,8 @@ function decodeJwt(token) {
   }
 }
 
-function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
+function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLogout, refreshData }) {
   const admin = data.admin || {};
-  const submissions = data.submissions || { applications: [], contacts: [] };
   const team = data.team || [];
   const sessions = data.sessions || [];
   const blog = data.blog || [];
@@ -32,6 +31,39 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
   const about = data.about || {};
   const contact = data.contact || {};
   const seo = data.seo || {};
+
+  // Live submissions state - fetched directly from backend API
+  const [submissions, setSubmissions] = useState({ applications: [], contacts: [] });
+  const [subsLoading, setSubsLoading] = useState(false);
+
+  // Fetch fresh submissions from backend API
+  const fetchSubmissions = async () => {
+    setSubsLoading(true);
+    try {
+      const response = await fetch('/api/get-data');
+      if (response.ok) {
+        const freshData = await response.json();
+        if (freshData && freshData.submissions) {
+          setSubmissions(freshData.submissions);
+        }
+        // Also update parent data state so other tabs reflect fresh config
+        if (refreshData) refreshData(freshData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch submissions from backend:', error);
+      // Fall back to whatever data prop has
+      setSubmissions(data.submissions || { applications: [], contacts: [] });
+    } finally {
+      setSubsLoading(false);
+    }
+  };
+
+  // Fetch live submissions when admin panel loads and when user logs in
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchSubmissions();
+    }
+  }, [isLoggedIn]);
 
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
@@ -275,7 +307,8 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
       format: e.target.sessFormat.value,
       summary: e.target.sessSummary.value,
       isUpcoming: e.target.sessIsUpcoming.checked,
-      takeaways: e.target.sessTakeaways.value.split('\n').filter(l => l.trim() !== '')
+      takeaways: e.target.sessTakeaways.value.split('\n').filter(l => l.trim() !== ''),
+      photo: editingSession.photo || ''
     };
 
     if (editingSession.id) {
@@ -344,7 +377,11 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
       name: e.target.memberName.value,
       role: e.target.memberRole.value,
       bio: e.target.memberBio.value,
-      photo: editingMember.photo || ''
+      photo: editingMember.photo || '',
+      skills: e.target.memberSkills.value
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
     };
 
     if (editingMember.id) {
@@ -367,13 +404,17 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
     triggerNotification('Team member removed.');
   };
 
-  // 8. Delete submissions
-  const deleteSubmission = (type, id) => {
+  // 8. Delete submissions (from Supabase via API, then refresh)
+  const handleDeleteSubmission = async (type, id) => {
     if (!window.confirm('Are you sure you want to delete this submission record?')) return;
-    const updatedData = { ...data };
-    updatedData.submissions[type] = updatedData.submissions[type].filter(s => s.id !== id);
-    saveDatabase(updatedData);
-    triggerNotification('Submission record deleted.');
+    // Optimistically remove from local state
+    setSubmissions(prev => ({
+      ...prev,
+      [type]: prev[type].filter(s => s.id !== id)
+    }));
+    // Delete from Supabase via parent
+    await deleteSubmission(type, id);
+    triggerNotification('Submission record deleted from database.');
   };
 
   // 9. SEO & System updates
@@ -846,6 +887,39 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
                     </div>
 
                     <div className="form-group">
+                      <label className="form-label">Session Banner / Graphic Image</label>
+                      <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap', marginTop: '10px' }}>
+                        <div style={{ width: '120px', height: '80px', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-color)' }}>
+                          {editingSession.photo ? (
+                            <img src={editingSession.photo} alt="Session Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No Image</span>
+                          )}
+                        </div>
+                        <div style={{ flex: '1', minWidth: '200px' }}>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            style={{ display: 'none' }} 
+                            onChange={(e) => handleImageUpload(e, (url) => setEditingSession({ ...editingSession, photo: url }))}
+                            id="session-photo-file"
+                          />
+                          <label htmlFor="session-photo-file" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-block' }}>
+                            Upload Session Image (Max 2MB)
+                          </label>
+                          <div style={{ margin: '10px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>- OR paste external image URL -</div>
+                          <input 
+                            type="text" 
+                            className="form-input" 
+                            placeholder="https://example.com/image.jpg"
+                            value={editingSession.photo || ''} 
+                            onChange={(e) => setEditingSession({ ...editingSession, photo: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
                       <label className="form-label">Session Topic / Title *</label>
                       <input type="text" name="sessTitle" className="form-input" defaultValue={editingSession.title || ''} required />
                     </div>
@@ -1117,6 +1191,18 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
                       </div>
                     </div>
 
+                    <div className="form-group">
+                      <label className="form-label">Skill Tags (comma-separated) - shown as keywords below the bio</label>
+                      <input
+                        type="text"
+                        name="memberSkills"
+                        className="form-input"
+                        defaultValue={(editingMember.skills || []).join(', ')}
+                        placeholder="e.g. Systems Design, Philosophy, Software"
+                      />
+                      <div className="form-help">These appear as pills/keywords on the public Team page. Keep them short (1-3 words each).</div>
+                    </div>
+
                     <div style={{ display: 'flex', gap: '15px', marginTop: '30px' }}>
                       <button type="submit" className="btn btn-accent">Save Profile</button>
                       <button type="button" onClick={() => setEditingMember(null)} className="btn btn-outline">Cancel</button>
@@ -1155,7 +1241,13 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
               <div>
                 <div className="admin-panel-header">
                   <h2>Submissions Manager</h2>
+                  <button type="button" onClick={fetchSubmissions} className="btn btn-accent" disabled={subsLoading}>
+                    {subsLoading ? 'Refreshing...' : 'Refresh from Database'}
+                  </button>
                 </div>
+                {subsLoading && (
+                  <p style={{ color: 'var(--accent-color)', fontStyle: 'italic', marginBottom: '20px' }}>Loading latest submissions from Supabase...</p>
+                )}
 
                 {/* Form type selections */}
                 <h3 className="sessions-list-header">Membership Applications ({submissions.applications.length})</h3>
@@ -1168,7 +1260,7 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
                             <h4>{app.name} (Age {app.age})</h4>
                             <p className="sub-date">Submitted: {new Date(app.submittedAt).toLocaleString()}</p>
                           </div>
-                          <button onClick={() => deleteSubmission('applications', app.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
+                          <button onClick={() => handleDeleteSubmission('applications', app.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
                             🗑
                           </button>
                         </div>
@@ -1185,10 +1277,6 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
                             <span className="label">How heard</span>
                             <span className="val">{app.heardAbout || 'Not specified'}</span>
                           </div>
-                        </div>
-                        <div className="sub-long-field">
-                          <span className="label">Proposed Presentation Topic:</span>
-                          <p>{app.topic}</p>
                         </div>
                         <div className="sub-long-field">
                           <span className="label">Motivation to Join:</span>
@@ -1211,7 +1299,7 @@ function Admin({ data, saveDatabase, isLoggedIn, onLogin, onLogout }) {
                             <h4>{c.name}</h4>
                             <p className="sub-date">Email: <a href={`mailto:${c.email}`} style={{ color: 'var(--accent-color)' }}>{c.email}</a> • Recieved: {new Date(c.submittedAt).toLocaleString()}</p>
                           </div>
-                          <button onClick={() => deleteSubmission('contacts', c.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
+                          <button onClick={() => handleDeleteSubmission('contacts', c.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
                             🗑
                           </button>
                         </div>
