@@ -1258,7 +1258,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         <div className="sub-card-header">
                           <div>
                             <h4>{app.name} (Age {app.age})</h4>
-                            <p className="sub-date">Submitted: {new Date(app.submittedAt).toLocaleString()}</p>
+                            <p className="sub-date">Email: <a href={`mailto:${app.email}`} style={{ color: 'var(--accent-color)' }}>{app.email}</a> • Submitted: {new Date(app.submittedAt).toLocaleString()}</p>
                           </div>
                           <button onClick={() => handleDeleteSubmission('applications', app.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
                             🗑
