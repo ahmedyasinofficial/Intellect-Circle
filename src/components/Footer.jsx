@@ -65,7 +65,6 @@ function Footer({ data, navigateTo }) {
           <ul className="footer-links">
             <li><a href="#/apply" onClick={(e) => { e.preventDefault(); navigateTo('apply'); }}>Join Your Circle</a></li>
             <li><a href="#/contact" onClick={(e) => { e.preventDefault(); navigateTo('contact'); }}>Contact Support</a></li>
-            <li><a href="#/admin" onClick={(e) => { e.preventDefault(); navigateTo('admin'); }}>Admin Login</a></li>
           </ul>
         </div>
       </div>
