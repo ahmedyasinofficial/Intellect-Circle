@@ -1258,7 +1258,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         <div className="sub-card-header">
                           <div>
                             <h4>{app.name} (Age {app.age})</h4>
-                            <p className="sub-date">Email: <a href={`mailto:${app.email}`} style={{ color: 'var(--accent-color)' }}>{app.email}</a></p>
+                            <p className="sub-date" style={{ marginTop: '4px', fontSize: '0.95rem' }}>
+                              <strong>Email:</strong>{' '}
+                              <a href={`mailto:${app.email}`} style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>
+                                {app.email || 'No email provided'}
+                              </a>
+                            </p>
                             <p className="sub-date">Submitted: {new Date(app.submittedAt).toLocaleString()}</p>
                           </div>
                           <button onClick={() => handleDeleteSubmission('applications', app.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
@@ -1266,6 +1271,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           </button>
                         </div>
                         <div className="sub-detail-grid">
+                          <div className="sub-field">
+                            <span className="label">Email</span>
+                            <span className="val">{app.email || 'N/A'}</span>
+                          </div>
                           <div className="sub-field">
                             <span className="label">Location</span>
                             <span className="val">{app.city}</span>
