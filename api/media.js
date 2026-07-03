@@ -1,5 +1,8 @@
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
-import { getAuthenticatedUser, logActivity } from './auth-middleware.js';
+import { getAuthenticatedUser, logActivity } from './_auth-middleware.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -15,7 +18,9 @@ export default async function handler(req, res) {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
-  // Read media items is public
+  const { action } = req.query;
+
+  // GET requests (viewing media list) are public
   if (req.method === 'GET') {
     try {
       const { search } = req.query;
@@ -33,7 +38,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // Modifying methods require admin authentication
+  // Modifying methods (POST, DELETE) require admin authentication
   let user;
   try {
     user = await getAuthenticatedUser(req);
@@ -46,22 +51,92 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'POST') {
-      const { name, url, size, mime_type } = req.body;
-      if (!name || !url) {
-        return res.status(400).json({ error: 'Name and URL are required.' });
+      if (action === 'upload') {
+        const { fileName, base64Data } = req.body;
+        if (!fileName || !base64Data) {
+          return res.status(400).json({ error: 'Missing fileName or base64Data.' });
+        }
+
+        const mimeMatch = base64Data.match(/^data:(image\/\w+);base64,/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+        const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(cleanBase64, 'base64');
+
+        // Fallback to local file upload if Supabase is not configured (e.g. local offline development)
+        if (!supabaseUrl || !supabaseKey) {
+          try {
+            const __dirname = dirname(fileURLToPath(import.meta.url));
+            const uploadDir = resolve(__dirname, '..', 'public', 'uploads');
+            if (!existsSync(uploadDir)) {
+              mkdirSync(uploadDir, { recursive: true });
+            }
+            const destPath = resolve(uploadDir, fileName);
+            writeFileSync(destPath, buffer);
+            
+            return res.status(200).json({
+              success: true,
+              url: `/uploads/${fileName}`,
+              name: fileName,
+              size: buffer.length,
+              mime_type: mimeType
+            });
+          } catch (err) {
+            console.error('Local file upload fallback failed:', err);
+            return res.status(500).json({ error: err.message });
+          }
+        }
+
+        const uniqueFileName = `${Date.now()}-${fileName.replace(/\s+/g, '_')}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(uniqueFileName, buffer, {
+            contentType: mimeType,
+            upsert: true
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('media')
+          .getPublicUrl(uniqueFileName);
+
+        const { data: dbItem, error: dbError } = await supabase.from('media_library').insert({
+          name: fileName,
+          url: publicUrl,
+          size: buffer.length,
+          mime_type: mimeType
+        }).select().single();
+
+        if (dbError) throw dbError;
+
+        await logActivity(user.email, 'Add Media Asset', `Uploaded media item: ${fileName}`);
+        return res.status(200).json({
+          success: true,
+          url: publicUrl,
+          name: fileName,
+          size: buffer.length,
+          mime_type: mimeType,
+          id: dbItem.id
+        });
+      } else {
+        // Standard media record insert (fallback/direct)
+        const { name, url, size, mime_type } = req.body;
+        if (!name || !url) {
+          return res.status(400).json({ error: 'Name and URL are required.' });
+        }
+
+        const { data, error } = await supabase.from('media_library').insert({
+          name,
+          url,
+          size,
+          mime_type
+        }).select().single();
+
+        if (error) throw error;
+
+        await logActivity(user.email, 'Add Media Asset', `Uploaded media item: ${name}`);
+        return res.status(200).json({ success: true, data });
       }
-
-      const { data, error } = await supabase.from('media_library').insert({
-        name,
-        url,
-        size,
-        mime_type
-      }).select().single();
-
-      if (error) throw error;
-
-      await logActivity(user.email, 'Add Media Asset', `Uploaded media item: ${name}`);
-      return res.status(200).json({ success: true, data });
     }
 
     if (req.method === 'DELETE') {
@@ -70,16 +145,13 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing media ID.' });
       }
 
-      // Fetch the item first to get filename and URL
       const { data: mediaItem } = await supabase.from('media_library').select('*').eq('id', id).single();
       if (!mediaItem) {
         return res.status(404).json({ error: 'Media asset not found.' });
       }
 
-      // 1. Delete from public.media_library database table
       await supabase.from('media_library').delete().eq('id', id);
 
-      // 2. Try deleting from storage bucket if it's a Supabase storage URL
       if (mediaItem.url.includes('/storage/v1/object/public/media/')) {
         const fileName = mediaItem.url.split('/storage/v1/object/public/media/')[1];
         if (fileName) {

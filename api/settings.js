@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getAuthenticatedUser, logActivity } from './auth-middleware.js';
+import { getAuthenticatedUser, logActivity } from './_auth-middleware.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);

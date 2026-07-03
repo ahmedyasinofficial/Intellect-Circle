@@ -67,7 +67,7 @@ function MediaLibrary({ onSelectImage, onClose, token }) {
     reader.onloadend = async () => {
       const base64Data = reader.result;
       try {
-        const response = await fetch('/api/upload-image', {
+        const response = await fetch('/api/media?action=upload', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

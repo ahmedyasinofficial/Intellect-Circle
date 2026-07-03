@@ -482,7 +482,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     reader.onloadend = async () => {
       const base64Data = reader.result;
       try {
-        const response = await fetch('/api/upload-image', {
+        const response = await fetch('/api/media?action=upload', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -517,7 +517,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
 
     const isNew = editingMember.isNew;
-    const url = '/api/team';
+    const url = '/api/content?type=team';
     const method = isNew ? 'POST' : 'PUT';
     const body = isNew 
       ? { ...memberForm } 
@@ -547,7 +547,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     if (!window.confirm('Delete this team member record?')) return;
 
     try {
-      const res = await fetch('/api/team', {
+      const res = await fetch('/api/content?type=team', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -578,7 +578,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
     // Save ordering
     try {
-      const res = await fetch('/api/team', {
+      const res = await fetch('/api/content?type=team', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -636,7 +636,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
 
     const isNew = editingSession.isNew;
-    const url = '/api/sessions';
+    const url = '/api/content?type=sessions';
     const method = isNew ? 'POST' : 'PUT';
     const body = isNew
       ? { ...sessionForm }
@@ -666,7 +666,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     if (!window.confirm('Delete this session record?')) return;
 
     try {
-      const res = await fetch('/api/sessions', {
+      const res = await fetch('/api/content?type=sessions', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -709,7 +709,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
 
     const isNew = editingBlog.isNew;
-    const url = '/api/blog';
+    const url = '/api/content?type=blog';
     const method = isNew ? 'POST' : 'PUT';
     const body = isNew
       ? { ...blogForm }
@@ -739,7 +739,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     if (!window.confirm('Delete this blog article?')) return;
 
     try {
-      const res = await fetch('/api/blog', {
+      const res = await fetch('/api/content?type=blog', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

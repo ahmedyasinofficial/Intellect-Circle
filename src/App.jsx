@@ -116,7 +116,7 @@ function App() {
     localStorage.setItem('ic_website_data', JSON.stringify(toCache));
 
     try {
-      const response = await fetch('/api/save-data', {
+      const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
@@ -151,7 +151,7 @@ function App() {
     });
 
     try {
-      const response = await fetch('/api/submit-application', {
+      const response = await fetch('/api/submissions?action=submit-application', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newApplication)
@@ -176,7 +176,7 @@ function App() {
     });
 
     try {
-      const response = await fetch('/api/submit-contact', {
+      const response = await fetch('/api/submissions?action=submit-contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newContact)
@@ -201,7 +201,7 @@ function App() {
     });
 
     try {
-      const response = await fetch('/api/delete-submission', {
+      const response = await fetch('/api/submissions?action=delete-submission', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
