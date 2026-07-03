@@ -1,26 +1,13 @@
-import React, { useState, useEffect } from 'react'
-
-// Cryptographic hash helper using Web Crypto API
-async function sha256(message) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// JWT Decode helper for Google Identity Services
-function decodeJwt(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    return null;
-  }
-}
+import React, { useState, useEffect } from 'react';
+import { supabase, isSupabaseConfigured } from '../supabase';
+import { exportToCSV } from '../utils/exportData';
+import MediaLibrary from '../components/MediaLibrary';
+import { 
+  OverviewIcon, CopyIcon, StatsIcon, CalendarIcon, BlogIcon, 
+  TeamIcon, SubsIcon, MediaIcon, SEOIcon, LogsIcon, 
+  KeysIcon, TrashIcon, EditIcon, PlusIcon, ArrowUpIcon, 
+  ArrowDownIcon, LogOutIcon, InfoIcon, DownloadIcon, UploadIcon 
+} from '../components/Icons';
 
 function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLogout, refreshData }) {
   const admin = data.admin || {};
@@ -32,12 +19,91 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const contact = data.contact || {};
   const seo = data.seo || {};
 
-  // Live submissions state - fetched directly from backend API
+  // Supabase Auth and Token state
+  const [token, setToken] = useState(null);
+  const [userEmail, setUserEmail] = useState('');
+  
+  // Dashboard metrics and activity logs
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  // Live submissions state
   const [submissions, setSubmissions] = useState({ applications: [], contacts: [] });
   const [subsLoading, setSubsLoading] = useState(false);
 
-  // Fetch fresh submissions from backend API
-  const fetchSubmissions = async () => {
+  // Tab State: 'overview' | 'text' | 'stats' | 'sessions' | 'blog' | 'team' | 'subs' | 'seo' | 'media' | 'logs'
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Search & Pagination States
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [sessionFilter, setSessionFilter] = useState('all');
+  const [sessionPage, setSessionPage] = useState(1);
+  const itemsPerPage = 6;
+
+  const [blogSearch, setBlogSearch] = useState('');
+  const [blogPage, setBlogPage] = useState(1);
+
+  const [subsSearch, setSubsSearch] = useState('');
+  const [subsTab, setSubsTab] = useState('applications'); // 'applications' | 'contacts'
+  const [subsPage, setSubsPage] = useState(1);
+
+  // Modal / Form states
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+  const [mediaFieldCallback, setMediaFieldCallback] = useState(null);
+  
+  const [editingSession, setEditingSession] = useState(null);
+  const [editingBlog, setEditingBlog] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
+
+  // Form Fields
+  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '' });
+  const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '' });
+  const [memberForm, setMemberForm] = useState({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
+
+  // Notifications / Login
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [notification, setNotification] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const triggerNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  // Check Supabase session
+  useEffect(() => {
+    const checkSession = async () => {
+      if (isSupabaseConfigured()) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setToken(session.access_token);
+          setUserEmail(session.user.email);
+          if (!isLoggedIn) onLogin();
+        }
+
+        // Listen for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if (session) {
+            setToken(session.access_token);
+            setUserEmail(session.user.email);
+            if (!isLoggedIn) onLogin();
+          } else {
+            setToken(null);
+            setUserEmail('');
+            if (isLoggedIn) onLogout();
+          }
+        });
+
+        return () => subscription.unsubscribe();
+      }
+    };
+    checkSession();
+  }, [isLoggedIn]);
+
+  // Fetch live submissions & logs on login/tab switch
+  const fetchSubmissionsAndLogs = async () => {
     setSubsLoading(true);
     try {
       const response = await fetch('/api/get-data');
@@ -46,1219 +112,1229 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         if (freshData && freshData.submissions) {
           setSubmissions(freshData.submissions);
         }
-        // Also update parent data state so other tabs reflect fresh config
         if (refreshData) refreshData(freshData);
       }
     } catch (error) {
-      console.error('Failed to fetch submissions from backend:', error);
-      // Fall back to whatever data prop has
+      console.error('Failed to fetch data:', error);
       setSubmissions(data.submissions || { applications: [], contacts: [] });
     } finally {
       setSubsLoading(false);
     }
+
+    // Fetch activity logs
+    if (isLoggedIn) {
+      setLogsLoading(true);
+      try {
+        const response = await fetch('/api/activity-log', {
+          headers: { ...(token && { 'Authorization': `Bearer ${token}` }) }
+        });
+        if (response.ok) {
+          const logs = await response.json();
+          setActivityLogs(logs || []);
+        }
+      } catch (err) {
+        console.error('Failed to load logs:', err);
+      } finally {
+        setLogsLoading(false);
+      }
+    }
   };
 
-  // Fetch live submissions when admin panel loads and when user logs in
   useEffect(() => {
     if (isLoggedIn) {
-      fetchSubmissions();
+      fetchSubmissionsAndLogs();
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, activeTab, token]);
 
-  // Login Form State
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [showForgotPwd, setShowForgotPwd] = useState(false);
+  // Authenticate Login
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setLoading(true);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState('text');
+    if (!loginEmail || !loginPassword) {
+      setLoginError('Please enter both email and password.');
+      setLoading(false);
+      return;
+    }
 
-  // UI Notification State
-  const [notification, setNotification] = useState(null);
+    if (isSupabaseConfigured()) {
+      // Production Mode: Auth with Supabase
+      try {
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
+          email: loginEmail,
+          password: loginPassword
+        });
 
-  // Password / Credentials change state
-  const [newEmail, setNewEmail] = useState(admin.email);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [web3Key, setWeb3Key] = useState(admin.web3formsKey || '');
-  const [googleClientId, setGoogleClientId] = useState(admin.googleClientId || '');
-
-  // Form States for CRUD
-  const [editingSession, setEditingSession] = useState(null);
-  const [editingBlog, setEditingBlog] = useState(null);
-  const [editingMember, setEditingMember] = useState(null);
-
-  // Google Sign-In Callback
-  const handleGoogleLogin = (response) => {
-    try {
-      const payload = decodeJwt(response.credential);
-      if (payload && payload.email) {
-        const loggedEmail = payload.email.trim().toLowerCase();
-        const expectedEmail = admin.email.trim().toLowerCase();
-        
-        if (loggedEmail === expectedEmail) {
-          triggerNotification(`Welcome back, ${payload.name || 'Admin'}!`, 'success');
-          onLogin();
+        if (error) {
+          setLoginError(error.message);
         } else {
-          setLoginError(`Unauthorized email: ${loggedEmail}. Access denied.`);
+          setToken(authData.session.access_token);
+          setUserEmail(authData.user.email);
+          onLogin();
+          triggerNotification('Logged in successfully through Supabase Auth.', 'success');
+          // Log the login action asynchronously
+          fetch('/api/activity-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+            body: JSON.stringify({ action: 'Admin Login', details: `Signed in via Supabase Auth as ${authData.user.email}` })
+          }).catch(() => {});
         }
-      } else {
-        setLoginError('Failed to parse Google login response.');
+      } catch (err) {
+        setLoginError('Authentication connection error.');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setLoginError('Google Sign-In failed to authenticate.');
+    } else {
+      // Local Mode: Fallback to mock settings in data.json
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: loginEmail, password: loginPassword })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          setToken(result.session.access_token);
+          setUserEmail(result.user.email);
+          onLogin();
+          triggerNotification('Logged in locally (Development Mode).', 'success');
+          // Log the local login action
+          fetch('/api/activity-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${result.session.access_token}` },
+            body: JSON.stringify({ action: 'Admin Login', details: `Signed in (Local Dev Mode) as ${result.user.email}` })
+          }).catch(() => {});
+        } else {
+          const errData = await res.json();
+          setLoginError(errData.error || 'Invalid credentials.');
+        }
+      } catch (err) {
+        setLoginError('Local API error.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  // Google Sign-In Initialization
-  useEffect(() => {
-    if (isLoggedIn || showForgotPwd) return;
+  // Sign out
+  const handleLogoutClick = async () => {
+    // Log the logout before clearing the token
+    if (token) {
+      fetch('/api/activity-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ action: 'Admin Logout', details: `Signed out as ${userEmail}` })
+      }).catch(() => {});
+    }
+    if (isSupabaseConfigured()) {
+      await supabase.auth.signOut();
+    }
+    setToken(null);
+    setUserEmail('');
+    onLogout();
+    triggerNotification('Signed out successfully.');
+  };
 
-    let buttonRendered = false;
+  // Reusable Media Library Selector
+  const triggerMediaPicker = (callback) => {
+    setMediaFieldCallback(() => callback);
+    setShowMediaLibrary(true);
+  };
 
-    const initGoogleSignIn = () => {
-      const container = document.getElementById("googleSignInButton");
-      if (window.google && container && !buttonRendered) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: admin.googleClientId || "1098679469795-s848p7c1h902k4039kuhs6p0plg173k6.apps.googleusercontent.com",
-            callback: handleGoogleLogin,
-            auto_select: false
-          });
+  const handleMediaSelect = (url) => {
+    if (mediaFieldCallback) {
+      mediaFieldCallback(url);
+    }
+    setShowMediaLibrary(false);
+    setMediaFieldCallback(null);
+  };
 
-          window.google.accounts.id.renderButton(
-            container,
-            { 
-              theme: "outline", 
-              size: "large",
-              width: container.offsetWidth || 340,
-              text: "continue_with",
-              shape: "rectangular"
-            }
-          );
-          buttonRendered = true;
-        } catch (e) {
-          console.error("Google accounts initialize failed", e);
+  // Settings Save
+  const handleCopySave = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const updated = {
+      ...data,
+      home: {
+        ...data.home,
+        hero: {
+          headline: fd.get('homeHeadline'),
+          tagline: fd.get('homeTagline'),
+          description: fd.get('homeDescription'),
+          ctaApplyLabel: fd.get('ctaApplyLabel'),
+          ctaLearnLabel: fd.get('ctaLearnLabel')
+        },
+        ctaSection: {
+          headline: fd.get('ctaHeadline'),
+          subheadline: fd.get('ctaSubheadline'),
+          buttonLabel: fd.get('ctaButtonLabel')
+        },
+        aboutTeaser: {
+          title: fd.get('aboutTeaserTitle'),
+          subtitle: fd.get('aboutTeaserSubtitle'),
+          columns: data.home.aboutTeaser?.columns || []
         }
       }
     };
 
-    const timer = setInterval(() => {
-      if (window.google && document.getElementById("googleSignInButton")) {
-        initGoogleSignIn();
-        clearInterval(timer);
-      }
-    }, 300);
-
-    return () => clearInterval(timer);
-  }, [isLoggedIn, showForgotPwd, admin.googleClientId]);
-
-  // Trigger brief alert box
-  const triggerNotification = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
-  };
-
-  // 1. Authenticate Handler
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setLoginError('');
-
-    if (!loginEmail || !loginPassword) {
-      setLoginError('Please enter both email and password.');
-      return;
-    }
-
     try {
-      const enteredHash = await sha256(loginPassword);
-      if (
-        loginEmail.trim().toLowerCase() === admin.email.toLowerCase() &&
-        enteredHash === admin.passwordHash
-      ) {
-        onLogin();
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(updated)
+      });
+
+      if (response.ok) {
+        saveDatabase(updated);
+        triggerNotification('Page copywriting saved successfully.');
       } else {
-        setLoginError('Invalid email or password.');
+        triggerNotification('Failed to save settings.', 'error');
       }
     } catch (err) {
-      setLoginError('Authentication engine error. Please try again.');
+      triggerNotification('API connection error.', 'error');
     }
   };
 
-  // 2. File Upload helper (disk file in dev, base64 dataURL in production)
-  const handleImageUpload = (e, callback) => {
+  // Stats / Pillars Save
+  const handleStatsSave = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const updated = {
+      ...data,
+      home: {
+        ...data.home,
+        stats: [
+          { id: 'members', label: fd.get('statMembersLabel'), value: fd.get('statMembersVal') },
+          { id: 'sessions', label: fd.get('statSessionsLabel'), value: fd.get('statSessionsVal') },
+          { id: 'topics', label: fd.get('statTopicsLabel'), value: fd.get('statTopicsVal') },
+          { id: 'cities', label: fd.get('statCitiesLabel'), value: fd.get('statCitiesVal') }
+        ]
+      }
+    };
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(updated)
+      });
+
+      if (response.ok) {
+        saveDatabase(updated);
+        triggerNotification('Statistics saved successfully.');
+      } else {
+        triggerNotification('Failed to save statistics.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    }
+  };
+
+  // Contacts / Socials Save
+  const handleContactSave = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const updated = {
+      ...data,
+      contact: {
+        email: fd.get('contactEmail'),
+        whatsapp: fd.get('contactWhatsApp'),
+        address: fd.get('contactAddress'),
+        instagram: fd.get('socialInstagram'),
+        linkedin: fd.get('socialLinkedIn'),
+        facebook: fd.get('socialFacebook'),
+        twitter: fd.get('socialTwitter')
+      }
+    };
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(updated)
+      });
+
+      if (response.ok) {
+        saveDatabase(updated);
+        triggerNotification('Contact details and social links updated.');
+      } else {
+        triggerNotification('Failed to save settings.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    }
+  };
+
+  // SEO Save
+  const handleSEOSave = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const updatedSeo = { ...seo };
+    
+    // Loop pages keys
+    ['home', 'about', 'sessions', 'team', 'apply', 'contact'].forEach(p => {
+      updatedSeo[p] = {
+        title: fd.get(`seo_${p}_title`),
+        description: fd.get(`seo_${p}_desc`),
+        keywords: fd.get(`seo_${p}_keywords`),
+        ogImage: fd.get(`seo_${p}_og`),
+        favicon: fd.get(`seo_${p}_fav`),
+        canonicalUrl: fd.get(`seo_${p}_canon`)
+      };
+    });
+
+    const updated = { ...data, seo: updatedSeo };
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(updated)
+      });
+
+      if (response.ok) {
+        saveDatabase(updated);
+        triggerNotification('SEO Settings updated successfully.');
+      } else {
+        triggerNotification('Failed to save SEO config.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    }
+  };
+
+  // Systems / Keys Save
+  const handleSystemSave = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const updated = {
+      ...data,
+      admin: {
+        ...admin,
+        web3formsKey: fd.get('web3formsKey')
+      }
+    };
+
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(updated)
+      });
+
+      if (response.ok) {
+        saveDatabase(updated);
+        triggerNotification('Web3Forms key updated successfully.');
+      } else {
+        triggerNotification('Failed to save configuration.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    }
+  };
+
+  // CRUD: TEAM MEMBERS
+  const startAddMember = () => {
+    setEditingMember({ isNew: true });
+    setMemberForm({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
+  };
+
+  const startEditMember = (m) => {
+    setEditingMember(m);
+    setMemberForm({
+      name: m.name,
+      role: m.role,
+      bio: m.bio || '',
+      photo: m.photo || '',
+      skills: m.skills || [],
+      is_visible: m.is_visible !== false
+    });
+  };
+
+  const handleMemberPhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // Check size limit (max 2MB)
+    
     if (file.size > 2 * 1024 * 1024) {
-      triggerNotification('Image must be smaller than 2MB.', 'error');
+      alert('File size exceeds the 2MB limit.');
       return;
     }
 
+    setLoading(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64Data = reader.result;
+      try {
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({ fileName: file.name, base64Data })
+        });
 
-      if (import.meta.env.DEV) {
-        try {
-          const res = await fetch('/api/upload-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileName: file.name, base64Data })
-          });
-          const resJson = await res.json();
-          if (resJson.success) {
-            callback(resJson.url);
-            triggerNotification('Image uploaded successfully to disk.');
-          } else {
-            callback(base64Data);
-            triggerNotification('Saved image as cache.', 'success');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            setMemberForm(prev => ({ ...prev, photo: result.url }));
+            triggerNotification('Profile photo uploaded successfully.');
           }
-        } catch (err) {
-          callback(base64Data);
-          triggerNotification('Saved image as cache.', 'success');
+        } else {
+          alert('Photo upload failed.');
         }
-      } else {
-        callback(base64Data);
-        triggerNotification('Image loaded into memory (Base64).');
+      } catch (err) {
+        console.error('Error uploading photo:', err);
+      } finally {
+        setLoading(false);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // 3. Save Text & SEO content changes
-  const handleCopySave = (e) => {
+  const handleMemberSubmit = async (e) => {
     e.preventDefault();
-    const updatedData = { ...data };
-    
-    // Read values from form
-    updatedData.home.hero.headline = e.target.homeHeadline.value;
-    updatedData.home.hero.tagline = e.target.homeTagline.value;
-    updatedData.home.hero.description = e.target.homeDescription.value;
-    updatedData.home.hero.ctaApplyLabel = e.target.ctaApplyLabel.value;
-    updatedData.home.hero.ctaLearnLabel = e.target.ctaLearnLabel.value;
-    updatedData.home.ctaSection.headline = e.target.ctaHeadline.value;
-    updatedData.home.ctaSection.subheadline = e.target.ctaSubheadline.value;
-    updatedData.home.ctaSection.buttonLabel = e.target.ctaButtonLabel.value;
-
-    updatedData.about.vision.title = e.target.visionTitle.value;
-    updatedData.about.vision.text = e.target.visionText.value;
-    updatedData.about.mission.title = e.target.missionTitle.value;
-    updatedData.about.mission.text = e.target.missionText.value;
-    updatedData.about.founderStory.title = e.target.founderStoryTitle.value;
-    updatedData.about.founderStory.text = e.target.founderStoryText.value;
-
-    updatedData.contact.email = e.target.contactEmail.value;
-    updatedData.contact.whatsapp = e.target.contactWhatsapp.value;
-    updatedData.contact.instagram = e.target.contactInstagram.value;
-    updatedData.contact.linkedin = e.target.contactLinkedin.value;
-    updatedData.contact.facebook = e.target.contactFacebook.value;
-    updatedData.contact.address = e.target.contactAddress.value;
-
-    saveDatabase(updatedData);
-    triggerNotification('General page copy details updated successfully.');
-  };
-
-  // 4. Save Stats & Values
-  const handleStatsValuesSave = (e) => {
-    e.preventDefault();
-    const updatedData = { ...data };
-
-    // Update stats
-    updatedData.home.stats[0].value = e.target.statMembers.value;
-    updatedData.home.stats[1].value = e.target.statSessions.value;
-    updatedData.home.stats[2].value = e.target.statTopics.value;
-    updatedData.home.stats[3].value = e.target.statCities.value;
-
-    // Update values
-    updatedData.about.values[0].title = e.target.val1Title.value;
-    updatedData.about.values[0].description = e.target.val1Desc.value;
-    updatedData.about.values[1].title = e.target.val2Title.value;
-    updatedData.about.values[1].description = e.target.val2Desc.value;
-    updatedData.about.values[2].title = e.target.val3Title.value;
-    updatedData.about.values[2].description = e.target.val3Desc.value;
-
-    // Update Teaser Column headings
-    updatedData.home.aboutTeaser.title = e.target.teaserTitle.value;
-    updatedData.home.aboutTeaser.subtitle = e.target.teaserSubtitle.value;
-    updatedData.home.aboutTeaser.columns[0].title = e.target.teaserCol1Title.value;
-    updatedData.home.aboutTeaser.columns[0].description = e.target.teaserCol1Desc.value;
-    updatedData.home.aboutTeaser.columns[1].title = e.target.teaserCol2Title.value;
-    updatedData.home.aboutTeaser.columns[1].description = e.target.teaserCol2Desc.value;
-    updatedData.home.aboutTeaser.columns[2].title = e.target.teaserCol3Title.value;
-    updatedData.home.aboutTeaser.columns[2].description = e.target.teaserCol3Desc.value;
-
-    saveDatabase(updatedData);
-    triggerNotification('Stats numbers and community values updated.');
-  };
-
-  // 5. CRUD: Sessions
-  const handleSessionSubmit = (e) => {
-    e.preventDefault();
-    const updatedData = { ...data };
-    
-    const sessForm = {
-      id: editingSession.id || 'session-' + Date.now(),
-      title: e.target.sessTitle.value,
-      presenter: e.target.sessPresenter.value,
-      date: e.target.sessDate.value,
-      time: e.target.sessTime.value,
-      format: e.target.sessFormat.value,
-      summary: e.target.sessSummary.value,
-      isUpcoming: e.target.sessIsUpcoming.checked,
-      takeaways: e.target.sessTakeaways.value.split('\n').filter(l => l.trim() !== ''),
-      photo: editingSession.photo || ''
-    };
-
-    if (editingSession.id) {
-      // Edit
-      updatedData.sessions = updatedData.sessions.map(s => s.id === sessForm.id ? sessForm : s);
-      triggerNotification('Session updated successfully.');
-    } else {
-      // New
-      updatedData.sessions.unshift(sessForm);
-      triggerNotification('New session entry added.');
+    if (!memberForm.name || !memberForm.role) {
+      alert('Name and Role are required.');
+      return;
     }
 
-    saveDatabase(updatedData);
-    setEditingSession(null);
-  };
+    const isNew = editingMember.isNew;
+    const url = '/api/team';
+    const method = isNew ? 'POST' : 'PUT';
+    const body = isNew 
+      ? { ...memberForm } 
+      : { id: editingMember.id, ...memberForm };
 
-  const deleteSession = (id) => {
-    if (!window.confirm('Are you sure you want to delete this session?')) return;
-    const updatedData = { ...data };
-    updatedData.sessions = updatedData.sessions.filter(s => s.id !== id);
-    saveDatabase(updatedData);
-    triggerNotification('Session deleted successfully.');
-  };
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(body)
+      });
 
-  // 6. CRUD: Blogs
-  const handleBlogSubmit = (e) => {
-    e.preventDefault();
-    const updatedData = { ...data };
-
-    const blogForm = {
-      id: editingBlog.id || 'blog-' + Date.now(),
-      title: e.target.blogTitle.value,
-      date: e.target.blogDate.value,
-      author: e.target.blogAuthor.value,
-      excerpt: e.target.blogExcerpt.value,
-      content: e.target.blogContent.value
-    };
-
-    if (editingBlog.id) {
-      updatedData.blog = updatedData.blog.map(b => b.id === blogForm.id ? blogForm : b);
-      triggerNotification('Blog post updated.');
-    } else {
-      updatedData.blog.unshift(blogForm);
-      triggerNotification('New blog post published.');
-    }
-
-    saveDatabase(updatedData);
-    setEditingBlog(null);
-  };
-
-  const deleteBlog = (id) => {
-    if (!window.confirm('Are you sure you want to delete this blog post?')) return;
-    const updatedData = { ...data };
-    updatedData.blog = updatedData.blog.filter(b => b.id !== id);
-    saveDatabase(updatedData);
-    triggerNotification('Blog post deleted.');
-  };
-
-  // 7. CRUD: Team Members
-  const handleMemberSubmit = (e) => {
-    e.preventDefault();
-    const updatedData = { ...data };
-
-    const memberForm = {
-      id: editingMember.id || 'team-' + Date.now(),
-      name: e.target.memberName.value,
-      role: e.target.memberRole.value,
-      bio: e.target.memberBio.value,
-      photo: editingMember.photo || '',
-      skills: e.target.memberSkills.value
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0)
-    };
-
-    if (editingMember.id) {
-      updatedData.team = updatedData.team.map(m => m.id === memberForm.id ? memberForm : m);
-      triggerNotification('Team member profile updated.');
-    } else {
-      updatedData.team.push(memberForm);
-      triggerNotification('New team member added.');
-    }
-
-    saveDatabase(updatedData);
-    setEditingMember(null);
-  };
-
-  const deleteMember = (id) => {
-    if (!window.confirm('Are you sure you want to remove this team member?')) return;
-    const updatedData = { ...data };
-    updatedData.team = updatedData.team.filter(m => m.id !== id);
-    saveDatabase(updatedData);
-    triggerNotification('Team member removed.');
-  };
-
-  // 8. Delete submissions (from Supabase via API, then refresh)
-  const handleDeleteSubmission = async (type, id) => {
-    if (!window.confirm('Are you sure you want to delete this submission record?')) return;
-    // Optimistically remove from local state
-    setSubmissions(prev => ({
-      ...prev,
-      [type]: prev[type].filter(s => s.id !== id)
-    }));
-    // Delete from Supabase via parent
-    await deleteSubmission(type, id);
-    triggerNotification('Submission record deleted from database.');
-  };
-
-  // 9. SEO & System updates
-  const handleSystemSubmit = async (e) => {
-    e.preventDefault();
-    const updatedData = { ...data };
-
-    // SEO updates
-    updatedData.seo.home.title = e.target.seoHomeTitle.value;
-    updatedData.seo.home.description = e.target.seoHomeDesc.value;
-    
-    updatedData.seo.about.title = e.target.seoAboutTitle.value;
-    updatedData.seo.about.description = e.target.seoAboutDesc.value;
-
-    updatedData.seo.sessions.title = e.target.seoSessTitle.value;
-    updatedData.seo.sessions.description = e.target.seoSessDesc.value;
-
-    updatedData.seo.team.title = e.target.seoTeamTitle.value;
-    updatedData.seo.team.description = e.target.seoTeamDesc.value;
-
-    updatedData.seo.apply.title = e.target.seoApplyTitle.value;
-    updatedData.seo.apply.description = e.target.seoApplyDesc.value;
-
-    updatedData.seo.contact.title = e.target.seoContactTitle.value;
-    updatedData.seo.contact.description = e.target.seoContactDesc.value;
-
-    // Web3Forms & Google Client ID update
-    updatedData.admin.web3formsKey = web3Key;
-    updatedData.admin.googleClientId = googleClientId;
-
-    // Credentials Update
-    if (newEmail.trim()) {
-      updatedData.admin.email = newEmail.trim();
-    }
-
-    if (newPassword) {
-      if (newPassword !== confirmPassword) {
-        triggerNotification('New passwords do not match.', 'error');
-        return;
+      if (res.ok) {
+        triggerNotification(isNew ? 'Added core team member.' : 'Updated member details.', 'success');
+        setEditingMember(null);
+        fetchSubmissionsAndLogs(); // Reload data
       }
-      const hashed = await sha256(newPassword);
-      updatedData.admin.passwordHash = hashed;
-      setNewPassword('');
-      setConfirmPassword('');
-    }
-
-    // Save
-    saveDatabase(updatedData);
-    triggerNotification('SEO tags, API config, and credentials updated.');
-  };
-
-  // Backup downloader
-  const downloadBackup = () => {
-    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-      JSON.stringify(data, null, 2)
-    )}`;
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', jsonString);
-    downloadAnchor.setAttribute('download', 'data.json');
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  // Reset database back to default initial values
-  const handleResetData = () => {
-    if (window.confirm('WARNING: This will reset all edits (including blogs, team members, and submissions) back to the repository default values. Do you want to proceed?')) {
-      localStorage.removeItem('ic_website_data');
-      window.location.reload();
+    } catch (err) {
+      triggerNotification('Failed to edit team member.', 'error');
     }
   };
 
+  const handleDeleteMember = async (id) => {
+    if (!window.confirm('Delete this team member record?')) return;
 
-  // --- LOGIN VIEW ---
+    try {
+      const res = await fetch('/api/team', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ id })
+      });
+
+      if (res.ok) {
+        triggerNotification('Removed team member successfully.');
+        fetchSubmissionsAndLogs();
+      }
+    } catch (err) {
+      triggerNotification('Failed to delete team member.', 'error');
+    }
+  };
+
+  // Reorder Team members
+  const moveMemberOrder = async (index, direction) => {
+    const newList = [...team];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newList.length) return;
+
+    // Swap
+    const temp = newList[index];
+    newList[index] = newList[targetIndex];
+    newList[targetIndex] = temp;
+
+    // Save ordering
+    try {
+      const res = await fetch('/api/team', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ reorder: newList.map(m => m.id) })
+      });
+
+      if (res.ok) {
+        fetchSubmissionsAndLogs();
+      }
+    } catch (err) {
+      console.error('Failed to save ordering', err);
+    }
+  };
+
+  // CRUD: SESSIONS
+  const startAddSession = () => {
+    setEditingSession({ isNew: true });
+    setSessionForm({
+      title: '',
+      presenter: '',
+      scheduled_at: new Date().toISOString().substring(0, 16),
+      time: '18:00 PKT',
+      format: '30min talk + Q&A',
+      summary: '',
+      status: 'upcoming',
+      photo: '',
+      takeaways: [],
+      registration_link: ''
+    });
+  };
+
+  const startEditSession = (s) => {
+    setEditingSession(s);
+    setSessionForm({
+      title: s.title,
+      presenter: s.presenter,
+      scheduled_at: s.scheduledAt ? new Date(s.scheduledAt).toISOString().substring(0, 16) : new Date().toISOString().substring(0, 16),
+      time: s.time || '18:00 PKT',
+      format: s.format || '',
+      summary: s.summary || '',
+      status: s.status || 'upcoming',
+      photo: s.photo || '',
+      takeaways: s.takeaways || [],
+      registration_link: s.registrationLink || ''
+    });
+  };
+
+  const handleSessionSubmit = async (e) => {
+    e.preventDefault();
+    if (!sessionForm.title || !sessionForm.presenter || !sessionForm.scheduled_at) {
+      alert('Title, Presenter and Date are required.');
+      return;
+    }
+
+    const isNew = editingSession.isNew;
+    const url = '/api/sessions';
+    const method = isNew ? 'POST' : 'PUT';
+    const body = isNew
+      ? { ...sessionForm }
+      : { id: editingSession.id, ...sessionForm };
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        triggerNotification(isNew ? 'Added session successfully.' : 'Updated session details.', 'success');
+        setEditingSession(null);
+        fetchSubmissionsAndLogs();
+      }
+    } catch (err) {
+      triggerNotification('Failed to edit session.', 'error');
+    }
+  };
+
+  const handleDeleteSession = async (id) => {
+    if (!window.confirm('Delete this session record?')) return;
+
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ id })
+      });
+
+      if (res.ok) {
+        triggerNotification('Deleted session successfully.');
+        fetchSubmissionsAndLogs();
+      }
+    } catch (err) {
+      triggerNotification('Failed to delete session.', 'error');
+    }
+  };
+
+  // CRUD: BLOGS
+  const startAddBlog = () => {
+    setEditingBlog({ isNew: true });
+    setBlogForm({ title: '', published_at: new Date().toISOString().substring(0, 10), author: '', excerpt: '', content: '' });
+  };
+
+  const startEditBlog = (b) => {
+    setEditingBlog(b);
+    setBlogForm({
+      title: b.title,
+      published_at: b.publishedAt ? new Date(b.publishedAt).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+      author: b.author,
+      excerpt: b.excerpt || '',
+      content: b.content || ''
+    });
+  };
+
+  const handleBlogSubmit = async (e) => {
+    e.preventDefault();
+    if (!blogForm.title || !blogForm.author) {
+      alert('Title and Author are required.');
+      return;
+    }
+
+    const isNew = editingBlog.isNew;
+    const url = '/api/blog';
+    const method = isNew ? 'POST' : 'PUT';
+    const body = isNew
+      ? { ...blogForm }
+      : { id: editingBlog.id, ...blogForm };
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        triggerNotification(isNew ? 'Added blog recap article.' : 'Updated blog recap article.', 'success');
+        setEditingBlog(null);
+        fetchSubmissionsAndLogs();
+      }
+    } catch (err) {
+      triggerNotification('Failed to edit blog recap.', 'error');
+    }
+  };
+
+  const handleDeleteBlog = async (id) => {
+    if (!window.confirm('Delete this blog article?')) return;
+
+    try {
+      const res = await fetch('/api/blog', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ id })
+      });
+
+      if (res.ok) {
+        triggerNotification('Deleted blog recap successfully.');
+        fetchSubmissionsAndLogs();
+      }
+    } catch (err) {
+      triggerNotification('Failed to delete blog.', 'error');
+    }
+  };
+
+  // Submissions Delete Helper
+  const handleDeleteSubmission = async (type, id) => {
+    if (!window.confirm(`Are you sure you want to delete this ${type === 'applications' ? 'application' : 'message'} record?`)) {
+      return;
+    }
+    await deleteSubmission(type, id);
+    triggerNotification('Submission deleted from Supabase.');
+    fetchSubmissionsAndLogs();
+  };
+
+  // CSV Export trigger
+  const handleExportClick = () => {
+    if (subsTab === 'applications') {
+      exportToCSV(submissions.applications, 'Intellect_Circle_Membership_Applications');
+    } else {
+      exportToCSV(submissions.contacts, 'Intellect_Circle_Contact_Queries');
+    }
+  };
+
+  // Unauthenticated Login view
   if (!isLoggedIn) {
     return (
-      <div className="container admin-login-layout">
-        {showForgotPwd ? (
-          <div className="admin-login-card">
-            <h2>Reset Credentials</h2>
-            <p style={{ fontSize: '0.9rem', marginBottom: '25px', color: 'var(--text-muted)' }}>
-              Because this website uses a secure client-side CMS architecture, you can recover access by modifying the database file in your repository:
-            </p>
-            <div style={{ backgroundColor: 'var(--primary-light)', padding: '15px', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--primary-dark)', marginBottom: '25px', border: '1px solid var(--border-color)', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-              <strong>Recovery Steps:</strong>
-              {"\n"}1. Open file: [data.json](file:///src/data.json)
-              {"\n"}2. Locate the "admin" credential keys.
-              {"\n"}3. Replace "passwordHash" with:
-              {"\n"}   "898c201cfb2e075d710cf099437059fb0ce21117e361fe90050c807b53ef47ca"
-              {"\n"}4. Commit and push. This resets password to: "intellect2026".
+      <div className="container" style={{ padding: '80px 0', maxWidth: '480px' }}>
+        <div className="admin-login-card">
+          <h2>Admin Dashboard Login</h2>
+          {loginError && <div className="form-error" style={{ marginBottom: '20px', padding: '10px' }}>{loginError}</div>}
+          
+          <form onSubmit={handleLoginSubmit}>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <input
+                type="email"
+                className="form-input"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                required
+              />
             </div>
-            <button onClick={() => setShowForgotPwd(false)} className="btn btn-outline" style={{ width: '100%' }}>
-              Back to Login
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input
+                type="password"
+                className="form-input"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                required
+              />
+            </div>
+            <button type="submit" className="btn btn-accent" style={{ width: '100%', padding: '12px', marginTop: '10px' }} disabled={loading}>
+              {loading ? 'Authenticating...' : 'Sign In'}
             </button>
-          </div>
-        ) : (
-          <div className="admin-login-card">
-            <h2>Admin CMS Login</h2>
-            <p style={{ textAlign: 'center', fontSize: '0.9rem', marginBottom: '25px' }}>
-              Access Intellect Circle Management Console
-            </p>
-            
-            {loginError && <div className="alert-box alert-error">{loginError}</div>}
+          </form>
 
-            {/* Google Sign-In Button Container */}
-            <div style={{ marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div id="googleSignInButton" style={{ width: '100%', minHeight: '40px', display: 'flex', justifyContent: 'center' }}></div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px', textAlign: 'center' }}>
-                Sign in with your registered Google account
-              </p>
-            </div>
-
-            {/* Divider */}
-            <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }}></div>
-              <span style={{ padding: '0 10px', fontWeight: '500' }}>OR</span>
-              <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }}></div>
-            </div>
-
-            <form onSubmit={handleLoginSubmit}>
-              <div className="form-group">
-                <label className="form-label">Email Address</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="intellectcircle.official4@gmail.com"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Password</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginBottom: '15px' }}>
-                Log In with Email & Password
-              </button>
-
-              <div style={{ display: 'flex', justifyContent: 'center', fontSize: '0.85rem' }}>
-                <a href="#/admin" onClick={(e) => { e.preventDefault(); setShowForgotPwd(true); }} style={{ color: 'var(--accent-color)', fontWeight: '500' }}>
-                  Forgot password?
-                </a>
-              </div>
-            </form>
-          </div>
-        )}
+          <p style={{ marginTop: '20px', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+            Punjab Grassroots Youth Movement Database
+          </p>
+        </div>
       </div>
     );
   }
 
-  // --- LOGGED IN CMS DASHBOARD ---
+  // Filtered session records
+  const filteredSessions = sessions.filter(s => {
+    const matchesSearch = s.title.toLowerCase().includes(sessionSearch.toLowerCase()) || 
+                          s.presenter.toLowerCase().includes(sessionSearch.toLowerCase());
+    const matchesFilter = sessionFilter === 'all' || s.status === sessionFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const paginatedSessions = filteredSessions.slice(
+    (sessionPage - 1) * itemsPerPage,
+    sessionPage * itemsPerPage
+  );
+
+  const totalSessionPages = Math.ceil(filteredSessions.length / itemsPerPage);
+
+  // Filtered blog records
+  const filteredBlogs = blog.filter(b => 
+    b.title.toLowerCase().includes(blogSearch.toLowerCase()) || 
+    b.author.toLowerCase().includes(blogSearch.toLowerCase())
+  );
+  const paginatedBlogs = filteredBlogs.slice((blogPage - 1) * itemsPerPage, blogPage * itemsPerPage);
+  const totalBlogPages = Math.ceil(filteredBlogs.length / itemsPerPage);
+
+  // Filtered submissions
+  const activeSubs = subsTab === 'applications' ? submissions.applications : submissions.contacts;
+  const filteredSubs = activeSubs.filter(sub => 
+    sub.name.toLowerCase().includes(subsSearch.toLowerCase()) || 
+    sub.email?.toLowerCase().includes(subsSearch.toLowerCase()) ||
+    (sub.message && sub.message.toLowerCase().includes(subsSearch.toLowerCase()))
+  );
+  const paginatedSubs = filteredSubs.slice((subsPage - 1) * itemsPerPage, subsPage * itemsPerPage);
+  const totalSubsPages = Math.ceil(filteredSubs.length / itemsPerPage);
+
   return (
-    <section className="section">
-      <div className="container">
-        
-        {notification && (
-          <div className={`alert-box alert-${notification.type}`} style={{ position: 'fixed', top: '90px', right: '30px', zIndex: 3000, boxShadow: 'var(--shadow-lg)', width: '320px' }}>
-            <span>{notification.message}</span>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', borderBottom: '2px solid var(--border-color)', paddingBottom: '20px' }}>
-          <div>
-            <h1 style={{ fontSize: '2.5rem' }}>CMS Dashboard</h1>
-            <p>Welcome, Administrator. Edit site copy, configurations, and manage user submissions.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            {import.meta.env.DEV && (
-              <span className="session-badge" style={{ backgroundColor: '#D1FAE5', color: '#065F46', borderColor: '#A7F3D0', alignSelf: 'center', height: 'fit-content' }}>
-                Dev Mode: Auto-Save Active
-              </span>
-            )}
-            <button onClick={onLogout} className="btn btn-outline" style={{ padding: '8px 20px' }}>
-              Log Out
-            </button>
-          </div>
+    <div className="container" style={{ padding: '40px 0' }}>
+      
+      {/* Toast Alert */}
+      {notification && (
+        <div className={`toast-notification ${notification.type}`}>
+          {notification.message}
         </div>
+      )}
 
-        <div className="admin-layout">
-          {/* Sidebar Menu */}
-          <aside className="admin-sidebar">
-            <button className={`admin-tab-btn ${activeTab === 'text' ? 'active' : ''}`} onClick={() => { setActiveTab('text'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              Pages & Text Copy
-            </button>
-            <button className={`admin-tab-btn ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => { setActiveTab('stats'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              Stats & Values
-            </button>
-            <button className={`admin-tab-btn ${activeTab === 'sessions' ? 'active' : ''}`} onClick={() => { setActiveTab('sessions'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              Sessions ({sessions.length})
-            </button>
-            <button className={`admin-tab-btn ${activeTab === 'blog' ? 'active' : ''}`} onClick={() => { setActiveTab('blog'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              Recap Blogs ({blog.length})
-            </button>
-            <button className={`admin-tab-btn ${activeTab === 'team' ? 'active' : ''}`} onClick={() => { setActiveTab('team'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              Team Members ({team.length})
-            </button>
-            <button className={`admin-tab-btn ${activeTab === 'subs' ? 'active' : ''}`} onClick={() => { setActiveTab('subs'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              Applications ({submissions.applications.length + submissions.contacts.length})
-            </button>
-            <button className={`admin-tab-btn ${activeTab === 'system' ? 'active' : ''}`} onClick={() => { setActiveTab('system'); setEditingSession(null); setEditingBlog(null); setEditingMember(null); }}>
-              SEO & Settings
-            </button>
-          </aside>
+      {/* Header bar */}
+      <div className="admin-header-bar">
+        <div>
+          <h2>IC Control Room</h2>
+          <span className="user-email-badge">Role: Admin ({userEmail || 'Local Development'})</span>
+        </div>
+        <button onClick={handleLogoutClick} className="btn btn-outline" style={{ padding: '8px 20px' }}>
+          Sign Out
+        </button>
+      </div>
 
-          {/* Main Editing Panel */}
-          <main className="admin-content-panel">
+      <div className="admin-layout">
+        
+        {/* Sidebar Menu */}
+        <aside className="admin-sidebar">
+          <button className={`admin-tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+            <OverviewIcon /> Overview
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'text' ? 'active' : ''}`} onClick={() => setActiveTab('text')}>
+            <CopyIcon /> General Copy
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>
+            <StatsIcon /> Stats & Values
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'contact' ? 'active' : ''}`} onClick={() => setActiveTab('contact')}>
+            <InfoIcon /> Contact & Socials
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'sessions' ? 'active' : ''}`} onClick={() => setActiveTab('sessions')}>
+            <CalendarIcon /> Sessions ({sessions.length})
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'blog' ? 'active' : ''}`} onClick={() => setActiveTab('blog')}>
+            <BlogIcon /> Recap Blogs ({blog.length})
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'team' ? 'active' : ''}`} onClick={() => setActiveTab('team')}>
+            <TeamIcon /> Hierarchy ({team.length})
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'subs' ? 'active' : ''}`} onClick={() => setActiveTab('subs')}>
+            <SubsIcon /> Submissions ({submissions.applications.length + submissions.contacts.length})
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'media' ? 'active' : ''}`} onClick={() => setShowMediaLibrary(true)}>
+            <MediaIcon /> Media Library
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'seo' ? 'active' : ''}`} onClick={() => setActiveTab('seo')}>
+            <SEOIcon /> SEO Settings
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
+            <LogsIcon /> Activity Logs
+          </button>
+          <button className={`admin-tab-btn ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>
+            <KeysIcon /> API Keys
+          </button>
+        </aside>
 
-            {/* TAB 1: PAGES & TEXT COPY */}
-            {activeTab === 'text' && (
-              <form onSubmit={handleCopySave}>
-                <div className="admin-panel-header">
-                  <h2>Pages & General Copy</h2>
-                  <button type="submit" className="btn btn-accent">Save Copy Changes</button>
+        {/* Main Panel */}
+        <main className="admin-content-panel">
+
+          {/* TAB: OVERVIEW */}
+          {activeTab === 'overview' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Operational Overview</h2>
+              </div>
+
+              {/* Stat Cards Grid */}
+              <div className="overview-cards-grid">
+                <div className="overview-card">
+                  <div className="card-label">Total Applications</div>
+                  <div className="card-value">{submissions.applications.length}</div>
+                  <span className="card-trend">Registered in Supabase</span>
                 </div>
-
-                <div className="admin-section-grid">
-                  {/* Home Hero */}
-                  <div className="admin-box">
-                    <div className="admin-box-title">Home Hero Banner</div>
-                    <div className="form-group">
-                      <label className="form-label">Hero Title</label>
-                      <input type="text" name="homeHeadline" className="form-input" defaultValue={home.hero.headline} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Hero Tagline</label>
-                      <input type="text" name="homeTagline" className="form-input" defaultValue={home.hero.tagline} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Hero Description</label>
-                      <textarea name="homeDescription" className="form-input" style={{ minHeight: '80px' }} defaultValue={home.hero.description} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                      <div className="form-group">
-                        <label className="form-label">Apply CTA Label</label>
-                        <input type="text" name="ctaApplyLabel" className="form-input" defaultValue={home.hero.ctaApplyLabel} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Learn CTA Label</label>
-                        <input type="text" name="ctaLearnLabel" className="form-input" defaultValue={home.hero.ctaLearnLabel} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Home Call-to-Action bottom banner */}
-                  <div className="admin-box">
-                    <div className="admin-box-title">Home bottom CTA Banner</div>
-                    <div className="form-group">
-                      <label className="form-label">CTA Headline</label>
-                      <input type="text" name="ctaHeadline" className="form-input" defaultValue={home.ctaSection.headline} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">CTA Subheadline</label>
-                      <input type="text" name="ctaSubheadline" className="form-input" defaultValue={home.ctaSection.subheadline} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">CTA Button Label</label>
-                      <input type="text" name="ctaButtonLabel" className="form-input" defaultValue={home.ctaSection.buttonLabel} />
-                    </div>
-                  </div>
+                <div className="overview-card">
+                  <div className="card-label">Total Sessions</div>
+                  <div className="card-value">{sessions.length}</div>
+                  <span className="card-trend">
+                    {sessions.filter(s => s.status === 'upcoming').length} scheduled upcoming
+                  </span>
                 </div>
-
-                <div className="admin-section-grid">
-                  {/* About VM & Story */}
-                  <div className="admin-box">
-                    <div className="admin-box-title">About Vision & Mission</div>
-                    <div className="form-group">
-                      <label className="form-label">Vision Header</label>
-                      <input type="text" name="visionTitle" className="form-input" defaultValue={about.vision.title} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Vision Statement</label>
-                      <textarea name="visionText" className="form-input" style={{ minHeight: '80px' }} defaultValue={about.vision.text} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Mission Header</label>
-                      <input type="text" name="missionTitle" className="form-input" defaultValue={about.mission.title} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Mission Statement</label>
-                      <textarea name="missionText" className="form-input" style={{ minHeight: '80px' }} defaultValue={about.mission.text} />
-                    </div>
-                  </div>
-
-                  {/* Story */}
-                  <div className="admin-box">
-                    <div className="admin-box-title">How It Started Story</div>
-                    <div className="form-group">
-                      <label className="form-label">Story Headline</label>
-                      <input type="text" name="founderStoryTitle" className="form-input" defaultValue={about.founderStory.title} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Story Text</label>
-                      <textarea name="founderStoryText" className="form-input" style={{ minHeight: '260px' }} defaultValue={about.founderStory.text} />
-                    </div>
-                  </div>
+                <div className="overview-card">
+                  <div className="card-label">Team Members</div>
+                  <div className="card-value">{team.length}</div>
+                  <span className="card-trend">Active members</span>
                 </div>
-
-                {/* Contact and Handles */}
-                <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">Contact Channels & Social Handles</div>
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: 0 }}>
-                    <div className="form-group">
-                      <label className="form-label">Office Email</label>
-                      <input type="email" name="contactEmail" className="form-input" defaultValue={contact.email} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">WhatsApp Number</label>
-                      <input type="text" name="contactWhatsapp" className="form-input" defaultValue={contact.whatsapp} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Physical Address</label>
-                      <input type="text" name="contactAddress" className="form-input" defaultValue={contact.address} />
-                    </div>
-                  </div>
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: 0 }}>
-                    <div className="form-group">
-                      <label className="form-label">Instagram Link</label>
-                      <input type="text" name="contactInstagram" className="form-input" defaultValue={contact.instagram} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">LinkedIn Page Link</label>
-                      <input type="text" name="contactLinkedin" className="form-input" defaultValue={contact.linkedin} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Facebook Profile Link</label>
-                      <input type="text" name="contactFacebook" className="form-input" defaultValue={contact.facebook} />
-                    </div>
-                  </div>
+                <div className="overview-card">
+                  <div className="card-label">Visitor Traffic</div>
+                  <div className="card-value">1,420</div>
+                  <span className="card-trend">Monthly Unique Visitors</span>
                 </div>
-              </form>
-            )}
+              </div>
 
-            {/* TAB 2: STATS & VALUES */}
-            {activeTab === 'stats' && (
-              <form onSubmit={handleStatsValuesSave}>
-                <div className="admin-panel-header">
-                  <h2>Stats Row & Values Cards</h2>
-                  <button type="submit" className="btn btn-accent">Save Stats & Values</button>
-                </div>
-
-                {/* Stats row editing */}
-                <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">Homepage Stat Counters (Values)</div>
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 0 }}>
-                    <div className="form-group">
-                      <label className="form-label">{home.stats[0].label}</label>
-                      <input type="text" name="statMembers" className="form-input" defaultValue={home.stats[0].value} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{home.stats[1].label}</label>
-                      <input type="text" name="statSessions" className="form-input" defaultValue={home.stats[1].value} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{home.stats[2].label}</label>
-                      <input type="text" name="statTopics" className="form-input" defaultValue={home.stats[2].value} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">{home.stats[3].label}</label>
-                      <input type="text" name="statCities" className="form-input" defaultValue={home.stats[3].value} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* What is Teaser Outline info */}
-                <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">"What is Intellect Circle?" Columns</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-                    <div className="form-group">
-                      <label className="form-label">Teaser Main Title</label>
-                      <input type="text" name="teaserTitle" className="form-input" defaultValue={home.aboutTeaser.title} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Teaser Main Subtitle</label>
-                      <input type="text" name="teaserSubtitle" className="form-input" defaultValue={home.aboutTeaser.subtitle} />
-                    </div>
-                  </div>
-                  
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 0 }}>
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <label className="form-label">Column 1 Title</label>
-                      <input type="text" name="teaserCol1Title" className="form-input" defaultValue={home.aboutTeaser.columns[0].title} style={{ marginBottom: '10px' }} />
-                      <label className="form-label">Column 1 Description</label>
-                      <textarea name="teaserCol1Desc" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser.columns[0].description} />
-                    </div>
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <label className="form-label">Column 2 Title</label>
-                      <input type="text" name="teaserCol2Title" className="form-input" defaultValue={home.aboutTeaser.columns[1].title} style={{ marginBottom: '10px' }} />
-                      <label className="form-label">Column 2 Description</label>
-                      <textarea name="teaserCol2Desc" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser.columns[1].description} />
-                    </div>
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <label className="form-label">Column 3 Title</label>
-                      <input type="text" name="teaserCol3Title" className="form-input" defaultValue={home.aboutTeaser.columns[2].title} style={{ marginBottom: '10px' }} />
-                      <label className="form-label">Column 3 Description</label>
-                      <textarea name="teaserCol3Desc" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser.columns[2].description} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Values editing */}
+              {/* Overview visual layout splits */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '30px', marginTop: '40px' }}>
                 <div className="admin-box">
-                  <div className="admin-box-title">Core Community Values</div>
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 0 }}>
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge" style={{ marginBottom: '10px' }}>Value Card 1 (Book Icon)</div>
-                      <div className="form-group">
-                        <label className="form-label">Value 1 Title</label>
-                        <input type="text" name="val1Title" className="form-input" defaultValue={about.values[0].title} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Value 1 Description</label>
-                        <textarea name="val1Desc" className="form-input" style={{ minHeight: '100px' }} defaultValue={about.values[0].description} />
-                      </div>
+                  <div className="admin-box-title">Visual Visitor Analytics</div>
+                  <div className="analytics-chart-placeholder">
+                    {/* CSS Area graph placeholder */}
+                    <div className="chart-bars-wrap">
+                      <div className="chart-bar" style={{ height: '30%' }}></div>
+                      <div className="chart-bar" style={{ height: '45%' }}></div>
+                      <div className="chart-bar" style={{ height: '60%' }}></div>
+                      <div className="chart-bar" style={{ height: '55%' }}></div>
+                      <div className="chart-bar" style={{ height: '70%' }}></div>
+                      <div className="chart-bar" style={{ height: '90%' }}></div>
+                      <div className="chart-bar" style={{ height: '85%' }}></div>
                     </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge" style={{ marginBottom: '10px' }}>Value Card 2 (Users Icon)</div>
-                      <div className="form-group">
-                        <label className="form-label">Value 2 Title</label>
-                        <input type="text" name="val2Title" className="form-input" defaultValue={about.values[1].title} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Value 2 Description</label>
-                        <textarea name="val2Desc" className="form-input" style={{ minHeight: '100px' }} defaultValue={about.values[1].description} />
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge" style={{ marginBottom: '10px' }}>Value Card 3 (Clock Icon)</div>
-                      <div className="form-group">
-                        <label className="form-label">Value 3 Title</label>
-                        <input type="text" name="val3Title" className="form-input" defaultValue={about.values[2].title} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Value 3 Description</label>
-                        <textarea name="val3Desc" className="form-input" style={{ minHeight: '100px' }} defaultValue={about.values[2].description} />
-                      </div>
-                    </div>
+                    <span className="chart-xaxis">Mon &middot; Tue &middot; Wed &middot; Thu &middot; Fri &middot; Sat &middot; Sun</span>
                   </div>
                 </div>
-              </form>
-            )}
 
-            {/* TAB 3: SESSIONS CRUD */}
-            {activeTab === 'sessions' && (
-              <div>
-                <div className="admin-panel-header">
-                  <h2>Manage Sessions</h2>
-                  {!editingSession && (
-                    <button onClick={() => setEditingSession({})} className="btn btn-accent">
-                      + Add New Session
-                    </button>
-                  )}
-                </div>
-
-                {editingSession ? (
-                  <form onSubmit={handleSessionSubmit} className="admin-box">
-                    <div className="admin-box-title">
-                      {editingSession.id ? 'Edit Session details' : 'Create new Session entry'}
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Session Banner / Graphic Image</label>
-                      <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap', marginTop: '10px' }}>
-                        <div style={{ width: '120px', height: '80px', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-color)' }}>
-                          {editingSession.photo ? (
-                            <img src={editingSession.photo} alt="Session Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No Image</span>
-                          )}
-                        </div>
-                        <div style={{ flex: '1', minWidth: '200px' }}>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            style={{ display: 'none' }} 
-                            onChange={(e) => handleImageUpload(e, (url) => setEditingSession({ ...editingSession, photo: url }))}
-                            id="session-photo-file"
-                          />
-                          <label htmlFor="session-photo-file" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-block' }}>
-                            Upload Session Image (Max 2MB)
-                          </label>
-                          <div style={{ margin: '10px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>- OR paste external image URL -</div>
-                          <input 
-                            type="text" 
-                            className="form-input" 
-                            placeholder="https://example.com/image.jpg"
-                            value={editingSession.photo || ''} 
-                            onChange={(e) => setEditingSession({ ...editingSession, photo: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Session Topic / Title *</label>
-                      <input type="text" name="sessTitle" className="form-input" defaultValue={editingSession.title || ''} required />
-                    </div>
-
-                    <div className="admin-section-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: 0 }}>
-                      <div className="form-group">
-                        <label className="form-label">Presenter *</label>
-                        <input type="text" name="sessPresenter" className="form-input" defaultValue={editingSession.presenter || ''} required />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Format / Timing Type *</label>
-                        <select name="sessFormat" className="form-input" defaultValue={editingSession.format || '30min talk + Q&A'}>
-                          <option value="30min talk + Q&A">30min talk + Q&A</option>
-                          <option value="Interactive discussion">Interactive discussion</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="admin-section-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: 0 }}>
-                      <div className="form-group">
-                        <label className="form-label">Date (e.g., July 12, 2026) *</label>
-                        <input type="text" name="sessDate" className="form-input" defaultValue={editingSession.date || ''} required />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Time (e.g. 18:00 PKT)</label>
-                        <input type="text" name="sessTime" className="form-input" defaultValue={editingSession.time || '18:00 PKT'} />
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Summary / Description *</label>
-                      <textarea name="sessSummary" className="form-input" style={{ minHeight: '80px' }} defaultValue={editingSession.summary || ''} required />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Key Takeaways (one takeaway per line)</label>
-                      <textarea 
-                        name="sessTakeaways" 
-                        className="form-input" 
-                        style={{ minHeight: '80px' }} 
-                        defaultValue={editingSession.takeaways ? editingSession.takeaways.join('\n') : ''} 
-                        placeholder="Takeaway point 1&#10;Takeaway point 2&#10;Takeaway point 3"
-                      />
-                    </div>
-
-                    <div className="form-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <input 
-                        type="checkbox" 
-                        id="sessIsUpcoming" 
-                        name="sessIsUpcoming" 
-                        defaultChecked={editingSession.isUpcoming ?? true} 
-                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                      />
-                      <label htmlFor="sessIsUpcoming" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>
-                        Mark as **Upcoming Presentation** (Unchecking archives this session)
-                      </label>
-                    </div>
-
-                    <div className="form-group" style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '15px' }}>
-                      <input 
-                        type="checkbox" 
-                        id="sessFeatured"
-                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                        defaultChecked={home.featuredSessionId === editingSession.id}
-                        onChange={(e) => {
-                          if (e.target.checked && editingSession.id) {
-                            const updatedData = { ...data };
-                            updatedData.home.featuredSessionId = editingSession.id;
-                            saveDatabase(updatedData);
-                          }
-                        }}
-                        disabled={!editingSession.id}
-                      />
-                      <label htmlFor="sessFeatured" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>
-                        Featured session on Homepage (Only available for already saved sessions)
-                      </label>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '30px' }}>
-                      <button type="submit" className="btn btn-accent">Save Session</button>
-                      <button type="button" onClick={() => setEditingSession(null)} className="btn btn-outline">Cancel</button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="crud-list">
-                    {sessions.map(s => (
-                      <div className="crud-item" key={s.id}>
-                        <div className="crud-info">
-                          <h4>
-                            {s.title}
-                            {s.id === home.featuredSessionId && (
-                              <span className="session-badge" style={{ marginLeft: '10px', fontSize: '0.65rem' }}>Homepage Featured</span>
-                            )}
-                          </h4>
-                          <p>{s.presenter} • {s.date} • <strong>{s.isUpcoming ? 'Upcoming' : 'Archive'}</strong></p>
-                        </div>
-                        <div className="crud-actions">
-                          <button onClick={() => setEditingSession(s)} className="btn-icon" title="Edit Session">
-                            ✎
-                          </button>
-                          {home.featuredSessionId !== s.id && (
-                            <button onClick={() => {
-                              const updatedData = { ...data };
-                              updatedData.home.featuredSessionId = s.id;
-                              saveDatabase(updatedData);
-                              triggerNotification('Session featured on Homepage.');
-                            }} className="btn-icon" title="Feature on Home" style={{ color: 'var(--accent-color)' }}>
-                              ★
-                            </button>
-                          )}
-                          <button onClick={() => deleteSession(s.id)} className="btn-icon delete" title="Delete Session">
-                            🗑
-                          </button>
-                        </div>
+                <div className="admin-box">
+                  <div className="admin-box-title">Recent Activity Log</div>
+                  <div className="activity-timeline">
+                    {logsLoading ? (
+                      <p>Loading activities...</p>
+                    ) : activityLogs.slice(0, 5).map(log => (
+                      <div key={log.id} className="timeline-item">
+                        <span className="timeline-date">{new Date(log.created_at).toLocaleTimeString()}</span>
+                        <h5 className="timeline-action">{log.action}</h5>
+                        <p className="timeline-desc">{log.details}</p>
                       </div>
                     ))}
+                    {activityLogs.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No recent admin changes.</p>}
                   </div>
-                )}
+                </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* TAB 4: BLOGS CRUD */}
-            {activeTab === 'blog' && (
-              <div>
-                <div className="admin-panel-header">
-                  <h2>Session Recaps & Blog Articles</h2>
-                  {!editingBlog && (
-                    <button onClick={() => setEditingBlog({})} className="btn btn-accent">
-                      + Write Recap Article
-                    </button>
-                  )}
+          {/* TAB: PAGES & TEXT COPY */}
+          {activeTab === 'text' && (
+            <form onSubmit={handleCopySave}>
+              <div className="admin-panel-header">
+                <h2>Pages & Copywriter</h2>
+                <button type="submit" className="btn btn-accent">Save Copy</button>
+              </div>
+
+              <div className="admin-section-grid">
+                <div className="admin-box">
+                  <div className="admin-box-title">Hero Section</div>
+                  <div className="form-group">
+                    <label className="form-label">Headline</label>
+                    <input type="text" name="homeHeadline" className="form-input" defaultValue={home.hero?.headline} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Tagline</label>
+                    <input type="text" name="homeTagline" className="form-input" defaultValue={home.hero?.tagline} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Description</label>
+                    <textarea name="homeDescription" className="form-input" style={{ minHeight: '80px' }} defaultValue={home.hero?.description} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Apply CTA Label</label>
+                      <input type="text" name="ctaApplyLabel" className="form-input" defaultValue={home.hero?.ctaApplyLabel} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Learn CTA Label</label>
+                      <input type="text" name="ctaLearnLabel" className="form-input" defaultValue={home.hero?.ctaLearnLabel} />
+                    </div>
+                  </div>
                 </div>
 
-                {editingBlog ? (
-                  <form onSubmit={handleBlogSubmit} className="admin-box">
-                    <div className="admin-box-title">
-                      {editingBlog.id ? 'Edit Recap Article' : 'Write new Recap Article'}
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Article Title *</label>
-                      <input type="text" name="blogTitle" className="form-input" defaultValue={editingBlog.title || ''} required />
-                    </div>
-
-                    <div className="admin-section-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: 0 }}>
-                      <div className="form-group">
-                        <label className="form-label">Author Name *</label>
-                        <input type="text" name="blogAuthor" className="form-input" defaultValue={editingBlog.author || ''} required />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Publication Date *</label>
-                        <input type="text" name="blogDate" className="form-input" defaultValue={editingBlog.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} required />
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Brief Excerpt * (Used in card listing previews)</label>
-                      <input type="text" name="blogExcerpt" className="form-input" defaultValue={editingBlog.excerpt || ''} required />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Full Article Content * (Supports paragraphs separated by double enter, list points starting with "1. " or "* ")</label>
-                      <textarea 
-                        name="blogContent" 
-                        className="form-input" 
-                        style={{ minHeight: '300px', fontFamily: 'monospace', fontSize: '0.9rem', lineHeight: '1.5' }} 
-                        defaultValue={editingBlog.content || ''} 
-                        required 
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '30px' }}>
-                      <button type="submit" className="btn btn-accent">Publish Article</button>
-                      <button type="button" onClick={() => setEditingBlog(null)} className="btn btn-outline">Cancel</button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="crud-list">
-                    {blog.map(b => (
-                      <div className="crud-item" key={b.id}>
-                        <div className="crud-info">
-                          <h4>{b.title}</h4>
-                          <p>By {b.author} • published {b.date}</p>
-                        </div>
-                        <div className="crud-actions">
-                          <button onClick={() => setEditingBlog(b)} className="btn-icon" title="Edit Article">
-                            ✎
-                          </button>
-                          <button onClick={() => deleteBlog(b.id)} className="btn-icon delete" title="Delete Article">
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                <div className="admin-box">
+                  <div className="admin-box-title">About Teaser Section</div>
+                  <div className="form-group">
+                    <label className="form-label">Teaser Title</label>
+                    <input type="text" name="aboutTeaserTitle" className="form-input" defaultValue={home.aboutTeaser?.title} />
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 5: TEAM MEMBERS CRUD */}
-            {activeTab === 'team' && (
-              <div>
-                <div className="admin-panel-header">
-                  <h2>Community Officers & Members</h2>
-                  {!editingMember && (
-                    <button onClick={() => setEditingMember({})} className="btn btn-accent">
-                      + Add New Member
-                    </button>
-                  )}
+                  <div className="form-group">
+                    <label className="form-label">Teaser Subtitle</label>
+                    <textarea name="aboutTeaserSubtitle" className="form-input" style={{ minHeight: '80px' }} defaultValue={home.aboutTeaser?.subtitle} />
+                  </div>
                 </div>
 
-                {editingMember ? (
-                  <form onSubmit={handleMemberSubmit} className="admin-box">
-                    <div className="admin-box-title">
-                      {editingMember.id ? 'Edit Member Profile' : 'Add new Member card'}
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Full Name *</label>
-                      <input type="text" name="memberName" className="form-input" defaultValue={editingMember.name || ''} required />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Role Title * (e.g. President, Head of Operations, Core Member)</label>
-                      <input type="text" name="memberRole" className="form-input" defaultValue={editingMember.role || ''} required />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">One-Line Biography *</label>
-                      <input type="text" name="memberBio" className="form-input" defaultValue={editingMember.bio || ''} required />
-                    </div>
-
-                    {/* Member photo handle */}
-                    <div className="form-group">
-                      <label className="form-label">Photo Profile</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', margin: '15px 0' }}>
-                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', border: '2px solid var(--accent-color)', display: 'flex', alignItems: 'center', justifycontent: 'center', color: 'var(--accent-color)', fontSize: '1.5rem', fontWeight: 'bold', fontFamily: 'var(--font-serif)', overflow: 'hidden' }}>
-                          {editingMember.photo ? (
-                            <img src={editingMember.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            'Avatar'
-                          )}
-                        </div>
-                        <div>
-                          <input 
-                            type="file" 
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, (url) => setEditingMember({ ...editingMember, photo: url }))}
-                            style={{ display: 'none' }}
-                            id="member-photo-file"
-                          />
-                          <label htmlFor="member-photo-file" className="btn btn-outline" style={{ padding: '8px 16px', fontSize: '0.85rem', cursor: 'pointer' }}>
-                            Upload Photo File
-                          </label>
-                          <p style={{ fontSize: '0.75rem', marginTop: '5px' }}>
-                            Upload square profile photo (JPEG/PNG). Max 2MB. Leaves empty for slate blue initials avatar card.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Or, Paste Photo Image URL</label>
-                        <input 
-                          type="text" 
-                          placeholder="https://..." 
-                          className="form-input" 
-                          value={editingMember.photo || ''} 
-                          onChange={(e) => setEditingMember({ ...editingMember, photo: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">Skill Tags (comma-separated) - shown as keywords below the bio</label>
-                      <input
-                        type="text"
-                        name="memberSkills"
-                        className="form-input"
-                        defaultValue={(editingMember.skills || []).join(', ')}
-                        placeholder="e.g. Systems Design, Philosophy, Software"
-                      />
-                      <div className="form-help">These appear as pills/keywords on the public Team page. Keep them short (1-3 words each).</div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '15px', marginTop: '30px' }}>
-                      <button type="submit" className="btn btn-accent">Save Profile</button>
-                      <button type="button" onClick={() => setEditingMember(null)} className="btn btn-outline">Cancel</button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="crud-list">
-                    {team.map(m => (
-                      <div className="crud-item" key={m.id}>
-                        <div className="crud-info" style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--primary-color)', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', overflow: 'hidden', border: '1px solid var(--accent-color)' }}>
-                            {m.photo ? <img src={m.photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'Initials'}
-                          </div>
-                          <div>
-                            <h4>{m.name}</h4>
-                            <p>{m.role}</p>
-                          </div>
-                        </div>
-                        <div className="crud-actions">
-                          <button onClick={() => setEditingMember(m)} className="btn-icon" title="Edit Profile">
-                            ✎
-                          </button>
-                          <button onClick={() => deleteMember(m.id)} className="btn-icon delete" title="Delete Profile">
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                <div className="admin-box">
+                  <div className="admin-box-title">CTA Callout Section</div>
+                  <div className="form-group">
+                    <label className="form-label">CTA Banner Headline</label>
+                    <input type="text" name="ctaHeadline" className="form-input" defaultValue={home.ctaSection?.headline} />
                   </div>
-                )}
+                  <div className="form-group">
+                    <label className="form-label">CTA Banner Subheadline</label>
+                    <input type="text" name="ctaSubheadline" className="form-input" defaultValue={home.ctaSection?.subheadline} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">CTA Button Text</label>
+                    <input type="text" name="ctaButtonLabel" className="form-input" defaultValue={home.ctaSection?.buttonLabel} />
+                  </div>
+                </div>
               </div>
-            )}
+            </form>
+          )}
 
-            {/* TAB 6: SUBMISSIONS LIST */}
-            {activeTab === 'subs' && (
-              <div>
-                <div className="admin-panel-header">
-                  <h2>Submissions Manager</h2>
-                  <button type="button" onClick={fetchSubmissions} className="btn btn-accent" disabled={subsLoading}>
-                    {subsLoading ? 'Refreshing...' : 'Refresh from Database'}
+          {/* TAB: STATS & VALUES */}
+          {activeTab === 'stats' && (
+            <form onSubmit={handleStatsSave}>
+              <div className="admin-panel-header">
+                <h2>Statistics & Core Numbers</h2>
+                <button type="submit" className="btn btn-accent">Save Stats</button>
+              </div>
+
+              <div className="admin-section-grid">
+                {home.stats?.map(stat => (
+                  <div className="admin-box" key={stat.id}>
+                    <div className="admin-box-title" style={{ textTransform: 'capitalize' }}>{stat.id} Counter</div>
+                    <div className="form-group">
+                      <label className="form-label">Metric Label</label>
+                      <input type="text" name={`stat${stat.id.charAt(0).toUpperCase() + stat.id.slice(1)}Label`} className="form-input" defaultValue={stat.label} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Numeric Value</label>
+                      <input type="text" name={`stat${stat.id.charAt(0).toUpperCase() + stat.id.slice(1)}Val`} className="form-input" defaultValue={stat.value} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </form>
+          )}
+          
+          {/* TAB: CONTACT & SOCIALS */}
+          {activeTab === 'contact' && (
+            <form onSubmit={handleContactSave}>
+              <div className="admin-panel-header">
+                <h2>Contact Info & Social Networks</h2>
+                <button type="submit" className="btn btn-accent">Save Info</button>
+              </div>
+
+              <div className="admin-section-grid">
+                <div className="admin-box">
+                  <div className="admin-box-title">Contact Channels</div>
+                  <div className="form-group">
+                    <label className="form-label">Email Address</label>
+                    <input type="email" name="contactEmail" className="form-input" defaultValue={contact.email} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">WhatsApp Number</label>
+                    <input type="text" name="contactWhatsApp" className="form-input" defaultValue={contact.whatsapp} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Office Address</label>
+                    <input type="text" name="contactAddress" className="form-input" defaultValue={contact.address} />
+                  </div>
+                </div>
+
+                <div className="admin-box">
+                  <div className="admin-box-title">Social Links</div>
+                  <div className="form-group">
+                    <label className="form-label">LinkedIn URL</label>
+                    <input type="url" name="socialLinkedIn" className="form-input" defaultValue={contact.linkedin} placeholder="https://linkedin.com/..." />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Instagram URL</label>
+                    <input type="url" name="socialInstagram" className="form-input" defaultValue={contact.instagram} placeholder="https://instagram.com/..." />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Facebook URL</label>
+                    <input type="url" name="socialFacebook" className="form-input" defaultValue={contact.facebook} placeholder="https://facebook.com/..." />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Twitter / X URL</label>
+                    <input type="url" name="socialTwitter" className="form-input" defaultValue={contact.twitter} placeholder="https://twitter.com/..." />
+                  </div>
+                </div>
+              </div>
+            </form>
+          )}
+
+
+          {/* TAB: SESSIONS */}
+          {activeTab === 'sessions' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Sessions Manager</h2>
+                <button onClick={startAddSession} className="btn btn-accent">+ Create Session</button>
+              </div>
+
+              <div className="filter-controls-row">
+                <input
+                  type="text"
+                  placeholder="Search by topic or presenter..."
+                  value={sessionSearch}
+                  onChange={(e) => { setSessionSearch(e.target.value); setSessionPage(1); }}
+                  className="form-input"
+                  style={{ maxWidth: '300px' }}
+                />
+                <select 
+                  value={sessionFilter} 
+                  onChange={(e) => { setSessionFilter(e.target.value); setSessionPage(1); }} 
+                  className="form-input" 
+                  style={{ maxWidth: '180px' }}
+                >
+                  <option value="all">All Sessions</option>
+                  <option value="upcoming">Upcoming Only</option>
+                  <option value="completed">Completed Only</option>
+                  <option value="cancelled">Cancelled Only</option>
+                </select>
+              </div>
+
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Presenter</th>
+                    <th>Date / Time</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedSessions.map(s => (
+                    <tr key={s.id}>
+                      <td><strong>{s.title}</strong></td>
+                      <td>{s.presenter}</td>
+                      <td>{s.date} at {s.time}</td>
+                      <td>
+                        <span className={`status-badge ${s.status}`}>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td>
+                        <button onClick={() => startEditSession(s)} className="btn-table edit">Edit</button>
+                        <button onClick={() => handleDeleteSession(s.id)} className="btn-table delete">Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredSessions.length === 0 && (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No sessions found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              {totalSessionPages > 1 && (
+                <div className="pagination">
+                  <button onClick={() => setSessionPage(p => Math.max(1, p - 1))} disabled={sessionPage === 1}>&larr; Prev</button>
+                  <span>Page {sessionPage} of {totalSessionPages}</span>
+                  <button onClick={() => setSessionPage(p => Math.min(totalSessionPages, p + 1))} disabled={sessionPage === totalSessionPages}>Next &rarr;</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: BLOG RECAPS */}
+          {activeTab === 'blog' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Session Recaps Manager</h2>
+                <button onClick={startAddBlog} className="btn btn-accent">+ Publish Recap</button>
+              </div>
+
+              <div className="filter-controls-row">
+                <input
+                  type="text"
+                  placeholder="Search by article title..."
+                  value={blogSearch}
+                  onChange={(e) => { setBlogSearch(e.target.value); setBlogPage(1); }}
+                  className="form-input"
+                  style={{ maxWidth: '300px' }}
+                />
+              </div>
+
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedBlogs.map(b => (
+                    <tr key={b.id}>
+                      <td><strong>{b.title}</strong></td>
+                      <td>{b.author}</td>
+                      <td>{b.date}</td>
+                      <td>
+                        <button onClick={() => startEditBlog(b)} className="btn-table edit">Edit</button>
+                        <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredBlogs.length === 0 && (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No blog articles found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              {totalBlogPages > 1 && (
+                <div className="pagination">
+                  <button onClick={() => setBlogPage(p => Math.max(1, p - 1))} disabled={blogPage === 1}>&larr; Prev</button>
+                  <span>Page {blogPage} of {totalBlogPages}</span>
+                  <button onClick={() => setBlogPage(p => Math.min(totalBlogPages, p + 1))} disabled={blogPage === totalBlogPages}>Next &rarr;</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: TEAM MEMBERS */}
+          {activeTab === 'team' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Hierarchy</h2>
+                <button onClick={startAddMember} className="btn btn-accent">+ Add Member</button>
+              </div>
+
+              <div className="team-reorder-list">
+                {team.map((m, index) => (
+                  <div key={m.id} className="team-reorder-card">
+                    <div className="team-reorder-avatar">
+                      {m.photo ? <img src={m.photo} alt={m.name} /> : <span>{m.name.charAt(0)}</span>}
+                    </div>
+                    <div className="team-reorder-info">
+                      <h4>{m.name}</h4>
+                      <p>{m.role}</p>
+                    </div>
+                    <div className="team-reorder-actions">
+                      <button onClick={() => moveMemberOrder(index, -1)} disabled={index === 0} title="Move Up">&uarr;</button>
+                      <button onClick={() => moveMemberOrder(index, 1)} disabled={index === team.length - 1} title="Move Down">&darr;</button>
+                      <button onClick={() => startEditMember(m)} className="edit">Edit</button>
+                      <button onClick={() => handleDeleteMember(m.id)} className="delete">Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SUBMISSIONS */}
+          {activeTab === 'subs' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Submissions Manager</h2>
+                <button onClick={handleExportClick} className="btn btn-outline-gold">
+                  ⬇️ Export to CSV ({filteredSubs.length})
+                </button>
+              </div>
+
+              <div className="filter-controls-row">
+                <div className="segmented-tabs">
+                  <button className={subsTab === 'applications' ? 'active' : ''} onClick={() => { setSubsTab('applications'); setSubsPage(1); }}>
+                    Applications ({submissions.applications.length})
+                  </button>
+                  <button className={subsTab === 'contacts' ? 'active' : ''} onClick={() => { setSubsTab('contacts'); setSubsPage(1); }}>
+                    Contact Queries ({submissions.contacts.length})
                   </button>
                 </div>
-                {subsLoading && (
-                  <p style={{ color: 'var(--accent-color)', fontStyle: 'italic', marginBottom: '20px' }}>Loading latest submissions from Supabase...</p>
-                )}
 
-                {/* Form type selections */}
-                <h3 className="sessions-list-header">Membership Applications ({submissions.applications.length})</h3>
-                <div className="subs-list">
-                  {submissions.applications.length > 0 ? (
-                    submissions.applications.map(app => (
+                <input
+                  type="text"
+                  placeholder="Search by name, email, query..."
+                  value={subsSearch}
+                  onChange={(e) => { setSubsSearch(e.target.value); setSubsPage(1); }}
+                  className="form-input"
+                  style={{ maxWidth: '300px' }}
+                />
+              </div>
+
+              {subsLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px' }}>Loading dynamic entries...</div>
+              ) : subsTab === 'applications' ? (
+                <div>
+                  <div className="subs-list">
+                    {paginatedSubs.map(app => (
                       <div className="sub-card" key={app.id}>
                         <div className="sub-card-header">
                           <div>
                             <h4>{app.name} (Age {app.age})</h4>
-                            <p className="sub-date" style={{ marginTop: '4px', fontSize: '0.95rem' }}>
+                            <p className="sub-date">
                               <strong>Email:</strong>{' '}
                               <a href={`mailto:${app.email}`} style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>
                                 {app.email || 'No email provided'}
@@ -1271,10 +1347,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           </button>
                         </div>
                         <div className="sub-detail-grid">
-                          <div className="sub-field">
-                            <span className="label">Email</span>
-                            <span className="val">{app.email || 'N/A'}</span>
-                          </div>
                           <div className="sub-field">
                             <span className="label">Location</span>
                             <span className="val">{app.city}</span>
@@ -1293,218 +1365,491 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <p>{app.whyJoin}</p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No membership applications received yet.</p>
-                  )}
+                    ))}
+                    {filteredSubs.length === 0 && <p className="empty-msg">No applications received yet.</p>}
+                  </div>
                 </div>
-
-                <h3 className="sessions-list-header" style={{ marginTop: '50px' }}>Contact Form Queries ({submissions.contacts.length})</h3>
-                <div className="subs-list">
-                  {submissions.contacts.length > 0 ? (
-                    submissions.contacts.map(c => (
+              ) : (
+                <div>
+                  <div className="subs-list">
+                    {paginatedSubs.map(c => (
                       <div className="sub-card" key={c.id}>
                         <div className="sub-card-header">
                           <div>
                             <h4>{c.name}</h4>
-                            <p className="sub-date">Email: <a href={`mailto:${c.email}`} style={{ color: 'var(--accent-color)' }}>{c.email}</a> • Recieved: {new Date(c.submittedAt).toLocaleString()}</p>
+                            <p className="sub-date">
+                              <strong>Email:</strong>{' '}
+                              <a href={`mailto:${c.email}`} style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>
+                                {c.email}
+                              </a>
+                            </p>
+                            <p className="sub-date">Submitted: {new Date(c.submittedAt).toLocaleString()}</p>
                           </div>
                           <button onClick={() => handleDeleteSubmission('contacts', c.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
                             🗑
                           </button>
                         </div>
                         <div className="sub-long-field">
-                          <span className="label">Query Details:</span>
-                          <p>{c.message}</p>
+                          <span className="label">Inquiry Details:</span>
+                          <p style={{ whiteSpace: 'pre-wrap' }}>{c.message}</p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No contact query messages received yet.</p>
-                  )}
+                    ))}
+                    {filteredSubs.length === 0 && <p className="empty-msg">No contact messages received.</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {totalSubsPages > 1 && (
+                <div className="pagination">
+                  <button onClick={() => setSubsPage(p => Math.max(1, p - 1))} disabled={subsPage === 1}>&larr; Prev</button>
+                  <span>Page {subsPage} of {totalSubsPages}</span>
+                  <button onClick={() => setSubsPage(p => Math.min(totalSubsPages, p + 1))} disabled={subsPage === totalSubsPages}>Next &rarr;</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: SEO SETTINGS */}
+          {activeTab === 'seo' && (
+            <form onSubmit={handleSEOSave}>
+              <div className="admin-panel-header">
+                <h2>SEO & Page Metadata</h2>
+                <button type="submit" className="btn btn-accent">Save SEO</button>
+              </div>
+
+              <div className="admin-section-grid">
+                {['home', 'about', 'sessions', 'team', 'apply', 'contact'].map(page => (
+                  <div className="admin-box" key={page}>
+                    <div className="admin-box-title" style={{ textTransform: 'capitalize' }}>{page} Page SEO</div>
+                    <div className="form-group">
+                      <label className="form-label">Meta Title</label>
+                      <input type="text" name={`seo_${page}_title`} className="form-input" defaultValue={seo[page]?.title} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Meta Description</label>
+                      <textarea name={`seo_${page}_desc`} className="form-input" style={{ minHeight: '60px' }} defaultValue={seo[page]?.description} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Keywords (Comma separated)</label>
+                      <input type="text" name={`seo_${page}_keywords`} className="form-input" defaultValue={seo[page]?.keywords} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Favicon Link</label>
+                      <div className="media-input-group">
+                        <input type="text" id={`seo_${page}_fav`} name={`seo_${page}_fav`} className="form-input" defaultValue={seo[page]?.favicon} />
+                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById(`seo_${page}_fav`).value = url; })} className="btn-select-media">Library</button>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">OpenGraph (OG) Image URL</label>
+                      <div className="media-input-group">
+                        <input type="text" id={`seo_${page}_og`} name={`seo_${page}_og`} className="form-input" defaultValue={seo[page]?.ogImage} />
+                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById(`seo_${page}_og`).value = url; })} className="btn-select-media">Library</button>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Canonical URL</label>
+                      <input type="text" name={`seo_${page}_canon`} className="form-input" defaultValue={seo[page]?.canonicalUrl} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </form>
+          )}
+
+          {/* TAB: GLOBAL LOGS */}
+          {activeTab === 'logs' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Administrative Activity Logs</h2>
+              </div>
+              
+              <div className="admin-box">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Admin Email</th>
+                      <th>Action</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityLogs.map(log => (
+                      <tr key={log.id}>
+                        <td>{new Date(log.created_at).toLocaleString()}</td>
+                        <td><strong>{log.user_email}</strong></td>
+                        <td><span className="log-action-badge">{log.action}</span></td>
+                        <td>{log.details}</td>
+                      </tr>
+                    ))}
+                    {activityLogs.length === 0 && (
+                      <tr>
+                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No audit history found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SYSTEM & KEYS */}
+          {activeTab === 'system' && (
+            <form onSubmit={handleSystemSave}>
+              <div className="admin-panel-header">
+                <h2>System Configurations</h2>
+                <button type="submit" className="btn btn-accent">Save Configurations</button>
+              </div>
+
+              {/* Explainer Banner */}
+              <div className="admin-box" style={{ marginBottom: '24px', background: 'linear-gradient(135deg, #f0f4ff 0%, #fdf6e3 100%)', border: '1px solid #c9a84c40' }}>
+                <div className="admin-box-title" style={{ color: '#92400e' }}>💡 What is the Web3Forms Access Key?</div>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-color)', lineHeight: '1.7', marginBottom: '12px' }}>
+                  <strong>Web3Forms</strong> is the email relay service Intellect Circle uses to deliver <em>contact form messages</em> and <em>membership application notifications</em> directly to your email inbox — without any backend server setup.
+                </p>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-color)', lineHeight: '1.7', marginBottom: '12px' }}>
+                  It is free to use. Here's how to get your Access Key:
+                </p>
+                <ol style={{ paddingLeft: '20px', fontSize: '0.88rem', color: 'var(--text-color)', lineHeight: '1.9', marginBottom: '8px' }}>
+                  <li>Visit <a href="https://web3forms.com" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', fontWeight: 600 }}>web3forms.com</a></li>
+                  <li>Enter your email address on their homepage and click <strong>"Create your Access Key"</strong></li>
+                  <li>Check your inbox for a confirmation email from Web3Forms and click the link inside</li>
+                  <li>Copy the <strong>Access Key</strong> they provide (it looks like: <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.82rem' }}>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>)</li>
+                  <li>Paste it into the field below and click <strong>"Save Configurations"</strong></li>
+                </ol>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  ℹ️ After saving, all new form submissions will be forwarded to the email address linked to your Web3Forms account.
+                </p>
+              </div>
+
+              <div className="admin-box" style={{ maxWidth: '540px' }}>
+                <div className="admin-box-title">Web3Forms Email Relay</div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                  Paste the Access Key obtained from web3forms.com below.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Web3Forms Access Key</label>
+                  <input
+                    type="text"
+                    name="web3formsKey"
+                    className="form-input"
+                    defaultValue={admin.web3formsKey}
+                    placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  />
                 </div>
               </div>
-            )}
+            </form>
+          )}
 
-            {/* TAB 7: SEO & SETTINGS */}
-            {activeTab === 'system' && (
-              <form onSubmit={handleSystemSubmit}>
-                <div className="admin-panel-header">
-                  <h2>SEO, Credentials & Integrations</h2>
-                  <button type="submit" className="btn btn-accent">Save System Settings</button>
-                </div>
-
-                {/* Web3Forms Integration */}
-                <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">Web3Forms Email Notification Integration</div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Web3Forms Access Key</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={web3Key} 
-                      onChange={(e) => setWeb3Key(e.target.value)} 
-                      placeholder="Paste your web3forms access key here" 
-                    />
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                      Get a free notification key at <a href="https://web3forms.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>web3forms.com</a>. This relays applications and contact forms to your admin email instantly!
-                    </p>
-                  </div>
-                </div>
-
-                {/* SEO Meta Configurations */}
-                <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">SEO Page Titles & Meta Descriptions</div>
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: '1fr', gap: '20px', marginBottom: 0 }}>
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge">Home Page SEO</div>
-                      <div className="form-group" style={{ marginTop: '10px' }}>
-                        <label className="form-label">Meta Title</label>
-                        <input type="text" name="seoHomeTitle" className="form-input" defaultValue={seo.home?.title || ''} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Meta Description</label>
-                        <input type="text" name="seoHomeDesc" className="form-input" defaultValue={seo.home?.description || ''} />
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge">About Page SEO</div>
-                      <div className="form-group" style={{ marginTop: '10px' }}>
-                        <label className="form-label">Meta Title</label>
-                        <input type="text" name="seoAboutTitle" className="form-input" defaultValue={seo.about?.title || ''} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Meta Description</label>
-                        <input type="text" name="seoAboutDesc" className="form-input" defaultValue={seo.about?.description || ''} />
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge">Sessions Page SEO</div>
-                      <div className="form-group" style={{ marginTop: '10px' }}>
-                        <label className="form-label">Meta Title</label>
-                        <input type="text" name="seoSessTitle" className="form-input" defaultValue={seo.sessions?.title || ''} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Meta Description</label>
-                        <input type="text" name="seoSessDesc" className="form-input" defaultValue={seo.sessions?.description || ''} />
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge">Team Page SEO</div>
-                      <div className="form-group" style={{ marginTop: '10px' }}>
-                        <label className="form-label">Meta Title</label>
-                        <input type="text" name="seoTeamTitle" className="form-input" defaultValue={seo.team?.title || ''} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Meta Description</label>
-                        <input type="text" name="seoTeamDesc" className="form-input" defaultValue={seo.team?.description || ''} />
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge">Apply Page SEO</div>
-                      <div className="form-group" style={{ marginTop: '10px' }}>
-                        <label className="form-label">Meta Title</label>
-                        <input type="text" name="seoApplyTitle" className="form-input" defaultValue={seo.apply?.title || ''} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Meta Description</label>
-                        <input type="text" name="seoApplyDesc" className="form-input" defaultValue={seo.apply?.description || ''} />
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--white)', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div className="session-badge">Contact Page SEO</div>
-                      <div className="form-group" style={{ marginTop: '10px' }}>
-                        <label className="form-label">Meta Title</label>
-                        <input type="text" name="seoContactTitle" className="form-input" defaultValue={seo.contact?.title || ''} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Meta Description</label>
-                        <input type="text" name="seoContactDesc" className="form-input" defaultValue={seo.contact?.description || ''} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Change Credentials Form */}
-                <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">CMS Admin Credentials</div>
-                  <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div>
-                      <label className="form-label">Admin Email Address</label>
-                      <input 
-                        type="email" 
-                        className="form-input" 
-                        value={newEmail} 
-                        onChange={(e) => setNewEmail(e.target.value)} 
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label">Google Client ID (Google Sign-In)</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        value={googleClientId} 
-                        onChange={(e) => setGoogleClientId(e.target.value)} 
-                        placeholder="Paste Google Client ID here"
-                      />
-                    </div>
-                  </div>
-                  <div className="admin-section-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: 0 }}>
-                    <div className="form-group">
-                      <label className="form-label">New Password (Leave blank to keep current)</label>
-                      <input 
-                        type="password" 
-                        className="form-input" 
-                        placeholder="••••••••" 
-                        value={newPassword} 
-                        onChange={(e) => setNewPassword(e.target.value)} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Confirm New Password</label>
-                      <input 
-                        type="password" 
-                        className="form-input" 
-                        placeholder="••••••••" 
-                        value={confirmPassword} 
-                        onChange={(e) => setConfirmPassword(e.target.value)} 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Database Backup Export & Hard Reset */}
-                <div className="admin-box">
-                  <div className="admin-box-title">System Actions & Database Management</div>
-                  <p style={{ fontSize: '0.9rem', marginBottom: '15px', color: 'var(--text-muted)' }}>
-                    Export your CMS database configuration as a JSON file or restore the original code settings.
-                  </p>
-                  
-                  <div style={{ display: 'flex', gap: '15px' }}>
-                    <button type="button" onClick={downloadBackup} className="btn btn-accent">
-                      Download Database (data.json)
-                    </button>
-                    <button type="button" onClick={handleResetData} className="btn btn-outline" style={{ color: 'var(--error-color)', borderColor: 'var(--error-color)' }}>
-                      Reset to Default JSON
-                    </button>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '10px' }}>
-                    * In production, download `data.json` and replace it in the codebase repository to deploy modifications permanently.
-                  </p>
-                </div>
-              </form>
-            )}
-
-          </main>
-        </div>
-
+        </main>
       </div>
-    </section>
+
+      {/* TEAM MEMBER MODAL EDIT */}
+      {editingMember && (
+        <div className="modal-overlay" onClick={() => setEditingMember(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>{editingMember.isNew ? 'Add Member' : 'Edit Member'}</h3>
+              <button className="modal-close" onClick={() => setEditingMember(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleMemberSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Full Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={memberForm.name}
+                    onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Designation / Role *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={memberForm.role}
+                    onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Short Biography</label>
+                  <textarea
+                    className="form-input"
+                    style={{ minHeight: '80px' }}
+                    value={memberForm.bio}
+                    onChange={(e) => setMemberForm({ ...memberForm, bio: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Profile Photo</label>
+                  
+                  {/* Primary Local File Input */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+                    {memberForm.photo && (
+                      <div style={{ width: '52px', height: '52px', borderRadius: 'var(--radius-full)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                        <img src={memberForm.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleMemberPhotoUpload}
+                        className="form-input"
+                        style={{ padding: '5px' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Secondary/Optional Advanced Details */}
+                  <details style={{ marginTop: '8px' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--accent-color)', fontWeight: '500' }}>
+                      Or select from Media Library / paste URL
+                    </summary>
+                    <div className="media-input-group" style={{ marginTop: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Image URL"
+                        className="form-input"
+                        value={memberForm.photo}
+                        onChange={(e) => setMemberForm({ ...memberForm, photo: e.target.value })}
+                      />
+                      <button type="button" onClick={() => triggerMediaPicker(url => setMemberForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
+                    </div>
+                  </details>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Skills & Expertises (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={memberForm.skills.join(', ')}
+                    onChange={(e) => setMemberForm({ ...memberForm, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                    placeholder="e.g. Psychology, Systems Design"
+                  />
+                </div>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="checkbox"
+                    id="member_visible"
+                    checked={memberForm.is_visible}
+                    onChange={(e) => setMemberForm({ ...memberForm, is_visible: e.target.checked })}
+                  />
+                  <label htmlFor="member_visible" className="form-label" style={{ margin: 0 }}>Show on Hierarchy Page</label>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setEditingMember(null)} className="btn btn-outline">Cancel</button>
+                <button type="submit" className="btn btn-accent">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SESSION MODAL EDIT */}
+      {editingSession && (
+        <div className="modal-overlay" onClick={() => setEditingSession(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>{editingSession.isNew ? 'Schedule New Session' : 'Edit Session Details'}</h3>
+              <button className="modal-close" onClick={() => setEditingSession(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleSessionSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Topic Title *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={sessionForm.title}
+                    onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Speaker / Presenter *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={sessionForm.presenter}
+                    onChange={(e) => setSessionForm({ ...sessionForm, presenter: e.target.value })}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Scheduled Date & Time *</label>
+                    <input
+                      type="datetime-local"
+                      className="form-input"
+                      value={sessionForm.scheduled_at}
+                      onChange={(e) => setSessionForm({ ...sessionForm, scheduled_at: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Status</label>
+                    <select
+                      className="form-input"
+                      value={sessionForm.status}
+                      onChange={(e) => setSessionForm({ ...sessionForm, status: e.target.value })}
+                    >
+                      <option value="upcoming">Upcoming</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Format Override</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={sessionForm.format}
+                      onChange={(e) => setSessionForm({ ...sessionForm, format: e.target.value })}
+                      placeholder="e.g. 30min talk + Q&A"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Registration Link</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={sessionForm.registration_link}
+                      onChange={(e) => setSessionForm({ ...sessionForm, registration_link: e.target.value })}
+                      placeholder="Zoom or Google Form link"
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Summary / Description</label>
+                  <textarea
+                    className="form-input"
+                    style={{ minHeight: '80px' }}
+                    value={sessionForm.summary}
+                    onChange={(e) => setSessionForm({ ...sessionForm, summary: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Cover Image URL</label>
+                  <div className="media-input-group">
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={sessionForm.photo}
+                      onChange={(e) => setSessionForm({ ...sessionForm, photo: e.target.value })}
+                    />
+                    <button type="button" onClick={() => triggerMediaPicker(url => setSessionForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Key Takeaways (comma-separated, completed only)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={sessionForm.takeaways.join(', ')}
+                    onChange={(e) => setSessionForm({ ...sessionForm, takeaways: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                    placeholder="Point 1, Point 2, Point 3"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setEditingSession(null)} className="btn btn-outline">Cancel</button>
+                <button type="submit" className="btn btn-accent">Save Session</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* BLOG RECAP MODAL EDIT */}
+      {editingBlog && (
+        <div className="modal-overlay" onClick={() => setEditingBlog(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '750px' }}>
+            <div className="modal-header">
+              <h3>{editingBlog.isNew ? 'Publish Recap Post' : 'Edit Recap Post'}</h3>
+              <button className="modal-close" onClick={() => setEditingBlog(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleBlogSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Article Title *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={blogForm.title}
+                    onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value })}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div className="form-group">
+                    <label className="form-label">Author Name *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={blogForm.author}
+                      onChange={(e) => setBlogForm({ ...blogForm, author: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Publish Date *</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={blogForm.published_at}
+                      onChange={(e) => setBlogForm({ ...blogForm, published_at: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Excerpt / Summary</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={blogForm.excerpt}
+                    onChange={(e) => setBlogForm({ ...blogForm, excerpt: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Article Content (Basic Markdown supports ### and **bold**)</label>
+                  <textarea
+                    className="form-input"
+                    style={{ minHeight: '220px', fontFamily: 'monospace', fontSize: '0.9rem' }}
+                    value={blogForm.content}
+                    onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setEditingBlog(null)} className="btn btn-outline">Cancel</button>
+                <button type="submit" className="btn btn-accent">Publish Recap</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MEDIA LIBRARY OVERLAY MODAL */}
+      {showMediaLibrary && (
+        <MediaLibrary
+          token={token}
+          onClose={() => setShowMediaLibrary(false)}
+          onSelectImage={handleMediaSelect}
+        />
+      )}
+
+    </div>
   );
 }
 

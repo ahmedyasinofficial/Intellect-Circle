@@ -240,9 +240,10 @@
       "photo": "",
       "skills": [
         "Systems Design",
-        "Project Mgmt",
+        "Project Management",
         "Research"
-      ]
+      ],
+      "is_visible": true
     },
     {
       "id": "team-3",
@@ -277,60 +278,46 @@
     "facebook": "https://www.facebook.com/profile.php?id=61590726385267",
     "address": "Punjab, Pakistan"
   },
+  "activity_logs": [
+    {
+      "id": "log-1783084057400",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-03T13:07:37.400Z"
+    },
+    {
+      "id": "1",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Update Settings",
+      "details": "SEO and contacts saved.",
+      "created_at": "2026-07-03T12:07:37.400Z"
+    },
+    {
+      "id": "2",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Create Session",
+      "details": "Added Intro to modern game theory.",
+      "created_at": "2026-07-03T11:07:37.400Z"
+    }
+  ],
+  "media": [],
   "submissions": {
     "applications": [
       {
-        "id": "app-1782739186363",
-        "name": "Ali",
-        "email": "ali@gmail.com",
-        "age": "23",
-        "city": "Lahore",
-        "occupation": "CS student",
-        "whyJoin": "I want to learn and i thingk ai alksgkalsdjfkd dn sadfiksja kwndvkjsdf ljd",
-        "topic": "dsf lasdfdf s. sdf",
+        "id": "app-1783084418232",
+        "name": "dfas",
+        "email": "asdfasd@gmail.com",
+        "age": "22",
+        "city": "dsfgg",
+        "occupation": "sadff",
+        "whyJoin": "If you have something to share, something to solve, or just a hunger to be around people who think - this is your pl",
         "heardAbout": "Instagram",
         "heardAboutOther": "",
         "heardAboutCombined": "Instagram",
-        "submittedAt": "2026-06-29T13:19:46.363Z"
-      },
-      {
-        "id": "app-1782732365970",
-        "name": "Ahmed",
-        "age": "23",
-        "city": "Lahore",
-        "occupation": "Clinical Psychology Student",
-        "whyJoin": "I want to explore it what is actually going on as my interest much align with the vision of intellect circle\n",
-        "topic": "Mental Health in Pakistan's Univsersities",
-        "heardAbout": "Friend",
-        "submittedAt": "2026-06-29T11:26:05.970Z"
-      },
-      {
-        "id": "app-1",
-        "name": "Bilal Khan",
-        "age": "22",
-        "city": "Faisalabad",
-        "occupation": "Undergraduate Physics Student",
-        "whyJoin": "I want to surround myself with individuals who read widely and discuss topics beyond social media trends.",
-        "topic": "The Quantum Zeno Effect in Modern Physics",
-        "heardAbout": "Friend recommendation",
-        "submittedAt": "2026-06-28T14:32:00Z"
+        "submittedAt": "2026-07-03T13:13:38.232Z"
       }
     ],
-    "contacts": [
-      {
-        "id": "con-1782750353925",
-        "name": "Aslam",
-        "email": "aslam@gmail.com",
-        "message": "[Message for Officer: Ahmad Yasin (President)]\n\nI want to talk to you",
-        "submittedAt": "2026-06-29T16:25:53.925Z"
-      },
-      {
-        "id": "con-1",
-        "name": "Sarah Ahmed",
-        "email": "sarah@gmail.com",
-        "message": "Hi, I would like to know if you plan to launch a physical chapter in Multan soon?",
-        "submittedAt": "2026-06-29T10:15:00Z"
-      }
-    ]
+    "contacts": []
   }
 }

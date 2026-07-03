@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import SmartImage from '../components/SmartImage'
 
 function Sessions({ data, navigateTo }) {
   const sessions = data.sessions || [];
@@ -111,7 +112,7 @@ function Sessions({ data, navigateTo }) {
                     </div>
                     {session.photo && (
                       <div className="upcoming-graphic">
-                        <img src={session.photo} alt={session.title} />
+                        <SmartImage src={session.photo} alt={session.title} />
                       </div>
                     )}
                   </div>

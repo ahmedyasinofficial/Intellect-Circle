@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import StatCounter from '../components/StatCounter'
 import logoImage from '../assets/logo.png'
+import SmartImage from '../components/SmartImage'
 
 function HeroCanvas() {
   const canvasRef = useRef(null);
@@ -479,7 +480,7 @@ function Home({ data, navigateTo }) {
                 aspectRatio: '16/10'
               }}>
                 {featuredSession.photo ? (
-                  <img src={featuredSession.photo} alt={featuredSession.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <SmartImage src={featuredSession.photo} alt={featuredSession.title} />
                 ) : (
                   <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>

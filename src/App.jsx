@@ -9,6 +9,7 @@ import Apply from './pages/Apply'
 import Contact from './pages/Contact'
 import Admin from './pages/Admin'
 import defaultData from './data.json'
+import { supabase, isSupabaseConfigured } from './supabase'
 
 function App() {
   // 1. Data State (CMS Database)
@@ -51,7 +52,7 @@ function App() {
     const hash = window.location.hash;
     if (hash === '#/about') return 'about';
     if (hash === '#/sessions') return 'sessions';
-    if (hash === '#/team') return 'team';
+    if (hash === '#/team' || hash === '#/hierarchy') return 'team';
     if (hash === '#/apply') return 'apply';
     if (hash === '#/contact') return 'contact';
     if (hash === '#/admin') return 'admin';
@@ -64,7 +65,7 @@ function App() {
       const hash = window.location.hash;
       if (hash === '#/about') setCurrentPage('about');
       else if (hash === '#/sessions') setCurrentPage('sessions');
-      else if (hash === '#/team') setCurrentPage('team');
+      else if (hash === '#/team' || hash === '#/hierarchy') setCurrentPage('team');
       else if (hash === '#/apply') setCurrentPage('apply');
       else if (hash === '#/contact') setCurrentPage('contact');
       else if (hash === '#/admin') setCurrentPage('admin');
@@ -219,6 +220,19 @@ function App() {
     return sessionStorage.getItem('ic_admin_logged_in') === 'true';
   });
 
+  useEffect(() => {
+    const checkSession = async () => {
+      if (isSupabaseConfigured()) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setIsAdminLoggedIn(true);
+          sessionStorage.setItem('ic_admin_logged_in', 'true');
+        }
+      }
+    };
+    checkSession();
+  }, []);
+
   const handleAdminLogin = () => {
     setIsAdminLoggedIn(true);
     sessionStorage.setItem('ic_admin_logged_in', 'true');
@@ -232,7 +246,8 @@ function App() {
 
   // 8. Navigation helper
   const navigateTo = (page) => {
-    window.location.hash = page === 'home' ? '#/' : `#/${page}`;
+    const target = page === 'team' ? 'hierarchy' : page;
+    window.location.hash = target === 'home' ? '#/' : `#/${target}`;
   };
 
   // Render current page component

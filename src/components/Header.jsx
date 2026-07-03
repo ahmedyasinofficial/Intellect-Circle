@@ -51,11 +51,11 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
-                href="#/team"
+                href="#/hierarchy"
                 onClick={(e) => { e.preventDefault(); handleNavClick('team'); }}
                 className={`nav-link ${currentPage === 'team' ? 'active' : ''}`}
               >
-                Team
+                Hierarchy
               </a>
             </li>
             <li>

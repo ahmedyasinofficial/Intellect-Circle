@@ -84,7 +84,7 @@ function Team({ data, saveDatabase }) {
       id: 'con-' + Date.now(),
       name: formData.name,
       email: formData.email,
-      message: `[Message for Officer: ${selectedMember.name} (${selectedMember.role})]\n\n${formData.message}`,
+      message: `[Message for Member: ${selectedMember.name} (${selectedMember.role})]\n\n${formData.message}`,
       submittedAt: new Date().toISOString()
     };
 
@@ -109,11 +109,11 @@ function Team({ data, saveDatabase }) {
           },
           body: JSON.stringify({
             access_key: admin.web3formsKey,
-            subject: `Inquiry for Officer ${selectedMember.name}`,
+            subject: `Inquiry for Member ${selectedMember.name}`,
             from_name: 'Intellect Circle Portal',
             message: `
               A message has been received specifically for:
-              Officer Name: ${selectedMember.name}
+              Member Name: ${selectedMember.name}
               Role: ${selectedMember.role}
 
               Sender Details:
@@ -128,7 +128,7 @@ function Team({ data, saveDatabase }) {
           })
         });
       } catch (err) {
-        console.error('Failed to dispatch officer contact email:', err);
+        console.error('Failed to dispatch member contact email:', err);
       }
     }
 
@@ -142,8 +142,8 @@ function Team({ data, saveDatabase }) {
       <section className="section" style={{ backgroundColor: 'var(--white)', borderBottom: '1px solid var(--border-color)', padding: '60px 0' }}>
         <div className="container">
           <div className="section-header" style={{ marginBottom: 0 }}>
-            <h2>Our Leadership Team</h2>
-            <p>Meet the officers and builders steering Punjab's grassroots youth movement.</p>
+            <h2>Hierarchy</h2>
+            <p>Meet the leaders and builders steering Punjab's grassroots youth movement.</p>
           </div>
         </div>
       </section>
@@ -197,7 +197,7 @@ function Team({ data, saveDatabase }) {
                       className="btn btn-outline-gold" 
                       style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', marginTop: '15px' }}
                     >
-                      Contact Officer
+                      Contact Member
                     </button>
                   </div>
                 </div>
@@ -207,7 +207,7 @@ function Team({ data, saveDatabase }) {
         </div>
       </section>
 
-      {/* 3. Officer Message Modal Overlay */}
+      {/* 3. Member Message Modal Overlay */}
       {selectedMember && (
         <div className="modal-overlay" onClick={closeContactModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
@@ -236,7 +236,7 @@ function Team({ data, saveDatabase }) {
                     Message {selectedMember.name}
                   </h3>
                   <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
-                    Submit a query or project proposal directly to the {selectedMember.role}.
+                    Submit a query or project proposal directly to {selectedMember.role}.
                   </p>
 
                   <form onSubmit={handleContactSubmit}>
