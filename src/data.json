@@ -42,22 +42,22 @@
       {
         "id": "members",
         "label": "Members",
-        "value": "78"
+        "value": "20+"
       },
       {
         "id": "sessions",
         "label": "Sessions Held",
-        "value": "36"
+        "value": "18"
       },
       {
         "id": "topics",
         "label": "Topics Covered",
-        "value": "28"
+        "value": "10+"
       },
       {
         "id": "cities",
         "label": "Cities Reached",
-        "value": "4"
+        "value": "3"
       }
     ],
     "aboutTeaser": {
@@ -178,7 +178,10 @@
       "summary": "Exploring strategic interaction, Nash equilibria, and how mathematical models help us understand conflict and cooperation in daily life.",
       "isUpcoming": true,
       "takeaways": [],
-      "photo": "/uploads/An Introduction to Modern Game Theory.png"
+      "photo": "",
+      "scheduled_at": "2026-07-03T20:21",
+      "status": "upcoming",
+      "registration_link": ""
     },
     {
       "id": "session-2",
@@ -224,13 +227,14 @@
       "id": "team-1",
       "name": "Ahmad Yasin",
       "role": "Founder & President, Intellect Circles",
-      "bio": "Clinical Psychology student passionate about human behavior, critical thinking, and youth empowerment.",
+      "bio": "A student of knowledge and a builder at heart, driven by continuous self-learning. My focus is entirely on turning deep insights into practical solutions and spaces for community growth.",
       "photo": "/uploads/Photo_004.png",
       "skills": [
-        "Psychology",
-        "Research",
-        "Leadership"
-      ]
+        "Community Catalyst",
+        "Generalist",
+        "Builder"
+      ],
+      "is_visible": true
     },
     {
       "id": "team-2",
@@ -280,6 +284,13 @@
   },
   "activity_logs": [
     {
+      "id": "log-1783110042640",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-03T20:20:42.640Z"
+    },
+    {
       "id": "log-1783084057400",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",
@@ -301,23 +312,5 @@
       "created_at": "2026-07-03T11:07:37.400Z"
     }
   ],
-  "media": [],
-  "submissions": {
-    "applications": [
-      {
-        "id": "app-1783084418232",
-        "name": "dfas",
-        "email": "asdfasd@gmail.com",
-        "age": "22",
-        "city": "dsfgg",
-        "occupation": "sadff",
-        "whyJoin": "If you have something to share, something to solve, or just a hunger to be around people who think - this is your pl",
-        "heardAbout": "Instagram",
-        "heardAboutOther": "",
-        "heardAboutCombined": "Instagram",
-        "submittedAt": "2026-07-03T13:13:38.232Z"
-      }
-    ],
-    "contacts": []
-  }
+  "media": []
 }
