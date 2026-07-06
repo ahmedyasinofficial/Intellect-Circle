@@ -18,6 +18,32 @@ export default async function handler(req, res) {
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  
+  // VERCEL MOCK FALLBACK IF NO SUPABASE KEYS SET
+  if (!supabaseUrl || !supabaseKey) {
+    const { readFileSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const defaultData = JSON.parse(readFileSync(join(__dirname, '..', 'src', 'data.json'), 'utf-8'));
+    
+    if (req.method === 'GET') {
+      let data = defaultData[type] || [];
+      if (type === 'sessions') {
+        const now = new Date();
+        data = data.map(s => {
+          if (s.status === 'upcoming' && new Date(s.scheduled_at) < now) s.status = 'completed';
+          return s;
+        });
+      }
+      return res.status(200).json(data);
+    } else {
+      // Modifying methods mock success
+      if (req.method === 'POST') return res.status(200).json({ success: true, data: { id: `mock-${Date.now()}`, ...req.body } });
+      return res.status(200).json({ success: true, message: 'Mock action succeeded' });
+    }
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
   // 1. GET requests are public

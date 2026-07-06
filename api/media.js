@@ -16,6 +16,24 @@ export default async function handler(req, res) {
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    if (req.method === 'GET') {
+      const { readFileSync } = await import('fs');
+      const { join, dirname } = await import('path');
+      const { fileURLToPath } = await import('url');
+      try {
+        const defaultData = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'data.json'), 'utf-8'));
+        return res.status(200).json(defaultData.media || []);
+      } catch (e) {
+        return res.status(200).json([]);
+      }
+    } else if (req.method === 'POST') {
+      return res.status(200).json({ success: true, url: 'https://via.placeholder.com/150', name: 'mock-upload.png', id: `media-${Date.now()}` });
+    }
+    return res.status(200).json({ success: true });
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
   const { action } = req.query;
