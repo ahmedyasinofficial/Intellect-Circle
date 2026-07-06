@@ -811,7 +811,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </form>
 
           <p style={{ marginTop: '20px', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-            Punjab Grassroots Youth Movement Database
+            Grassroots Youth Movement Database
           </p>
         </div>
       </div>

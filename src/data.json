@@ -6,8 +6,8 @@
   },
   "seo": {
     "home": {
-      "title": "Intellect Circle - Youth Learning Community in Punjab",
-      "description": "A refined, selective, and structured intellectual circle for youth in Punjab, Pakistan. Share knowledge, engage in deep discussions, and grow together."
+      "title": "Intellect Circle - Youth Learning Community",
+      "description": "A refined, selective, and structured intellectual circle for youth in Pakistan. Share knowledge, engage in deep discussions, and grow together."
     },
     "about": {
       "title": "Our Identity & Mission - Intellect Circle",
@@ -23,7 +23,7 @@
     },
     "apply": {
       "title": "Join Our Community - Intellect Circle Application",
-      "description": "Apply to join Intellect Circle. We look for serious, motivated youth aged 17-30 in Punjab, Pakistan."
+      "description": "Apply to join Intellect Circle. We look for serious, motivated youth aged 17-30 in Pakistan."
     },
     "contact": {
       "title": "Get in Touch - Intellect Circle",
@@ -33,7 +33,7 @@
   "home": {
     "hero": {
       "headline": "Intellect Circle",
-      "tagline": "A structured learning community for young intellects in Punjab.",
+      "tagline": "A structured learning community for young intellects.",
       "description": "Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.",
       "ctaApplyLabel": "Apply to Join",
       "ctaLearnLabel": "Learn More"
@@ -47,7 +47,7 @@
       {
         "id": "sessions",
         "label": "Sessions Held",
-        "value": "18"
+        "value": "19"
       },
       {
         "id": "topics",
@@ -60,6 +60,27 @@
         "value": "3"
       }
     ],
+    "howItWorks": {
+      "title": "How It Works",
+      "steps": [
+        {
+          "number": "01",
+          "text": "Submit your application detailing your background and interests."
+        },
+        {
+          "number": "02",
+          "text": "Participate in an interview with our selection committee."
+        },
+        {
+          "number": "03",
+          "text": "Receive your acceptance and onboarding materials."
+        },
+        {
+          "number": "04",
+          "text": "Join our bi-weekly sessions and start contributing."
+        }
+      ]
+    },
     "aboutTeaser": {
       "title": "What is Intellect Circle?",
       "subtitle": "A selective peer-to-peer knowledge sharing community built on structure and mutual respect.",
@@ -111,7 +132,7 @@
     },
     "ctaSection": {
       "headline": "Ready to expand your intellectual horizons?",
-      "subheadline": "Applications are open for our upcoming cohort in Punjab.",
+      "subheadline": "Applications are open for our upcoming cohort.",
       "buttonLabel": "Apply for Membership"
     }
   },
@@ -237,11 +258,20 @@
       "is_visible": true
     },
     {
+      "name": "Qudsia Mazhar",
+      "role": "Vice President",
+      "bio": "Psychology Student",
+      "photo": "",
+      "skills": [],
+      "is_visible": true,
+      "id": "team-1783336867842"
+    },
+    {
       "id": "team-2",
       "name": "Muhammad Rehan",
       "role": "Head of Operations",
       "bio": "Software engineer dedicated to structured operational design and community growth.",
-      "photo": "",
+      "photo": "/uploads/adfasdf.jpg",
       "skills": [
         "Systems Design",
         "Project Management",
@@ -265,7 +295,7 @@
       "id": "team-4",
       "name": "Muhammad Juanid",
       "role": "Head of Growth & Impact",
-      "bio": "Development specialist working on extending youth access to learning platforms across Punjab.",
+      "bio": "Development specialist working on extending youth access to learning platforms.",
       "photo": "",
       "skills": [
         "Community Growth",
@@ -280,9 +310,16 @@
     "instagram": "https://instagram.com/intellectcircle",
     "linkedin": "https://www.linkedin.com/company/intellect-circle/",
     "facebook": "https://www.facebook.com/profile.php?id=61590726385267",
-    "address": "Punjab, Pakistan"
+    "address": "Pakistan"
   },
   "activity_logs": [
+    {
+      "id": "log-1783336770040",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-06T11:19:30.040Z"
+    },
     {
       "id": "log-1783110042640",
       "user_email": "admin@intellectcircle.com",
@@ -312,5 +349,27 @@
       "created_at": "2026-07-03T11:07:37.400Z"
     }
   ],
-  "media": []
+  "media": [
+    {
+      "id": "media-1783336830537",
+      "name": "adfasdf.jpg",
+      "url": "/uploads/adfasdf.jpg",
+      "size": 204630,
+      "mime_type": "image/png"
+    },
+    {
+      "id": "media-1783336820859",
+      "name": "af df.jpg",
+      "url": "/uploads/af df.jpg",
+      "size": 182154,
+      "mime_type": "image/png"
+    },
+    {
+      "id": "media-1783336796560",
+      "name": "adfasdf.jpg",
+      "url": "/uploads/adfasdf.jpg",
+      "size": 204630,
+      "mime_type": "image/png"
+    }
+  ]
 }

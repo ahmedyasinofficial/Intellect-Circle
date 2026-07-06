@@ -143,7 +143,7 @@ function Team({ data, saveDatabase }) {
         <div className="container">
           <div className="section-header" style={{ marginBottom: 0 }}>
             <h2>Hierarchy</h2>
-            <p>Meet the leaders and builders steering Punjab's grassroots youth movement.</p>
+            <p>Meet the leaders and builders steering the grassroots youth movement.</p>
           </div>
         </div>
       </section>
