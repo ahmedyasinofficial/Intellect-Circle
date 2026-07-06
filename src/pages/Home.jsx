@@ -367,7 +367,65 @@ function Home({ data, navigateTo }) {
         </section>
       )}
 
-      {/* 5. Pillars of Intellect Circle */}
+      {/* 8. Featured Session Section */}
+      {featuredSession.title && (
+        <section className="section" style={{ backgroundColor: 'var(--white)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
+          <div className="container">
+            <div className="section-header">
+              <h2>Featured Session</h2>
+              <p>Explore an upcoming or recently held structured peer learning talk.</p>
+            </div>
+            
+            <div className="featured-session">
+              <div className="featured-graphic">
+                {featuredSession.photo ? (
+                  <SmartImage src={featuredSession.photo} alt={featuredSession.title} />
+                ) : (
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                )}
+              </div>
+              <div className="featured-info">
+                <span className="session-badge">
+                  {featuredSession.isUpcoming ? 'Upcoming Presentation' : 'Past Archive Recap'}
+                </span>
+                <h3>{featuredSession.title}</h3>
+                <p>{featuredSession.summary}</p>
+                
+                <div className="session-meta-list">
+                  <div className="session-meta-item">
+                    <span className="label">Presenter:</span>
+                    <span className="val">{featuredSession.presenter}</span>
+                  </div>
+                  <div className="session-meta-item">
+                    <span className="label">Date/Time:</span>
+                    <span className="val">{featuredSession.date} {featuredSession.time ? `at ${featuredSession.time}` : ''}</span>
+                  </div>
+                  <div className="session-meta-item">
+                    <span className="label">Format:</span>
+                    <span className="val">{featuredSession.format}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {featuredSession.registrationLink && (
+                    <a href={featuredSession.registrationLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent">
+                      Register Now
+                    </a>
+                  )}
+                  <button onClick={() => navigateTo('sessions')} className="btn btn-outline-gold">
+                    Explore All Sessions
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {
+      }
       {pillarItems.length > 0 && (
         <section className="section">
           <div className="container">
@@ -451,63 +509,6 @@ function Home({ data, navigateTo }) {
                   <p>{partner.description}</p>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* 8. Featured Session Section */}
-      {featuredSession.title && (
-        <section className="section" style={{ backgroundColor: 'var(--white)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
-          <div className="container">
-            <div className="section-header">
-              <h2>Featured Session</h2>
-              <p>Explore an upcoming or recently held structured peer learning talk.</p>
-            </div>
-            
-            <div className="featured-session">
-              <div className="featured-graphic">
-                {featuredSession.photo ? (
-                  <SmartImage src={featuredSession.photo} alt={featuredSession.title} />
-                ) : (
-                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                )}
-              </div>
-              <div className="featured-info">
-                <span className="session-badge">
-                  {featuredSession.isUpcoming ? 'Upcoming Presentation' : 'Past Archive Recap'}
-                </span>
-                <h3>{featuredSession.title}</h3>
-                <p>{featuredSession.summary}</p>
-                
-                <div className="session-meta-list">
-                  <div className="session-meta-item">
-                    <span className="label">Presenter:</span>
-                    <span className="val">{featuredSession.presenter}</span>
-                  </div>
-                  <div className="session-meta-item">
-                    <span className="label">Date/Time:</span>
-                    <span className="val">{featuredSession.date} {featuredSession.time ? `at ${featuredSession.time}` : ''}</span>
-                  </div>
-                  <div className="session-meta-item">
-                    <span className="label">Format:</span>
-                    <span className="val">{featuredSession.format}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  {featuredSession.registrationLink && (
-                    <a href={featuredSession.registrationLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent">
-                      Register Now
-                    </a>
-                  )}
-                  <button onClick={() => navigateTo('sessions')} className="btn btn-outline-gold">
-                    Explore All Sessions
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </section>
