@@ -550,7 +550,7 @@ img {
 /* Teaser / What is */
 .teaser-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 30px;
 }
 
@@ -563,6 +563,11 @@ img {
   transition: var(--transition-smooth);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  height: 100%;
 }
 
 .teaser-card::before {
@@ -589,6 +594,8 @@ img {
 .teaser-icon {
   margin-bottom: 25px;
   color: var(--accent-color);
+  display: flex;
+  justify-content: center;
 }
 
 .teaser-card h3 {
@@ -3386,6 +3393,9 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
   .footer-grid,
   .contact-layout {
     grid-template-columns: 1fr !important;
+  }
+  .teaser-grid > *:last-child {
+    grid-column: span 1 !important;
   }
   .admin-layout {
     grid-template-columns: 1fr !important;
