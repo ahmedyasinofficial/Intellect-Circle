@@ -245,19 +245,6 @@
   ],
   "team": [
     {
-      "id": "team-1",
-      "name": "Ahmad Yasin",
-      "role": "Founder & President, Intellect Circles",
-      "bio": "A student of knowledge and a builder at heart, driven by continuous self-learning. My focus is entirely on turning deep insights into practical solutions and spaces for community growth.",
-      "photo": "/uploads/Photo_004.png",
-      "skills": [
-        "Community Catalyst",
-        "Generalist",
-        "Builder"
-      ],
-      "is_visible": true
-    },
-    {
       "name": "Qudsia Mazhar",
       "role": "Vice President",
       "bio": "Psychology Student",
@@ -267,15 +254,15 @@
       "id": "team-1783336867842"
     },
     {
-      "id": "team-2",
-      "name": "Muhammad Rehan",
-      "role": "Head of Operations",
-      "bio": "Software engineer dedicated to structured operational design and community growth.",
-      "photo": "/uploads/adfasdf.jpg",
+      "id": "team-1",
+      "name": "Ahmad Yasin",
+      "role": "Founder & President, Intellect Circles",
+      "bio": "A student of knowledge and a builder at heart, driven by continuous self-learning. My focus is entirely on turning deep insights into practical solutions and spaces for community growth.",
+      "photo": "/uploads/Photo_004.png",
       "skills": [
-        "Systems Design",
-        "Project Management",
-        "Research"
+        "Community Catalyst",
+        "Generalist",
+        "Builder"
       ],
       "is_visible": true
     },
@@ -290,6 +277,19 @@
         "Creative Writing",
         "Media"
       ]
+    },
+    {
+      "id": "team-2",
+      "name": "Muhammad Rehan",
+      "role": "Head of Operations",
+      "bio": "Software engineer dedicated to structured operational design and community growth.",
+      "photo": "/uploads/adfasdf.jpg",
+      "skills": [
+        "Systems Design",
+        "Project Management",
+        "Research"
+      ],
+      "is_visible": true
     },
     {
       "id": "team-4",
