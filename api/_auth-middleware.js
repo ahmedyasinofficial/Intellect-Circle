@@ -16,54 +16,68 @@ export async function getAuthenticatedUser(req) {
   }
 
   const token = authHeader.split(' ')[1];
-  const { url, key, isConfigured } = getSupabaseConfig();
+  
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const hasServiceRoleKey = !!key;
+  
+  console.log('[Auth Middleware Debug] process.env.SUPABASE_URL:', url);
+  console.log('[Auth Middleware Debug] process.env.SUPABASE_SERVICE_ROLE_KEY exists:', hasServiceRoleKey);
 
-  // 1. If Supabase IS configured, try real JWT validation first
-  if (isConfigured) {
-    try {
-      const supabase = createClient(url, key, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      });
-
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-
-      if (error || !user) {
-        console.warn('[Auth Middleware] Supabase JWT validation failed:', error?.message || 'No user returned');
-      } else {
-        // Valid Supabase JWT — verify admin role
-        const { data: adminRow, error: adminError } = await supabase
-          .from('admin_users')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        if (adminError || !adminRow) {
-          console.warn(`[Auth Middleware] User ${user.id} (${user.email}) is not in admin_users table or query failed:`, adminError?.message);
-        } else {
-          console.log(`[Auth Middleware] Successfully authenticated admin: ${user.email}`);
-          return { ...user, role: adminRow.role };
-        }
-      }
-    } catch (err) {
-      console.error('[Auth Middleware] Unexpected error during Supabase auth validation:', err.message);
+  // Decode JWT payload to check issuer
+  try {
+    const payloadBase64 = token.split('.')[1];
+    if (payloadBase64) {
+      const decodedPayload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      console.log('[Auth Middleware Debug] JWT iss claim:', decodedPayload.iss);
+      const isIssuerMatch = url && decodedPayload.iss && decodedPayload.iss.startsWith(url);
+      console.log('[Auth Middleware Debug] Does iss match SUPABASE_URL?', !!isIssuerMatch);
     }
-  } else {
-    console.warn('[Auth Middleware] Supabase is NOT configured on the server. SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.');
+  } catch (e) {
+    console.warn('[Auth Middleware Debug] Failed to decode JWT payload:', e.message);
   }
 
-  // 2. Fallback: accept the mock token for JSON-based CMS mode
-  if (token === MOCK_TOKEN) {
-    console.log('[Auth Middleware] Falling back to mock session token.');
-    return {
-      id: 'mock-admin-id',
-      email: 'admin@intellectcircle.com',
-      role: 'admin'
-    };
-  } else {
-    console.warn('[Auth Middleware] Token is not a valid Supabase JWT and does not match MOCK_TOKEN.');
+  if (!url || !key) {
+    console.error('[Auth Middleware Debug] Missing Supabase env variables.');
+    return null;
   }
 
-  return null;
+  try {
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+
+    // Use token directly with Supabase client to get the user
+    // In v2, getUser(jwt) takes the token directly, or we can use setSession
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error) {
+      console.error('[Auth Middleware Debug] supabase.auth.getUser(token) error:', JSON.stringify(error));
+    }
+
+    if (error || !user) {
+      return null;
+    }
+
+    // Valid Supabase JWT — verify admin role
+    const { data: adminRow, error: adminError } = await supabase
+      .from('admin_users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (adminError || !adminRow) {
+      console.warn(`[Auth Middleware] User ${user.id} (${user.email}) is not in admin_users table or query failed:`, adminError?.message);
+      return null;
+    }
+
+    console.log(`[Auth Middleware] Successfully authenticated admin: ${user.email}`);
+    return { ...user, role: adminRow.role };
+
+  } catch (err) {
+    console.error('[Auth Middleware Debug] Unexpected error during Supabase auth validation:', err.message);
+    return null;
+  }
 }
 
 export async function logActivity(userEmail, action, details) {
