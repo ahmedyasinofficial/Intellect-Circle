@@ -466,16 +466,7 @@ function Home({ data, navigateTo }) {
             </div>
             
             <div className="featured-session">
-              <div className="featured-graphic" style={{ 
-                borderRadius: 'var(--radius-md)', 
-                overflow: 'hidden', 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                backgroundColor: 'var(--primary-light)', 
-                minHeight: '240px',
-                aspectRatio: '16/10'
-              }}>
+              <div className="featured-graphic">
                 {featuredSession.photo ? (
                   <SmartImage src={featuredSession.photo} alt={featuredSession.title} />
                 ) : (

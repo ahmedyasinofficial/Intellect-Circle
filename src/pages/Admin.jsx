@@ -186,7 +186,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         setLoading(false);
       }
     } else {
-      // Local Mode: Fallback to mock settings in data.json
+      // Fallback: Use JSON-based Authentication (Vercel Serverless Function / Vite proxy)
       try {
         const res = await fetch('/api/login', {
           method: 'POST',

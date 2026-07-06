@@ -610,6 +610,32 @@ img {
   align-items: center;
 }
 
+.featured-session:has(.image-portrait) {
+  grid-template-columns: 1fr;
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.featured-graphic {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--primary-light);
+  min-height: 240px;
+  aspect-ratio: 16/10;
+}
+
+.featured-session:has(.image-portrait) .featured-graphic {
+  aspect-ratio: auto;
+}
+
+.featured-session:has(.image-portrait) .session-meta-list {
+  justify-content: center;
+}
+
 .session-badge {
   display: inline-block;
   background-color: var(--accent-light);
@@ -928,6 +954,25 @@ img {
   grid-template-columns: 1.25fr 0.75fr;
   gap: 40px;
   align-items: center;
+}
+
+.upcoming-card.has-photo:has(.image-portrait) {
+  grid-template-columns: 1fr;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.upcoming-card.has-photo:has(.image-portrait) .upcoming-graphic {
+  order: -1;
+  aspect-ratio: auto;
+  min-height: auto;
+  margin-bottom: 20px;
+}
+
+.upcoming-card.has-photo:has(.image-portrait) .session-meta-list {
+  justify-content: center;
 }
 
 .upcoming-graphic {
