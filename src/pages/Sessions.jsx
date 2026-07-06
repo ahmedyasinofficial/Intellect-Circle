@@ -109,6 +109,12 @@ function Sessions({ data, navigateTo }) {
                           <span className="val">{session.format}</span>
                         </div>
                       </div>
+
+                      {session.registrationLink && (
+                        <a href={session.registrationLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent" style={{ marginTop: '20px', display: 'inline-block' }}>
+                          Register Now →
+                        </a>
+                      )}
                     </div>
                     {session.photo && (
                       <div className="upcoming-graphic">

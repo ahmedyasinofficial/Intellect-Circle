@@ -497,9 +497,16 @@ function Home({ data, navigateTo }) {
                   </div>
                 </div>
 
-                <button onClick={() => navigateTo('sessions')} className="btn btn-outline-gold">
-                  Explore All Sessions
-                </button>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {featuredSession.registrationLink && (
+                    <a href={featuredSession.registrationLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent">
+                      Register Now
+                    </a>
+                  )}
+                  <button onClick={() => navigateTo('sessions')} className="btn btn-outline-gold">
+                    Explore All Sessions
+                  </button>
+                </div>
               </div>
             </div>
           </div>

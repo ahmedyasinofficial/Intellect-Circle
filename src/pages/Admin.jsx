@@ -468,12 +468,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     });
   };
 
-  const handleMemberPhotoUpload = async (e) => {
-    const file = e.target.files[0];
+  // Generic file upload → Media Library → returns URL
+  const handleFileUpload = async (file, onSuccess) => {
     if (!file) return;
     
-    if (file.size > 2 * 1024 * 1024) {
-      alert('File size exceeds the 2MB limit.');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds the 5MB limit.');
       return;
     }
 
@@ -494,19 +494,37 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         if (response.ok) {
           const result = await response.json();
           if (result.success) {
-            setMemberForm(prev => ({ ...prev, photo: result.url }));
-            triggerNotification('Profile photo uploaded successfully.');
+            onSuccess(result.url);
+            triggerNotification('Image uploaded successfully.');
+          } else {
+            alert('Upload failed. Check console.');
           }
         } else {
-          alert('Photo upload failed.');
+          const errData = await response.json().catch(() => ({}));
+          alert(`Upload failed: ${errData.error || response.statusText}`);
         }
       } catch (err) {
-        console.error('Error uploading photo:', err);
+        console.error('Error uploading file:', err);
+        alert('Upload failed. Check console.');
       } finally {
         setLoading(false);
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleMemberPhotoUpload = (e) => {
+    const file = e.target.files[0];
+    handleFileUpload(file, (url) => {
+      setMemberForm(prev => ({ ...prev, photo: url }));
+    });
+  };
+
+  const handleSessionPhotoUpload = (e) => {
+    const file = e.target.files[0];
+    handleFileUpload(file, (url) => {
+      setSessionForm(prev => ({ ...prev, photo: url }));
+    });
   };
 
   const handleMemberSubmit = async (e) => {
@@ -1739,16 +1757,52 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Cover Image URL</label>
-                  <div className="media-input-group">
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={sessionForm.photo}
-                      onChange={(e) => setSessionForm({ ...sessionForm, photo: e.target.value })}
-                    />
-                    <button type="button" onClick={() => triggerMediaPicker(url => setSessionForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
+                  <label className="form-label">Cover Image</label>
+                  
+                  {/* Primary: File upload */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+                    {sessionForm.photo && (
+                      <div style={{ width: '80px', height: '50px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                        <img src={sessionForm.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleSessionPhotoUpload}
+                        className="form-input"
+                        style={{ padding: '5px' }}
+                      />
+                    </div>
                   </div>
+
+                  {/* Secondary: URL / Media Library */}
+                  <details style={{ marginTop: '8px' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--accent-color)', fontWeight: '500' }}>
+                      Or select from Media Library / paste URL
+                    </summary>
+                    <div className="media-input-group" style={{ marginTop: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Image URL"
+                        className="form-input"
+                        value={sessionForm.photo}
+                        onChange={(e) => setSessionForm({ ...sessionForm, photo: e.target.value })}
+                      />
+                      <button type="button" onClick={() => triggerMediaPicker(url => setSessionForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
+                    </div>
+                  </details>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Registration Link (Google Form, Zoom, Meet, or any URL)</label>
+                  <input
+                    type="url"
+                    className="form-input"
+                    placeholder="https://forms.google.com/... or https://zoom.us/..."
+                    value={sessionForm.registration_link}
+                    onChange={(e) => setSessionForm({ ...sessionForm, registration_link: e.target.value })}
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Key Takeaways (comma-separated, completed only)</label>

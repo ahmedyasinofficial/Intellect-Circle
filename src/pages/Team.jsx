@@ -155,7 +155,7 @@ function Team({ data, saveDatabase }) {
             {team.map((member) => {
               const skills = getSkills(member);
               return (
-                <div className="team-card premium" key={member.id}>
+                <div className="team-card premium" key={member.id} tabIndex={0}>
                   <div className="team-avatar-wrapper">
                     {member.photo ? (
                       <img 
@@ -181,24 +181,27 @@ function Team({ data, saveDatabase }) {
 
                   <h3>{member.name}</h3>
                   <span className="team-role">{member.role}</span>
-                  <p className="team-bio">{member.bio}</p>
 
-                  {/* Skills/Expertise Tags */}
-                  <div className="team-skills-list">
-                    {skills.map((skill, index) => (
-                      <span key={index} className="skill-tag">{skill}</span>
-                    ))}
-                  </div>
+                  <div className="team-card-details">
+                    <p className="team-bio">{member.bio}</p>
 
-                  {/* Actions overlay / button */}
-                  <div className="team-card-actions">
-                    <button 
-                      onClick={() => openContactModal(member)} 
-                      className="btn btn-outline-gold" 
-                      style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', marginTop: '15px' }}
-                    >
-                      Contact Member
-                    </button>
+                    {/* Skills/Expertise Tags */}
+                    <div className="team-skills-list">
+                      {skills.map((skill, index) => (
+                        <span key={index} className="skill-tag">{skill}</span>
+                      ))}
+                    </div>
+
+                    {/* Actions overlay / button */}
+                    <div className="team-card-actions">
+                      <button 
+                        onClick={() => openContactModal(member)} 
+                        className="btn btn-outline-gold" 
+                        style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', marginTop: '10px' }}
+                      >
+                        Contact Member
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
