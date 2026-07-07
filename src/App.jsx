@@ -8,6 +8,7 @@ import Team from './pages/Team'
 import Apply from './pages/Apply'
 import Contact from './pages/Contact'
 import Admin from './pages/Admin'
+import Verify from './pages/Verify'
 import defaultData from './data.json'
 import { supabase, isSupabaseConfigured } from './supabase'
 
@@ -56,7 +57,14 @@ function App() {
     if (path === '/apply') return 'apply';
     if (path === '/contact') return 'contact';
     if (path === '/admin') return 'admin';
+    if (path.startsWith('/verify/')) return 'verify';
     return 'home';
+  });
+
+  const [verifyCertId, setVerifyCertId] = useState(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/verify/')) return path.substring(8);
+    return '';
   });
 
   // Listen for history popstate events (back/forward navigation)
@@ -69,7 +77,10 @@ function App() {
       else if (path === '/apply') setCurrentPage('apply');
       else if (path === '/contact') setCurrentPage('contact');
       else if (path === '/admin') setCurrentPage('admin');
-      else setCurrentPage('home');
+      else if (path.startsWith('/verify/')) {
+        setCurrentPage('verify');
+        setVerifyCertId(path.substring(8));
+      } else setCurrentPage('home');
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -80,8 +91,37 @@ function App() {
   useEffect(() => {
     const path = window.location.pathname;
     const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin'];
-    if (!validPaths.includes(path)) {
+    if (!validPaths.includes(path) && !path.startsWith('/verify/')) {
       window.history.replaceState(null, '', '/');
+    }
+  }, []);
+
+  // Log page views to analytics API
+  useEffect(() => {
+    const logPageView = async () => {
+      try {
+        await fetch('/api/analytics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: window.location.pathname,
+            referrer: document.referrer || ''
+          })
+        });
+      } catch (err) {
+        console.warn('[Analytics] Failed to log page view:', err);
+      }
+    };
+    logPageView();
+  }, [currentPage]);
+
+  // Inject Vercel Web Analytics script in production
+  useEffect(() => {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      const script = document.createElement('script');
+      script.src = '/_vercel/insights/script.js';
+      script.defer = true;
+      document.head.appendChild(script);
     }
   }, []);
 
@@ -254,9 +294,16 @@ function App() {
   };
 
   // 8. Navigation helper
-  const navigateTo = (page) => {
-    const target = page === 'team' ? 'hierarchy' : page;
-    const path = target === 'home' ? '/' : `/${target}`;
+  const navigateTo = (page, param = '') => {
+    let path = '/';
+    if (page === 'team') {
+      path = '/hierarchy';
+    } else if (page === 'verify') {
+      path = `/verify/${param}`;
+      setVerifyCertId(param);
+    } else if (page !== 'home') {
+      path = `/${page}`;
+    }
     
     if (window.location.pathname !== path) {
       window.history.pushState(null, '', path);
@@ -291,6 +338,8 @@ function App() {
             refreshData={refreshData}
           />
         );
+      case 'verify':
+        return <Verify certId={verifyCertId} navigateTo={navigateTo} />;
       case 'home':
       default:
         return <Home data={data} navigateTo={navigateTo} />;

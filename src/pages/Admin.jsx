@@ -6,7 +6,8 @@ import {
   OverviewIcon, CopyIcon, StatsIcon, CalendarIcon, BlogIcon, 
   TeamIcon, SubsIcon, MediaIcon, SEOIcon, LogsIcon, 
   KeysIcon, TrashIcon, EditIcon, PlusIcon, ArrowUpIcon, 
-  ArrowDownIcon, LogOutIcon, InfoIcon, DownloadIcon, UploadIcon 
+  ArrowDownIcon, LogOutIcon, InfoIcon, DownloadIcon, UploadIcon,
+  CertificateIcon 
 } from '../components/Icons';
 
 function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLogout, refreshData }) {
@@ -31,7 +32,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [submissions, setSubmissions] = useState({ applications: [], contacts: [] });
   const [subsLoading, setSubsLoading] = useState(false);
 
-  // Tab State: 'overview' | 'text' | 'stats' | 'sessions' | 'blog' | 'team' | 'subs' | 'seo' | 'media' | 'logs'
+  // Analytics state
+  const [analyticsData, setAnalyticsData] = useState({ pageViews: 0, uniqueVisitors: 0, chartData: [] });
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Certificates state
+  const [certificates, setCertificates] = useState([]);
+  const [certsLoading, setCertsLoading] = useState(false);
+  const [showCertForm, setShowCertForm] = useState(false);
+  const [certForm, setCertForm] = useState({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '' });
+
+  // Tab State
   const [activeTab, setActiveTab] = useState('overview');
 
   // Search & Pagination States
@@ -137,6 +148,20 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       } finally {
         setLogsLoading(false);
       }
+    }
+
+    // Fetch analytics
+    setAnalyticsLoading(true);
+    try {
+      const aRes = await fetch('/api/analytics');
+      if (aRes.ok) {
+        const aData = await aRes.json();
+        setAnalyticsData(aData);
+      }
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
     }
   };
 
@@ -425,7 +450,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       ...data,
       admin: {
         ...admin,
-        web3formsKey: fd.get('web3formsKey')
+        web3formsKey: fd.get('web3formsKey'),
+        authorizedSignatureUrl: fd.get('authorizedSignatureUrl') || admin.authorizedSignatureUrl || ''
       }
     };
 
@@ -441,9 +467,97 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
       if (response.ok) {
         saveDatabase(updated);
-        triggerNotification('Web3Forms key updated successfully.');
+        triggerNotification('System configurations updated successfully.');
       } else {
         triggerNotification('Failed to save configuration.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    }
+  };
+
+  // Signature upload handler
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files[0];
+    handleFileUpload(file, (url) => {
+      // Update the hidden input value and admin state
+      const sigInput = document.querySelector('input[name="authorizedSignatureUrl"]');
+      if (sigInput) sigInput.value = url;
+    });
+  };
+
+  // === Certificate Handlers ===
+  const fetchCertificates = async () => {
+    setCertsLoading(true);
+    try {
+      const res = await fetch('/api/certificates', {
+        headers: { ...(token && { 'Authorization': `Bearer ${token}` }) }
+      });
+      if (res.ok) {
+        const certs = await res.json();
+        setCertificates(certs || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch certificates:', err);
+    } finally {
+      setCertsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn && activeTab === 'certificates') {
+      fetchCertificates();
+    }
+  }, [isLoggedIn, activeTab]);
+
+  const handleCertCreate = async (e) => {
+    e.preventDefault();
+    if (!certForm.recipient_name || !certForm.recipient_email || !certForm.program_name || !certForm.completion_date) {
+      triggerNotification('All certificate fields are required.', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify(certForm)
+      });
+      const resJson = await res.json();
+      if (resJson.success) {
+        triggerNotification(`Certificate ${resJson.data.id} generated successfully.`);
+        setCertForm({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '' });
+        setShowCertForm(false);
+        fetchCertificates();
+      } else {
+        triggerNotification(resJson.error || 'Failed to generate certificate.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCertStatusChange = async (certId, newStatus) => {
+    try {
+      const res = await fetch('/api/certificates', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ id: certId, status: newStatus })
+      });
+      const resJson = await res.json();
+      if (resJson.success) {
+        triggerNotification(`Certificate ${certId} ${newStatus === 'revoked' ? 'revoked' : 'reinstated'}.`);
+        fetchCertificates();
+      } else {
+        triggerNotification(resJson.error || 'Failed to update certificate.', 'error');
       }
     } catch (err) {
       triggerNotification('API connection error.', 'error');
@@ -927,6 +1041,9 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           <button className={`admin-tab-btn ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
             <LogsIcon /> Activity Logs
           </button>
+          <button className={`admin-tab-btn ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => setActiveTab('certificates')}>
+            <CertificateIcon /> Certificates
+          </button>
           <button className={`admin-tab-btn ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>
             <KeysIcon /> API Keys
           </button>
@@ -962,28 +1079,36 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   <span className="card-trend">Active members</span>
                 </div>
                 <div className="overview-card">
-                  <div className="card-label">Visitor Traffic</div>
-                  <div className="card-value">1,420</div>
-                  <span className="card-trend">Monthly Unique Visitors</span>
+                  <div className="card-label">Page Views</div>
+                  <div className="card-value">{analyticsLoading ? '...' : analyticsData.pageViews.toLocaleString()}</div>
+                  <span className="card-trend">Total recorded views</span>
+                </div>
+                <div className="overview-card">
+                  <div className="card-label">Unique Visitors</div>
+                  <div className="card-value">{analyticsLoading ? '...' : analyticsData.uniqueVisitors.toLocaleString()}</div>
+                  <span className="card-trend">Privacy-safe tracking</span>
                 </div>
               </div>
 
               {/* Overview visual layout splits */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '30px', marginTop: '40px' }}>
                 <div className="admin-box">
-                  <div className="admin-box-title">Visual Visitor Analytics</div>
+                  <div className="admin-box-title">Visitor Analytics — Last 7 Days</div>
                   <div className="analytics-chart-placeholder">
-                    {/* CSS Area graph placeholder */}
                     <div className="chart-bars-wrap">
-                      <div className="chart-bar" style={{ height: '30%' }}></div>
-                      <div className="chart-bar" style={{ height: '45%' }}></div>
-                      <div className="chart-bar" style={{ height: '60%' }}></div>
-                      <div className="chart-bar" style={{ height: '55%' }}></div>
-                      <div className="chart-bar" style={{ height: '70%' }}></div>
-                      <div className="chart-bar" style={{ height: '90%' }}></div>
-                      <div className="chart-bar" style={{ height: '85%' }}></div>
+                      {analyticsData.chartData.length > 0 ? (
+                        analyticsData.chartData.map((day, i) => {
+                          const maxViews = Math.max(...analyticsData.chartData.map(d => d.views), 1);
+                          const heightPct = Math.max((day.views / maxViews) * 100, 5);
+                          return <div key={i} className="chart-bar" style={{ height: `${heightPct}%` }} title={`${day.date}: ${day.views} views`}></div>;
+                        })
+                      ) : (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No analytics data yet.</p>
+                      )}
                     </div>
-                    <span className="chart-xaxis">Mon &middot; Tue &middot; Wed &middot; Thu &middot; Fri &middot; Sat &middot; Sun</span>
+                    <span className="chart-xaxis">
+                      {analyticsData.chartData.map(d => d.date).join(' · ')}
+                    </span>
                   </div>
                 </div>
 
@@ -1559,7 +1684,197 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   />
                 </div>
               </div>
+
+              {/* Authorized Signature Upload */}
+              <div className="admin-box" style={{ maxWidth: '540px' }}>
+                <div className="admin-box-title">Authorized Signature</div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                  Upload a signature image that will appear on all generated certificates.
+                </p>
+                {admin.authorizedSignatureUrl && (
+                  <div style={{ marginBottom: '15px', padding: '10px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', textAlign: 'center', background: '#fafafa' }}>
+                    <img src={admin.authorizedSignatureUrl} alt="Current Signature" style={{ maxWidth: '200px', maxHeight: '80px', objectFit: 'contain' }} />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>Current authorized signature</p>
+                  </div>
+                )}
+                <div className="form-group">
+                  <label className="form-label">Upload New Signature Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSignatureUpload}
+                    className="form-input"
+                    style={{ padding: '5px' }}
+                  />
+                </div>
+                <input type="hidden" name="authorizedSignatureUrl" defaultValue={admin.authorizedSignatureUrl || ''} />
+              </div>
             </form>
+          )}
+
+          {/* TAB: CERTIFICATES */}
+          {activeTab === 'certificates' && (
+            <div>
+              <div className="admin-panel-header">
+                <h2>Certificate Management</h2>
+                <button className="btn btn-accent" onClick={() => setShowCertForm(!showCertForm)}>
+                  <PlusIcon style={{ width: '16px', height: '16px', marginRight: '6px' }} />
+                  {showCertForm ? 'Cancel' : 'Generate Certificate'}
+                </button>
+              </div>
+
+              {/* Generate Certificate Form */}
+              {showCertForm && (
+                <div className="admin-box" style={{ marginBottom: '30px' }}>
+                  <div className="admin-box-title">New Certificate</div>
+                  <form onSubmit={handleCertCreate}>
+                    <div className="admin-section-grid">
+                      <div className="form-group">
+                        <label className="form-label">Recipient Full Name *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={certForm.recipient_name}
+                          onChange={(e) => setCertForm({...certForm, recipient_name: e.target.value})}
+                          placeholder="e.g. Muhammad Ali Khan"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Recipient Email *</label>
+                        <input
+                          type="email"
+                          className="form-input"
+                          value={certForm.recipient_email}
+                          onChange={(e) => setCertForm({...certForm, recipient_email: e.target.value})}
+                          placeholder="e.g. recipient@email.com"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Program / Workshop Name *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={certForm.program_name}
+                          onChange={(e) => setCertForm({...certForm, program_name: e.target.value})}
+                          placeholder="e.g. Foundations of Peer Learning"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Completion Date *</label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={certForm.completion_date}
+                          onChange={(e) => setCertForm({...certForm, completion_date: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                      <button type="submit" className="btn btn-accent" disabled={loading}>
+                        {loading ? 'Generating...' : 'Generate Certificate'}
+                      </button>
+                      <button type="button" className="btn btn-outline" onClick={() => setShowCertForm(false)}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Certificates List */}
+              {certsLoading ? (
+                <p style={{ color: 'var(--text-muted)' }}>Loading certificates...</p>
+              ) : certificates.length === 0 ? (
+                <div className="admin-box" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                  <CertificateIcon style={{ width: '48px', height: '48px', color: 'var(--accent-color)', marginBottom: '15px' }} />
+                  <h3 style={{ color: 'var(--primary-dark)', marginBottom: '8px' }}>No Certificates Yet</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Click "Generate Certificate" to create your first digital certificate.</p>
+                </div>
+              ) : (
+                <div className="admin-box" style={{ padding: 0, overflow: 'hidden' }}>
+                  <table className="admin-table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th>Certificate ID</th>
+                        <th>Recipient</th>
+                        <th>Program</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {certificates.map(cert => (
+                        <tr key={cert.id}>
+                          <td><code style={{ fontSize: '0.8rem', background: '#f1f5f9', padding: '3px 8px', borderRadius: '4px' }}>{cert.id}</code></td>
+                          <td>
+                            <div style={{ fontWeight: 500 }}>{cert.recipient_name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{cert.recipient_email}</div>
+                          </td>
+                          <td>{cert.program_name}</td>
+                          <td>{new Date(cert.completion_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                          <td>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: cert.status === 'valid' ? '#ECFDF5' : '#FEF2F2',
+                              color: cert.status === 'valid' ? '#065F46' : '#991B1B'
+                            }}>
+                              {cert.status === 'valid' ? '✓ Valid' : '✗ Revoked'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <a
+                                href={`/api/certificates?action=download-pdf&id=${encodeURIComponent(cert.id)}`}
+                                className="btn btn-outline"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                title="Download PDF"
+                              >
+                                <DownloadIcon style={{ width: '14px', height: '14px' }} /> PDF
+                              </a>
+                              <button
+                                className="btn btn-outline"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`${window.location.origin}/verify/${cert.id}`);
+                                  triggerNotification('Verification link copied to clipboard.');
+                                }}
+                                title="Copy verification URL"
+                              >
+                                Copy Link
+                              </button>
+                              {cert.status === 'valid' ? (
+                                <button
+                                  className="btn"
+                                  style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#FEF2F2', color: '#991B1B', border: '1px solid #FCA5A5' }}
+                                  onClick={() => handleCertStatusChange(cert.id, 'revoked')}
+                                >
+                                  Revoke
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn"
+                                  style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0' }}
+                                  onClick={() => handleCertStatusChange(cert.id, 'valid')}
+                                >
+                                  Reinstate
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
 
         </main>

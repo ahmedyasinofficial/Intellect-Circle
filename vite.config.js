@@ -284,6 +284,123 @@ const localDbPlugin = () => ({
             res.end(JSON.stringify({ error: error.message }));
           }
         });
+      } else if (url === '/api/analytics') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            if (req.method === 'POST') {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true }));
+            } else {
+              // Return mock analytics report
+              const mockDays = [];
+              const now = new Date();
+              for (let i = 6; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(now.getDate() - i);
+                mockDays.push({
+                  date: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                  views: Math.floor(Math.random() * 80) + 20
+                });
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                pageViews: 1240,
+                uniqueVisitors: 412,
+                chartData: mockDays
+              }));
+            }
+          } catch (error) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message }));
+          }
+        });
+      } else if (url === '/api/certificates') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+          try {
+            const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+            const id = parsedUrl.searchParams.get('id');
+            const action = parsedUrl.searchParams.get('action');
+
+            const dataPath = path.resolve(__dirname, 'src/data.json');
+            const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+            if (!data.certificates) data.certificates = [];
+
+            if (req.method === 'GET') {
+              if (action === 'download-pdf') {
+                const mockPdf = Buffer.from(
+                  '%PDF-1.4\n' +
+                  '1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n' +
+                  '2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj\n' +
+                  '3 0 obj <</Type /Page /Parent 2 0 R /Resources <<>> /MediaBox [0 0 595 842] /Contents 4 0 R>> endobj\n' +
+                  '4 0 obj <</Length 47>> stream\n' +
+                  'BT /F1 24 Tf 50 700 Td (Intellect Circle Mock PDF) Tj ET\n' +
+                  'endstream\n' +
+                  'endobj\n' +
+                  'xref\n' +
+                  '0 5\n' +
+                  '0000000000 65535 f\n' +
+                  '0000000009 00000 n\n' +
+                  '0000000056 00000 n\n' +
+                  '0000000111 00000 n\n' +
+                  '0000000212 00000 n\n' +
+                  'trailer <</Size 5 /Root 1 0 R>>\n' +
+                  'startxref\n' +
+                  '306\n' +
+                  '%%EOF'
+                );
+                res.writeHead(200, {
+                  'Content-Type': 'application/pdf',
+                  'Content-Disposition': `attachment; filename="certificate_${id || 'mock'}.pdf"`
+                });
+                res.end(mockPdf);
+              } else if (id) {
+                const cert = data.certificates.find(c => c.id === id);
+                if (cert) {
+                  res.writeHead(200, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify(cert));
+                } else {
+                  res.writeHead(404, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Certificate not found' }));
+                }
+              } else {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(data.certificates));
+              }
+            } else if (req.method === 'POST') {
+              const payload = JSON.parse(body);
+              const year = new Date(payload.completion_date).getFullYear() || new Date().getFullYear();
+              const uniqueSuffix = Date.now().toString().slice(-6);
+              const certId = `IC-${year}-${uniqueSuffix}`;
+              
+              const newCert = {
+                id: certId,
+                recipient_name: payload.recipient_name,
+                recipient_email: payload.recipient_email,
+                program_name: payload.program_name,
+                completion_date: payload.completion_date,
+                status: 'valid',
+                created_at: new Date().toISOString()
+              };
+              data.certificates.unshift(newCert);
+              fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, data: newCert }));
+            } else if (req.method === 'PATCH') {
+              const { id: updateId, status } = JSON.parse(body);
+              data.certificates = data.certificates.map(c => c.id === updateId ? { ...c, status } : c);
+              fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true }));
+            }
+          } catch (error) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message }));
+          }
+        });
       } else {
         next();
       }

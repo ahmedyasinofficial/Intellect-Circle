@@ -249,7 +249,8 @@ export default async function handler(req, res) {
       admin: {
         email: 'admin@intellectcircle.com', // Supabase Auth handled, dummy returned for compatibility
         passwordHash: '',
-        web3formsKey: siteSettings.web3forms_key || ''
+        web3formsKey: siteSettings.web3forms_key || '',
+        authorizedSignatureUrl: siteSettings.authorized_signature_url || ''
       },
       seo,
       home,

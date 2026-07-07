@@ -42,8 +42,15 @@ export default async function handler(req, res) {
 
   try {
     // 2. Perform updates to site settings
-    if (payload.admin?.web3formsKey !== undefined) {
-      await supabase.from('site_settings').upsert({ id: 1, web3forms_key: payload.admin.web3formsKey });
+    if (payload.admin) {
+      const siteSettingsPayload = { id: 1 };
+      if (payload.admin.web3formsKey !== undefined) {
+        siteSettingsPayload.web3forms_key = payload.admin.web3formsKey;
+      }
+      if (payload.admin.authorizedSignatureUrl !== undefined) {
+        siteSettingsPayload.authorized_signature_url = payload.admin.authorizedSignatureUrl;
+      }
+      await supabase.from('site_settings').upsert(siteSettingsPayload);
     }
 
     // 3. Homepage settings

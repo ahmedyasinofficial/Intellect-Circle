@@ -470,3 +470,50 @@ We discussed the difference between balance of trade deficits and fiscal deficit
 
 The session concluded with a debate on policy priorities: should the state focus on export incentives, or should it prioritize aggressive tax collection restructuring? The diversity of views among our members: from economics graduates to engineers, highlighted the strength of Intellect Circle''s cross-disciplinary approach.'
 );
+
+-- -------------------------------------------------------------
+-- 7. NEW FEATURES: CERTIFICATES & VISITOR ANALYTICS
+-- -------------------------------------------------------------
+
+-- Authorized Signature Column in Site Settings (if not already present)
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS authorized_signature_url TEXT;
+
+-- Certificates Table
+CREATE TABLE IF NOT EXISTS public.certificates (
+    id TEXT PRIMARY KEY, -- Certificate ID, e.g. 'IC-2026-XXXXX'
+    recipient_name TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    program_name TEXT NOT NULL,
+    completion_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'valid' CHECK (status IN ('valid', 'revoked')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Analytics Events Table
+CREATE TABLE IF NOT EXISTS public.analytics_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    visitor_id TEXT NOT NULL,
+    page_path TEXT NOT NULL,
+    referrer TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.certificates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for Certificates
+CREATE POLICY "Allow anonymous read access to certificates" ON public.certificates
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow authenticated admins full access to certificates" ON public.certificates
+    FOR ALL USING (true);
+
+-- RLS Policies for Analytics Events
+CREATE POLICY "Allow anonymous insert access to analytics_events" ON public.analytics_events
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated admins select access to analytics_events" ON public.analytics_events
+    FOR SELECT USING (true);
+

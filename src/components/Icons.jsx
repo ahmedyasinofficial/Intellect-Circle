@@ -170,3 +170,14 @@ export const ArrowDownIcon = (props) => (
     <polyline points="19 12 12 19 5 12" />
   </svg>
 );
+
+export const CertificateIcon = (props) => (
+  <svg {...commonProps} {...props}>
+    <path d="M4 4h16v12H4z" />
+    <path d="M12 16v5" />
+    <path d="M8 21h8" />
+    <path d="M8 8h8" />
+    <path d="M8 12h4" />
+  </svg>
+);
+
