@@ -53,18 +53,18 @@ function Footer({ data, navigateTo }) {
         <div className="footer-navigation">
           <h4 className="footer-title">Navigation</h4>
           <ul className="footer-links">
-            <li><a href="#/" onClick={(e) => { e.preventDefault(); navigateTo('home'); }}>Home</a></li>
-            <li><a href="#/about" onClick={(e) => { e.preventDefault(); navigateTo('about'); }}>About Us</a></li>
-            <li><a href="#/sessions" onClick={(e) => { e.preventDefault(); navigateTo('sessions'); }}>Sessions & Blog</a></li>
-            <li><a href="#/hierarchy" onClick={(e) => { e.preventDefault(); navigateTo('team'); }}>Hierarchy</a></li>
+            <li><a href="/" onClick={(e) => { e.preventDefault(); navigateTo('home'); }}>Home</a></li>
+            <li><a href="/about" onClick={(e) => { e.preventDefault(); navigateTo('about'); }}>About Us</a></li>
+            <li><a href="/sessions" onClick={(e) => { e.preventDefault(); navigateTo('sessions'); }}>Sessions & Blog</a></li>
+            <li><a href="/hierarchy" onClick={(e) => { e.preventDefault(); navigateTo('team'); }}>Hierarchy</a></li>
           </ul>
         </div>
 
         <div className="footer-actions-links">
           <h4 className="footer-title">Get Involved</h4>
           <ul className="footer-links">
-            <li><a href="#/apply" onClick={(e) => { e.preventDefault(); navigateTo('apply'); }}>Join Your Circle</a></li>
-            <li><a href="#/contact" onClick={(e) => { e.preventDefault(); navigateTo('contact'); }}>Contact Support</a></li>
+            <li><a href="/apply" onClick={(e) => { e.preventDefault(); navigateTo('apply'); }}>Join Your Circle</a></li>
+            <li><a href="/contact" onClick={(e) => { e.preventDefault(); navigateTo('contact'); }}>Contact Support</a></li>
           </ul>
         </div>
       </div>

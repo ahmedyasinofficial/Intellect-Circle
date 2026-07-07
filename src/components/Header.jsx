@@ -16,7 +16,7 @@ function Header({ currentPage, navigateTo }) {
   return (
     <header className="header-wrapper">
       <div className="container header-container">
-        <a href="#/" onClick={() => handleNavClick('home')} className="logo-link">
+        <a href="/" onClick={(e) => { e.preventDefault(); handleNavClick('home'); }} className="logo-link">
           <img src={logoImage} alt="Intellect Circle Logo" className="logo-img" />
         </a>
 
@@ -24,7 +24,7 @@ function Header({ currentPage, navigateTo }) {
           <ul className={`nav-menu ${isMobileMenuOpen ? 'open' : ''}`}>
             <li>
               <a
-                href="#/"
+                href="/"
                 onClick={(e) => { e.preventDefault(); handleNavClick('home'); }}
                 className={`nav-link ${currentPage === 'home' ? 'active' : ''}`}
               >
@@ -33,7 +33,7 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
-                href="#/about"
+                href="/about"
                 onClick={(e) => { e.preventDefault(); handleNavClick('about'); }}
                 className={`nav-link ${currentPage === 'about' ? 'active' : ''}`}
               >
@@ -42,7 +42,7 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
-                href="#/sessions"
+                href="/sessions"
                 onClick={(e) => { e.preventDefault(); handleNavClick('sessions'); }}
                 className={`nav-link ${currentPage === 'sessions' ? 'active' : ''}`}
               >
@@ -51,7 +51,7 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
-                href="#/hierarchy"
+                href="/hierarchy"
                 onClick={(e) => { e.preventDefault(); handleNavClick('team'); }}
                 className={`nav-link ${currentPage === 'team' ? 'active' : ''}`}
               >
@@ -60,7 +60,7 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
-                href="#/contact"
+                href="/contact"
                 onClick={(e) => { e.preventDefault(); handleNavClick('contact'); }}
                 className={`nav-link ${currentPage === 'contact' ? 'active' : ''}`}
               >

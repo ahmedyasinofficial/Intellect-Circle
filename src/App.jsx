@@ -47,47 +47,42 @@ function App() {
     fetchLatestData();
   }, []);
 
-  // 3. Routing State (Hash-based)
+  // 3. Routing State (HTML5 History API-based)
   const [currentPage, setCurrentPage] = useState(() => {
-    const hash = window.location.hash;
-    if (hash === '#/about') return 'about';
-    if (hash === '#/sessions') return 'sessions';
-    if (hash === '#/team' || hash === '#/hierarchy') return 'team';
-    if (hash === '#/apply') return 'apply';
-    if (hash === '#/contact') return 'contact';
-    if (hash === '#/admin') return 'admin';
+    const path = window.location.pathname;
+    if (path === '/about') return 'about';
+    if (path === '/sessions') return 'sessions';
+    if (path === '/team' || path === '/hierarchy') return 'team';
+    if (path === '/apply') return 'apply';
+    if (path === '/contact') return 'contact';
+    if (path === '/admin') return 'admin';
     return 'home';
   });
 
-  // Handle hash changes
+  // Listen for history popstate events (back/forward navigation)
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      if (hash === '#/about') setCurrentPage('about');
-      else if (hash === '#/sessions') setCurrentPage('sessions');
-      else if (hash === '#/team' || hash === '#/hierarchy') setCurrentPage('team');
-      else if (hash === '#/apply') setCurrentPage('apply');
-      else if (hash === '#/contact') setCurrentPage('contact');
-      else if (hash === '#/admin') setCurrentPage('admin');
-      else {
-        setCurrentPage('home');
-        if (hash !== '#/' && hash !== '') {
-          window.history.replaceState(null, '', '#/');
-        }
-      }
-      window.scrollTo(0, 0);
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/about') setCurrentPage('about');
+      else if (path === '/sessions') setCurrentPage('sessions');
+      else if (path === '/team' || path === '/hierarchy') setCurrentPage('team');
+      else if (path === '/apply') setCurrentPage('apply');
+      else if (path === '/contact') setCurrentPage('contact');
+      else if (path === '/admin') setCurrentPage('admin');
+      else setCurrentPage('home');
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Scroll to top on initial load / refresh
+  // Ensure invalid paths redirect to home in history
   useEffect(() => {
-    if ('scrollRestoration' in window.history) {
-      window.history.scrollRestoration = 'manual';
+    const path = window.location.pathname;
+    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin'];
+    if (!validPaths.includes(path)) {
+      window.history.replaceState(null, '', '/');
     }
-    window.scrollTo(0, 0);
   }, []);
 
   // 4. SEO Dynamic Update
@@ -104,6 +99,16 @@ function App() {
         document.head.appendChild(metaDesc);
       }
       metaDesc.setAttribute('content', pageSeo.description);
+
+      // Dynamic Canonical URL
+      let canonical = document.querySelector('link[rel="canonical"]');
+      if (!canonical) {
+        canonical = document.createElement('link');
+        canonical.setAttribute('rel', 'canonical');
+        document.head.appendChild(canonical);
+      }
+      const cleanPath = currentPage === 'home' ? '' : currentPage === 'team' ? 'hierarchy' : currentPage;
+      canonical.setAttribute('href', `https://intellectcircle.dpdns.org/${cleanPath}`);
     }
   }, [currentPage, data]);
 
@@ -241,13 +246,24 @@ function App() {
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
     sessionStorage.removeItem('ic_admin_logged_in');
-    window.location.hash = '#/';
+    if (window.location.pathname !== '/') {
+      window.history.pushState(null, '', '/');
+    }
+    setCurrentPage('home');
+    window.scrollTo(0, 0);
   };
 
   // 8. Navigation helper
   const navigateTo = (page) => {
     const target = page === 'team' ? 'hierarchy' : page;
-    window.location.hash = target === 'home' ? '#/' : `#/${target}`;
+    const path = target === 'home' ? '/' : `/${target}`;
+    
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+    
+    setCurrentPage(page);
+    window.scrollTo(0, 0);
   };
 
   // Render current page component

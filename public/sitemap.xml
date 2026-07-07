@@ -6,32 +6,32 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://intellectcircle.dpdns.org/#/about</loc>
+    <loc>https://intellectcircle.dpdns.org/about</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://intellectcircle.dpdns.org/#/sessions</loc>
+    <loc>https://intellectcircle.dpdns.org/sessions</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://intellectcircle.dpdns.org/#/team</loc>
+    <loc>https://intellectcircle.dpdns.org/team</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://intellectcircle.dpdns.org/#/hierarchy</loc>
+    <loc>https://intellectcircle.dpdns.org/hierarchy</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://intellectcircle.dpdns.org/#/contact</loc>
+    <loc>https://intellectcircle.dpdns.org/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://intellectcircle.dpdns.org/#/apply</loc>
+    <loc>https://intellectcircle.dpdns.org/apply</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
