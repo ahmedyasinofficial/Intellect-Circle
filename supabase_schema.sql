@@ -475,8 +475,16 @@ The session concluded with a debate on policy priorities: should the state focus
 -- 7. NEW FEATURES: CERTIFICATES & VISITOR ANALYTICS
 -- -------------------------------------------------------------
 
--- Authorized Signature Column in Site Settings (if not already present)
+-- Signature & Promotional Column Settings in Site Settings
 ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS authorized_signature_url TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS president_name TEXT DEFAULT 'Ahmad Yasin';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS president_title TEXT DEFAULT 'President, Intellect Circle';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS president_signature_url TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS vice_president_name TEXT DEFAULT 'Zainab Shah';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS vice_president_title TEXT DEFAULT 'Vice President, Intellect Circle';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS vice_president_signature_url TEXT;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promotion_notice TEXT DEFAULT 'Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promotion_notice_enabled BOOLEAN DEFAULT TRUE;
 
 -- Certificates Table
 CREATE TABLE IF NOT EXISTS public.certificates (
@@ -486,6 +494,9 @@ CREATE TABLE IF NOT EXISTS public.certificates (
     program_name TEXT NOT NULL,
     completion_date DATE NOT NULL,
     status TEXT NOT NULL DEFAULT 'valid' CHECK (status IN ('valid', 'revoked')),
+    is_paid BOOLEAN DEFAULT FALSE,
+    price NUMERIC(10, 2) DEFAULT 0.00,
+    payment_status TEXT DEFAULT 'free',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -504,16 +515,21 @@ ALTER TABLE public.certificates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for Certificates
+DROP POLICY IF EXISTS "Allow anonymous read access to certificates" ON public.certificates;
 CREATE POLICY "Allow anonymous read access to certificates" ON public.certificates
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow authenticated admins full access to certificates" ON public.certificates;
 CREATE POLICY "Allow authenticated admins full access to certificates" ON public.certificates
     FOR ALL USING (true);
 
 -- RLS Policies for Analytics Events
+DROP POLICY IF EXISTS "Allow anonymous insert access to analytics_events" ON public.analytics_events;
 CREATE POLICY "Allow anonymous insert access to analytics_events" ON public.analytics_events
     FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow authenticated admins select access to analytics_events" ON public.analytics_events;
 CREATE POLICY "Allow authenticated admins select access to analytics_events" ON public.analytics_events
     FOR SELECT USING (true);
+
 

@@ -303,6 +303,97 @@ function Home({ data, navigateTo }) {
         </div>
       </section>
 
+      {/* 2.5. Upcoming Session & Launch Promotion Section */}
+      <section className="section upcoming-session-section" style={{ background: '#0F172A', padding: '60px 0', borderBottom: '1px solid var(--border-color)' }}>
+        <div className="container" style={{ maxWidth: '800px', textAlign: 'center' }}>
+          
+          {/* Promotion Notice */}
+          {(data.admin?.promotionNoticeEnabled !== false) && data.admin?.promotionNotice && (
+            <div style={{
+              background: 'rgba(201, 168, 76, 0.08)',
+              border: '1px solid var(--accent-color)',
+              borderRadius: 'var(--radius-md)',
+              padding: '20px',
+              width: '100%',
+              maxWidth: '650px',
+              boxSizing: 'border-box',
+              marginBottom: '40px',
+              color: 'var(--white)',
+              fontSize: '0.95rem',
+              lineHeight: '1.6',
+              display: 'inline-block',
+              textAlign: 'center'
+            }}>
+              <span style={{ display: 'block', fontWeight: 700, color: 'var(--accent-color)', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                🎉 Launch Promotion Notice
+              </span>
+              {data.admin.promotionNotice}
+            </div>
+          )}
+
+          <div className="section-header" style={{ marginBottom: '30px' }}>
+            <span className="hero-badge" style={{ display: 'inline-block', marginBottom: '10px' }}>Don't Miss Out</span>
+            <h2 style={{ color: 'var(--white)' }}>Upcoming Learning Session</h2>
+          </div>
+
+          {(() => {
+            const upcomingSessions = (data.sessions || []).filter(s => s.status === 'upcoming' || s.isUpcoming === true);
+            if (upcomingSessions.length > 0) {
+              return upcomingSessions.map(session => (
+                <div key={session.id} style={{ 
+                  background: 'rgba(255,255,255,0.02)', 
+                  border: '1px solid rgba(201, 168, 76, 0.15)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '40px 30px',
+                  textAlign: 'center',
+                  boxShadow: 'var(--shadow-lg)'
+                }}>
+                  <h3 style={{ fontSize: '1.8rem', color: 'var(--accent-color)', marginBottom: '15px', fontFamily: 'var(--font-serif)' }}>
+                    {session.title}
+                  </h3>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    gap: '20px', 
+                    flexWrap: 'wrap', 
+                    color: 'var(--text-muted)', 
+                    fontSize: '0.95rem', 
+                    marginBottom: '20px' 
+                  }}>
+                    <span>🎙️ Presenter: <strong>{session.presenter}</strong></span>
+                    <span>📅 Date: <strong>{new Date(session.scheduled_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong></span>
+                    {session.time && <span>⏰ Time: <strong>{session.time}</strong></span>}
+                    {session.format && <span>📝 Format: <strong>{session.format}</strong></span>}
+                  </div>
+                  {session.summary && (
+                    <p style={{ color: 'var(--text-muted)', lineHeight: '1.7', maxWidth: '600px', margin: '0 auto 30px auto', fontSize: '1.05rem' }}>
+                      {session.summary}
+                    </p>
+                  )}
+                  <div>
+                    <a 
+                      href={session.registration_link || 'https://forms.gle/intellectcircle'} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="btn btn-accent" 
+                      style={{ textDecoration: 'none', display: 'inline-block', padding: '12px 30px', fontWeight: 600 }}
+                    >
+                      Register Now &amp; Secure Certificate
+                    </a>
+                  </div>
+                </div>
+              ));
+            } else {
+              return (
+                <div style={{ color: 'var(--text-muted)', fontSize: '1.1rem', padding: '40px 0' }}>
+                  Stay tuned! Our next knowledge session details will be posted here soon.
+                </div>
+              );
+            }
+          })()}
+        </div>
+      </section>
+
       {/* 3. What is Intellect Circle? — 3 Column Section */}
       <section className="section">
         <div className="container">

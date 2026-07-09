@@ -45,6 +45,23 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   // Tab State
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Database Schema Status state
+  const [dbStatus, setDbStatus] = useState('loading');
+  const [dbSqlSchema, setDbSqlSchema] = useState('');
+  const [showSqlModal, setShowSqlModal] = useState(false);
+  const [certSearch, setCertSearch] = useState('');
+
+  // CSV Import & Batch automation state
+  const [parsedAttendees, setParsedAttendees] = useState([]);
+  const [selectedAttendees, setSelectedAttendees] = useState({});
+  const [attendeeSearch, setAttendeeSearch] = useState('');
+  const [sessionForAttendance, setSessionForAttendance] = useState('');
+  const [dateForAttendance, setDateForAttendance] = useState(new Date().toISOString().split('T')[0]);
+  const [automationLogs, setAutomationLogs] = useState([]);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
+  const [attendanceDuplicates, setAttendanceDuplicates] = useState([]);
+  const [previewCert, setPreviewCert] = useState(null);
+
   // Search & Pagination States
   const [sessionSearch, setSessionSearch] = useState('');
   const [sessionFilter, setSessionFilter] = useState('all');
@@ -451,7 +468,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       admin: {
         ...admin,
         web3formsKey: fd.get('web3formsKey'),
-        authorizedSignatureUrl: fd.get('authorizedSignatureUrl') || admin.authorizedSignatureUrl || ''
+        authorizedSignatureUrl: fd.get('authorizedSignatureUrl') || admin.authorizedSignatureUrl || '',
+        presidentName: fd.get('presidentName') || admin.presidentName || 'Ahmad Yasin',
+        presidentTitle: fd.get('presidentTitle') || admin.presidentTitle || 'President, Intellect Circle',
+        presidentSignatureUrl: fd.get('presidentSignatureUrl') || admin.presidentSignatureUrl || '',
+        vicePresidentName: fd.get('vicePresidentName') || admin.vicePresidentName || 'Zainab Shah',
+        vicePresidentTitle: fd.get('vicePresidentTitle') || admin.vicePresidentTitle || 'Vice President, Intellect Circle',
+        vicePresidentSignatureUrl: fd.get('vicePresidentSignatureUrl') || admin.vicePresidentSignatureUrl || '',
+        promotionNotice: fd.get('promotionNotice') || admin.promotionNotice || '',
+        promotionNoticeEnabled: fd.get('promotionNoticeEnabled') === 'true'
       }
     };
 
@@ -476,14 +501,190 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
   };
 
-  // Signature upload handler
+  // Upload handlers for signatures
+  const handlePresidentSignatureUpload = (e) => {
+    const file = e.target.files[0];
+    handleFileUpload(file, (url) => {
+      const sigInput = document.querySelector('input[name="presidentSignatureUrl"]');
+      if (sigInput) sigInput.value = url;
+      triggerNotification('President signature uploaded. Save settings to apply.');
+    });
+  };
+
+  const handleVicePresidentSignatureUpload = (e) => {
+    const file = e.target.files[0];
+    handleFileUpload(file, (url) => {
+      const sigInput = document.querySelector('input[name="vicePresidentSignatureUrl"]');
+      if (sigInput) sigInput.value = url;
+      triggerNotification('Vice President signature uploaded. Save settings to apply.');
+    });
+  };
+
+  // Signature upload handler (legacy fallback)
   const handleSignatureUpload = (e) => {
     const file = e.target.files[0];
     handleFileUpload(file, (url) => {
-      // Update the hidden input value and admin state
       const sigInput = document.querySelector('input[name="authorizedSignatureUrl"]');
       if (sigInput) sigInput.value = url;
     });
+  };
+
+  // === Database Health Check ===
+  const fetchDbStatus = async () => {
+    try {
+      const res = await fetch('/api/setup-db', {
+        headers: { ...(token && { 'Authorization': `Bearer ${token}` }) }
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setDbStatus(d.status);
+        setDbSqlSchema(d.sqlSchema || '');
+      }
+    } catch (e) {
+      console.error('Failed to fetch DB schema status:', e);
+      setDbStatus('error');
+    }
+  };
+
+  const handleRunAutoSetup = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/setup-db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      const d = await res.json();
+      if (d.success) {
+        triggerNotification(d.message);
+        fetchDbStatus();
+        fetchCertificates();
+      } else {
+        triggerNotification(d.error || 'Failed to auto-configure.', 'error');
+      }
+    } catch (e) {
+      triggerNotification('Connection failed.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // === Attendance CSV Import & Automation ===
+  const handleCSVImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split(/\r?\n/);
+      const results = [];
+      const dupes = [];
+      const seenEmails = new Set();
+
+      for (let line of lines) {
+        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
+        let emailIdx = cols.findIndex(col => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(col));
+
+        if (emailIdx !== -1) {
+          const email = cols[emailIdx].toLowerCase();
+          let name = cols[0];
+          if (emailIdx === 0 && cols.length > 1) {
+            name = cols[1];
+          }
+          if (!name || name === email) {
+            name = email.split('@')[0].replace(/[._-]/g, ' ');
+          }
+          name = name.replace(/\b\w/g, c => c.toUpperCase());
+
+          const record = {
+            id: `att-${Date.now()}-${Math.random().toString(36).slice(-4)}`,
+            name,
+            email,
+            status: 'ready'
+          };
+
+          if (seenEmails.has(email)) {
+            dupes.push(record);
+          } else {
+            seenEmails.add(email);
+            results.push(record);
+          }
+        }
+      }
+
+      setParsedAttendees(results);
+      setAttendanceDuplicates(dupes);
+
+      // Select all by default
+      const initialSelection = {};
+      results.forEach(r => {
+        initialSelection[r.id] = true;
+      });
+      setSelectedAttendees(initialSelection);
+      triggerNotification(`Imported ${results.length} attendees. ${dupes.length} duplicates detected.`);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBatchIssue = async () => {
+    const selectedIds = Object.keys(selectedAttendees).filter(id => selectedAttendees[id]);
+    if (selectedIds.length === 0) {
+      triggerNotification('No attendees selected.', 'error');
+      return;
+    }
+    if (!sessionForAttendance) {
+      triggerNotification('Please select the program/session.', 'error');
+      return;
+    }
+
+    setIsProcessingBatch(true);
+    setAutomationLogs([`Starting batch processing of ${selectedIds.length} certificates...`]);
+
+    for (let id of selectedIds) {
+      const attendee = parsedAttendees.find(a => a.id === id);
+      if (!attendee) continue;
+
+      setParsedAttendees(prev => prev.map(a => a.id === id ? { ...a, status: 'processing' } : a));
+
+      try {
+        const res = await fetch('/api/certificates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({
+            recipient_name: attendee.name,
+            recipient_email: attendee.email,
+            program_name: sessionForAttendance,
+            completion_date: dateForAttendance,
+            is_paid: false,
+            price: 0.00,
+            payment_status: 'free'
+          })
+        });
+
+        const d = await res.json();
+        if (d.success) {
+          setParsedAttendees(prev => prev.map(a => a.id === id ? { ...a, status: 'success' } : a));
+          setAutomationLogs(logs => [...logs, `✓ Emailed & Issued to ${attendee.name} (${d.data.id})`]);
+        } else {
+          setParsedAttendees(prev => prev.map(a => a.id === id ? { ...a, status: 'failed' } : a));
+          setAutomationLogs(logs => [...logs, `✗ Failed for ${attendee.name}: ${d.error || 'Server error'}`]);
+        }
+      } catch (err) {
+        setParsedAttendees(prev => prev.map(a => a.id === id ? { ...a, status: 'failed' } : a));
+        setAutomationLogs(logs => [...logs, `✗ Failed for ${attendee.name}: ${err.message}`]);
+      }
+    }
+
+    setIsProcessingBatch(false);
+    setAutomationLogs(logs => [...logs, `Batch complete!`]);
+    fetchCertificates();
+    triggerNotification('Batch certificate processing finished.');
   };
 
   // === Certificate Handlers ===
@@ -507,6 +708,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   useEffect(() => {
     if (isLoggedIn && activeTab === 'certificates') {
       fetchCertificates();
+      fetchDbStatus();
     }
   }, [isLoggedIn, activeTab]);
 
@@ -524,11 +726,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           'Content-Type': 'application/json',
           ...(token && { 'Authorization': `Bearer ${token}` })
         },
-        body: JSON.stringify(certForm)
+        body: JSON.stringify({
+          recipient_name: certForm.recipient_name,
+          recipient_email: certForm.recipient_email,
+          program_name: certForm.program_name,
+          completion_date: certForm.completion_date,
+          is_paid: false,
+          price: 0.00,
+          payment_status: 'free'
+        })
       });
       const resJson = await res.json();
       if (resJson.success) {
-        triggerNotification(`Certificate ${resJson.data.id} generated successfully.`);
+        triggerNotification(`Certificate ${resJson.data.id} generated and emailed successfully.`);
         setCertForm({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '' });
         setShowCertForm(false);
         fetchCertificates();
@@ -537,6 +747,33 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       }
     } catch (err) {
       triggerNotification('API connection error.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCertResend = async (certId) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          id: certId,
+          action: 'resend-email'
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        triggerNotification(d.message || 'Email successfully resent.');
+      } else {
+        triggerNotification(d.error || 'Failed to resend email.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('Connection failed.', 'error');
     } finally {
       setLoading(false);
     }
@@ -1647,31 +1884,126 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 <button type="submit" className="btn btn-accent">Save Configurations</button>
               </div>
 
-              {/* Explainer Banner */}
-              <div className="admin-box" style={{ marginBottom: '24px', background: 'linear-gradient(135deg, #f0f4ff 0%, #fdf6e3 100%)', border: '1px solid #c9a84c40' }}>
-                <div className="admin-box-title" style={{ color: '#92400e' }}>💡 What is the Web3Forms Access Key?</div>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-color)', lineHeight: '1.7', marginBottom: '12px' }}>
-                  <strong>Web3Forms</strong> is the email relay service Intellect Circle uses to deliver <em>contact form messages</em> and <em>membership application notifications</em> directly to your email inbox — without any backend server setup.
+              {/* Launch Promotion Notice Configuration */}
+              <div className="admin-box" style={{ marginBottom: '24px' }}>
+                <div className="admin-box-title">Launch Promotion Notice</div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                  Enable and edit the notification box displayed on the homepage to announce free digital certificates.
                 </p>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-color)', lineHeight: '1.7', marginBottom: '12px' }}>
-                  It is free to use. Here's how to get your Access Key:
-                </p>
-                <ol style={{ paddingLeft: '20px', fontSize: '0.88rem', color: 'var(--text-color)', lineHeight: '1.9', marginBottom: '8px' }}>
-                  <li>Visit <a href="https://web3forms.com" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-color)', fontWeight: 600 }}>web3forms.com</a></li>
-                  <li>Enter your email address on their homepage and click <strong>"Create your Access Key"</strong></li>
-                  <li>Check your inbox for a confirmation email from Web3Forms and click the link inside</li>
-                  <li>Copy the <strong>Access Key</strong> they provide (it looks like: <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.82rem' }}>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>)</li>
-                  <li>Paste it into the field below and click <strong>"Save Configurations"</strong></li>
-                </ol>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                  ℹ️ After saving, all new form submissions will be forwarded to the email address linked to your Web3Forms account.
-                </p>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                  <input
+                    type="checkbox"
+                    id="promotionNoticeEnabled"
+                    value="true"
+                    defaultChecked={admin.promotionNoticeEnabled !== false}
+                    name="promotionNoticeEnabled"
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="promotionNoticeEnabled" className="form-label" style={{ margin: 0, cursor: 'pointer' }}>
+                    Display Launch Promotion Notice on Homepage
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Notice Message Text</label>
+                  <textarea
+                    name="promotionNotice"
+                    className="form-input"
+                    defaultValue={admin.promotionNotice || 'Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.'}
+                    rows="2"
+                    style={{ minHeight: '60px' }}
+                  />
+                </div>
               </div>
 
+              {/* President Signature Profile */}
+              <div className="admin-section-grid" style={{ marginBottom: '24px' }}>
+                <div className="admin-box">
+                  <div className="admin-box-title">President Signature Settings</div>
+                  <div className="form-group">
+                    <label className="form-label">President Name</label>
+                    <input
+                      type="text"
+                      name="presidentName"
+                      className="form-input"
+                      defaultValue={admin.presidentName || 'Ahmad Yasin'}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">President Title</label>
+                    <input
+                      type="text"
+                      name="presidentTitle"
+                      className="form-input"
+                      defaultValue={admin.presidentTitle || 'President, Intellect Circle'}
+                      required
+                    />
+                  </div>
+                  {admin.presidentSignatureUrl && (
+                    <div style={{ marginBottom: '15px', padding: '10px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', textAlign: 'center', background: '#fafafa' }}>
+                      <img src={admin.presidentSignatureUrl} alt="President Signature" style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain' }} />
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">Upload President Signature</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePresidentSignatureUpload}
+                      className="form-input"
+                      style={{ padding: '5px' }}
+                    />
+                  </div>
+                  <input type="hidden" name="presidentSignatureUrl" defaultValue={admin.presidentSignatureUrl || ''} />
+                </div>
+
+                {/* Vice President Signature Profile */}
+                <div className="admin-box">
+                  <div className="admin-box-title">Vice President Signature Settings</div>
+                  <div className="form-group">
+                    <label className="form-label">Vice President Name</label>
+                    <input
+                      type="text"
+                      name="vicePresidentName"
+                      className="form-input"
+                      defaultValue={admin.vicePresidentName || 'Zainab Shah'}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Vice President Title</label>
+                    <input
+                      type="text"
+                      name="vicePresidentTitle"
+                      className="form-input"
+                      defaultValue={admin.vicePresidentTitle || 'Vice President, Intellect Circle'}
+                      required
+                    />
+                  </div>
+                  {admin.vicePresidentSignatureUrl && (
+                    <div style={{ marginBottom: '15px', padding: '10px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', textAlign: 'center', background: '#fafafa' }}>
+                      <img src={admin.vicePresidentSignatureUrl} alt="Vice President Signature" style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain' }} />
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">Upload Vice President Signature</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleVicePresidentSignatureUpload}
+                      className="form-input"
+                      style={{ padding: '5px' }}
+                    />
+                  </div>
+                  <input type="hidden" name="vicePresidentSignatureUrl" defaultValue={admin.vicePresidentSignatureUrl || ''} />
+                </div>
+              </div>
+
+              {/* Web3Forms settings */}
               <div className="admin-box" style={{ maxWidth: '540px' }}>
                 <div className="admin-box-title">Web3Forms Email Relay</div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                  Paste the Access Key obtained from web3forms.com below.
+                  Access Key obtained from web3forms.com.
                 </p>
                 <div className="form-group">
                   <label className="form-label">Web3Forms Access Key</label>
@@ -1684,31 +2016,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   />
                 </div>
               </div>
-
-              {/* Authorized Signature Upload */}
-              <div className="admin-box" style={{ maxWidth: '540px' }}>
-                <div className="admin-box-title">Authorized Signature</div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                  Upload a signature image that will appear on all generated certificates.
-                </p>
-                {admin.authorizedSignatureUrl && (
-                  <div style={{ marginBottom: '15px', padding: '10px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', textAlign: 'center', background: '#fafafa' }}>
-                    <img src={admin.authorizedSignatureUrl} alt="Current Signature" style={{ maxWidth: '200px', maxHeight: '80px', objectFit: 'contain' }} />
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>Current authorized signature</p>
-                  </div>
-                )}
-                <div className="form-group">
-                  <label className="form-label">Upload New Signature Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleSignatureUpload}
-                    className="form-input"
-                    style={{ padding: '5px' }}
-                  />
-                </div>
-                <input type="hidden" name="authorizedSignatureUrl" defaultValue={admin.authorizedSignatureUrl || ''} />
-              </div>
             </form>
           )}
 
@@ -1716,17 +2023,235 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {activeTab === 'certificates' && (
             <div>
               <div className="admin-panel-header">
-                <h2>Certificate Management</h2>
-                <button className="btn btn-accent" onClick={() => setShowCertForm(!showCertForm)}>
-                  <PlusIcon style={{ width: '16px', height: '16px', marginRight: '6px' }} />
-                  {showCertForm ? 'Cancel' : 'Generate Certificate'}
-                </button>
+                <h2>Certificate System</h2>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button className="btn btn-outline" onClick={() => setShowCertForm(!showCertForm)}>
+                    {showCertForm ? 'Cancel Form' : 'Generate Single Certificate'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Database Schema Status Warning / Setup */}
+              {dbStatus !== 'configured' && (
+                <div className="admin-box" style={{ marginBottom: '24px', border: '1px solid #f87171', background: '#fef2f2', color: '#991b1b' }}>
+                  <div className="admin-box-title" style={{ color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    ⚠️ Supabase Schema Setup Required
+                  </div>
+                  <p style={{ fontSize: '0.88rem', margin: '8px 0 15px 0' }}>
+                    The <code>public.certificates</code> table was not detected in your Supabase database schema cache. You can attempt automatic initialization if database credentials are set, or view and copy the SQL schema script to run manually in your Supabase SQL Editor.
+                  </p>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button type="button" className="btn" style={{ background: '#991b1b', color: '#fff' }} onClick={handleRunAutoSetup}>
+                      Attempt Auto-Setup
+                    </button>
+                    <button type="button" className="btn btn-outline" style={{ border: '1px solid #991b1b', color: '#991b1b' }} onClick={() => setShowSqlModal(true)}>
+                      View SQL Setup Script
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Google Meet Attendance CSV Automated Certificate Generator */}
+              <div className="admin-box" style={{ marginBottom: '30px', border: '1px solid var(--accent-color)' }}>
+                <div className="admin-box-title" style={{ color: 'var(--accent-color)' }}>Attendance-Based Automation (Google Meet CSV)</div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                  Import a Google Meet attendance report CSV. The system automatically extracts unique attendee names and emails, filters out duplicates, and allows you to preview, select, and batch generate digital certificates.
+                </p>
+                
+                <div className="form-group" style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Upload Attendance CSV File</label>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleCSVImport}
+                    className="form-input"
+                    style={{ padding: '8px' }}
+                  />
+                </div>
+
+                {parsedAttendees.length > 0 && (
+                  <div style={{ marginTop: '20px' }}>
+                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
+                      <h4 style={{ color: 'var(--primary-dark)', marginBottom: '12px' }}>Automation Settings</h4>
+                      <div className="admin-section-grid" style={{ gap: '15px' }}>
+                        <div className="form-group">
+                          <label className="form-label">Assign Session / Program *</label>
+                          <select 
+                            className="form-input" 
+                            value={sessionForAttendance}
+                            onChange={(e) => setSessionForAttendance(e.target.value)}
+                            required
+                          >
+                            <option value="">-- Choose Session --</option>
+                            {sessions.map(s => (
+                              <option key={s.id} value={s.title}>{s.title} (by {s.presenter})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Completion Date *</label>
+                          <input
+                            type="date"
+                            className="form-input"
+                            value={dateForAttendance}
+                            onChange={(e) => setDateForAttendance(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--primary-dark)' }}>
+                        Parsed Attendees ({parsedAttendees.length} unique)
+                        {attendanceDuplicates.length > 0 && (
+                          <span style={{ color: '#b45309', marginLeft: '10px' }}>({attendanceDuplicates.length} duplicates filtered out)</span>
+                        )}
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          className="btn btn-outline" 
+                          style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                          onClick={() => {
+                            const sel = {};
+                            parsedAttendees.forEach(a => { sel[a.id] = true; });
+                            setSelectedAttendees(sel);
+                          }}
+                        >
+                          Select All
+                        </button>
+                        <button 
+                          className="btn btn-outline" 
+                          style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                          onClick={() => setSelectedAttendees({})}
+                        >
+                          Deselect All
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Parsed Attendees Table */}
+                    <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', marginBottom: '20px' }}>
+                      <table className="admin-table" style={{ width: '100%', margin: 0 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '40px' }}>Select</th>
+                            <th>Attendee Name</th>
+                            <th>Email Address</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsedAttendees.map(a => (
+                            <tr key={a.id}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedAttendees[a.id]}
+                                  onChange={(e) => setSelectedAttendees({ ...selectedAttendees, [a.id]: e.target.checked })}
+                                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={a.name}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedAttendees(prev => prev.map(item => item.id === a.id ? { ...item, name: val } : item));
+                                  }}
+                                  style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="email"
+                                  className="form-input"
+                                  value={a.email}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setParsedAttendees(prev => prev.map(item => item.id === a.id ? { ...item, email: val } : item));
+                                  }}
+                                  style={{ padding: '4px 8px', fontSize: '0.85rem' }}
+                                />
+                              </td>
+                              <td>
+                                <span style={{
+                                  fontSize: '0.75rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  fontWeight: 600,
+                                  background: a.status === 'success' ? '#ECFDF5' : a.status === 'failed' ? '#FEF2F2' : a.status === 'processing' ? '#EFF6FF' : '#F1F5F9',
+                                  color: a.status === 'success' ? '#065F46' : a.status === 'failed' ? '#991B1B' : a.status === 'processing' ? '#1D4ED8' : '#475569'
+                                }}>
+                                  {a.status === 'success' ? 'Ready & Emailed ✓' : a.status === 'failed' ? 'Failed' : a.status === 'processing' ? 'Issuing...' : 'Pending'}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline"
+                                  style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                                  onClick={() => {
+                                    if (!sessionForAttendance) {
+                                      triggerNotification('Please select a session first to preview.', 'error');
+                                      return;
+                                    }
+                                    setPreviewCert({
+                                      recipient_name: a.name,
+                                      recipient_email: a.email,
+                                      program_name: sessionForAttendance,
+                                      completion_date: dateForAttendance
+                                    });
+                                  }}
+                                >
+                                  Preview
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Batch Output Logs */}
+                    {automationLogs.length > 0 && (
+                      <div style={{ background: '#0F172A', padding: '15px', color: '#10B981', borderRadius: 'var(--radius-sm)', fontFamily: 'monospace', fontSize: '0.8rem', maxHeight: '120px', overflowY: 'auto', marginBottom: '20px' }}>
+                        {automationLogs.map((log, i) => <div key={i}>{log}</div>)}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        onClick={handleBatchIssue}
+                        disabled={isProcessingBatch}
+                      >
+                        {isProcessingBatch ? 'Processing Batch...' : `Issue & Email Certificates to Selected (${Object.keys(selectedAttendees).filter(id => selectedAttendees[id]).length})`}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={() => {
+                          setParsedAttendees([]);
+                          setAttendanceDuplicates([]);
+                          setAutomationLogs([]);
+                        }}
+                      >
+                        Clear Import
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Generate Certificate Form */}
               {showCertForm && (
                 <div className="admin-box" style={{ marginBottom: '30px' }}>
-                  <div className="admin-box-title">New Certificate</div>
+                  <div className="admin-box-title">New Single Certificate</div>
                   <form onSubmit={handleCertCreate}>
                     <div className="admin-section-grid">
                       <div className="form-group">
@@ -1775,13 +2300,25 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     </div>
                     <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
                       <button type="submit" className="btn btn-accent" disabled={loading}>
-                        {loading ? 'Generating...' : 'Generate Certificate'}
+                        {loading ? 'Generating...' : 'Generate & Email'}
                       </button>
                       <button type="button" className="btn btn-outline" onClick={() => setShowCertForm(false)}>Cancel</button>
                     </div>
                   </form>
                 </div>
               )}
+
+              {/* Certificates List Search bar */}
+              <div className="filter-controls-row" style={{ marginBottom: '20px' }}>
+                <input
+                  type="text"
+                  placeholder="Search certificates by recipient name, email, session..."
+                  value={certSearch}
+                  onChange={(e) => setCertSearch(e.target.value)}
+                  className="form-input"
+                  style={{ maxWidth: '400px' }}
+                />
+              </div>
 
               {/* Certificates List */}
               {certsLoading ? (
@@ -1790,7 +2327,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 <div className="admin-box" style={{ textAlign: 'center', padding: '60px 20px' }}>
                   <CertificateIcon style={{ width: '48px', height: '48px', color: 'var(--accent-color)', marginBottom: '15px' }} />
                   <h3 style={{ color: 'var(--primary-dark)', marginBottom: '8px' }}>No Certificates Yet</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Click "Generate Certificate" to create your first digital certificate.</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Generate or import certificates to view records.</p>
                 </div>
               ) : (
                 <div className="admin-box" style={{ padding: 0, overflow: 'hidden' }}>
@@ -1806,14 +2343,31 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       </tr>
                     </thead>
                     <tbody>
-                      {certificates.map(cert => (
+                      {certificates
+                        .filter(c => {
+                          const query = certSearch.toLowerCase();
+                          return (
+                            c.id.toLowerCase().includes(query) ||
+                            c.recipient_name.toLowerCase().includes(query) ||
+                            c.recipient_email.toLowerCase().includes(query) ||
+                            c.program_name.toLowerCase().includes(query)
+                          );
+                        })
+                        .map(cert => (
                         <tr key={cert.id}>
                           <td><code style={{ fontSize: '0.8rem', background: '#f1f5f9', padding: '3px 8px', borderRadius: '4px' }}>{cert.id}</code></td>
                           <td>
                             <div style={{ fontWeight: 500 }}>{cert.recipient_name}</div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{cert.recipient_email}</div>
                           </td>
-                          <td>{cert.program_name}</td>
+                          <td>
+                            {cert.program_name}
+                            {cert.payment_status && cert.payment_status !== 'free' && (
+                              <span style={{ marginLeft: '6px', fontSize: '0.65rem', background: '#FEF3C7', color: '#D97706', padding: '2px 6px', borderRadius: '6px', fontWeight: 'bold' }}>
+                                PAID
+                              </span>
+                            )}
+                          </td>
                           <td>{new Date(cert.completion_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                           <td>
                             <span style={{
@@ -1830,6 +2384,18 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              <button
+                                className="btn btn-outline"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                onClick={() => setPreviewCert({
+                                  recipient_name: cert.recipient_name,
+                                  recipient_email: cert.recipient_email,
+                                  program_name: cert.program_name,
+                                  completion_date: cert.completion_date
+                                })}
+                              >
+                                Preview
+                              </button>
                               <a
                                 href={`/api/certificates?action=download-pdf&id=${encodeURIComponent(cert.id)}`}
                                 className="btn btn-outline"
@@ -1848,6 +2414,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                 title="Copy verification URL"
                               >
                                 Copy Link
+                              </button>
+                              <button
+                                className="btn btn-outline"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                onClick={() => handleCertResend(cert.id)}
+                              >
+                                Resend Email
                               </button>
                               {cert.status === 'valid' ? (
                                 <button
@@ -2216,6 +2789,123 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           onClose={() => setShowMediaLibrary(false)}
           onSelectImage={handleMediaSelect}
         />
+      )}
+
+      {/* CERTIFICATE PREVIEW MODAL */}
+      {previewCert && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '800px', width: '95%', padding: '20px', background: '#0F172A', border: '2px solid #C9A84C', borderRadius: '8px', color: '#fff', boxShadow: '            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1E293B', paddingBottom: '10px' }}>
+              <h3 style={{ color: '#C9A84C', margin: 0, fontFamily: 'serif' }}>Certificate View Mode</h3>
+              <button type="button" className="btn btn-outline" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => setPreviewCert(null)}>Close</button>
+            </div>
+            <div style={{ 
+              position: 'relative', 
+              width: '100%', 
+              aspectRatio: '1.414', 
+              backgroundImage: 'url(/CERTIFICATE%20OF%20COMPLETION.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              textAlign: 'center',
+              fontFamily: 'Helvetica, Arial, sans-serif'
+            }}>
+              {/* Recipient Name - over {{RECIPIENT_NAME}} placeholder */}
+              <div style={{ position: 'absolute', top: '37%', left: '7%', right: '7%', textAlign: 'center' }}>
+                <h1 style={{ color: '#B8972F', fontSize: '2.2rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.recipient_name}</h1>
+              </div>
+
+              {/* Program Name - over {{PROGRAM_NAME}} placeholder */}
+              <div style={{ position: 'absolute', top: '60%', left: '7%', right: '7%', textAlign: 'center' }}>
+                <h2 style={{ color: '#2D3748', fontSize: '1.5rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.program_name}</h2>
+              </div>
+
+              {/* Completion Date - over {{COMPLETION_DATE}} */}
+              <div style={{ position: 'absolute', top: '69%', left: '7%', right: '7%', textAlign: 'center' }}>
+                <p style={{ color: '#4A5568', fontSize: '0.75rem', margin: 0 }}>Conducted on {new Date(previewCert.completion_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              </div>
+
+              {/* President Signature Area */}
+              <div style={{ position: 'absolute', bottom: '13%', left: '10%', width: '22%', textAlign: 'center' }}>
+                <div style={{ height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
+                  {admin.presidentSignatureUrl ? (
+                    <img src={admin.presidentSignatureUrl} alt="President Sig" style={{ maxHeight: '30px', maxWidth: '90px', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontSize: '0.6rem', color: '#94A3B8', fontStyle: 'italic' }}>[Signature]</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#2D3748' }}>{admin.presidentName || 'Ahmed Yasin'}</div>
+                <div style={{ fontSize: '0.55rem', color: '#4A5568' }}>{admin.presidentTitle || 'President'}</div>
+              </div>
+
+              {/* Vice President Signature Area */}
+              <div style={{ position: 'absolute', bottom: '13%', left: '38%', width: '22%', textAlign: 'center' }}>
+                <div style={{ height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
+                  {admin.vicePresidentSignatureUrl ? (
+                    <img src={admin.vicePresidentSignatureUrl} alt="VP Sig" style={{ maxHeight: '30px', maxWidth: '90px', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontSize: '0.6rem', color: '#94A3B8', fontStyle: 'italic' }}>[Signature]</span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#2D3748' }}>{admin.vicePresidentName || 'Qudsia Mazhar'}</div>
+                <div style={{ fontSize: '0.55rem', color: '#4A5568' }}>{admin.vicePresidentTitle || 'Vice President'}</div>
+              </div>
+
+              {/* QR Code Area */}
+              <div style={{ position: 'absolute', bottom: '13%', right: '10%', width: '12%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/verify/${previewCert.id}`)}`}
+                  alt="QR Code"
+                  style={{ width: '50px', height: '50px', marginBottom: '3px' }}
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+                <span style={{ fontSize: '0.4rem', color: '#94A3B8' }}>Scan to Verify</span>
+              </div>
+
+              {/* Certificate ID at bottom */}
+              <div style={{ position: 'absolute', bottom: '3%', left: '10%', right: '10%', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.45rem', color: '#94A3B8' }}>ID: {previewCert.id}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}   </div>
+        </div>
+      )}
+
+      {/* SQL MANUAL SETUP INSTRUCTIONS MODAL */}
+      {showSqlModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '650px', width: '90%', padding: '25px', background: 'var(--white)', borderRadius: '8px', color: 'var(--text-color)' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary-dark)' }}>Supabase SQL Schema Installation</h3>
+              <button type="button" className="modal-close" onClick={() => setShowSqlModal(false)} style={{ fontSize: '1.5rem', cursor: 'pointer', background: 'none', border: 'none' }}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ fontSize: '0.9rem', lineHeight: '1.6' }}>
+              <p>Please copy the SQL schema script below and execute it in your Supabase SQL editor to create the <code>certificates</code> table and settings columns.</p>
+              <textarea
+                readOnly
+                value={dbSqlSchema}
+                style={{ width: '100%', height: '220px', fontFamily: 'monospace', fontSize: '0.8rem', padding: '10px', border: '1px solid var(--border-color)', borderRadius: '4px', background: '#f8fafc', marginBottom: '15px', resize: 'vertical' }}
+              />
+              <button
+                type="button"
+                className="btn btn-accent"
+                onClick={() => {
+                  navigator.clipboard.writeText(dbSqlSchema);
+                  triggerNotification('SQL schema script copied to clipboard!');
+                }}
+                style={{ width: '100%' }}
+              >
+                Copy SQL Script
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

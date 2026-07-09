@@ -2,7 +2,16 @@
   "admin": {
     "email": "intellectcircle.official4@gmail.com",
     "passwordHash": "898c201cfb2e075d710cf099437059fb0ce21117e361fe90050c807b53ef47ca",
-    "web3formsKey": ""
+    "web3formsKey": "",
+    "authorizedSignatureUrl": "",
+    "presidentName": "Ahmad Yasin",
+    "presidentTitle": "President, Intellect Circle",
+    "presidentSignatureUrl": "",
+    "vicePresidentName": "Zainab Shah",
+    "vicePresidentTitle": "Vice President, Intellect Circle",
+    "vicePresidentSignatureUrl": "",
+    "promotionNotice": "Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.",
+    "promotionNoticeEnabled": true
   },
   "seo": {
     "home": {
@@ -314,6 +323,34 @@
   },
   "activity_logs": [
     {
+      "id": "log-1783568580558",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-09T03:43:00.558Z"
+    },
+    {
+      "id": "log-1783541467671",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-08T20:11:07.671Z"
+    },
+    {
+      "id": "log-1783517972809",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-08T13:39:32.810Z"
+    },
+    {
+      "id": "log-1783516152413",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-08T13:09:12.413Z"
+    },
+    {
       "id": "log-1783441746017",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",
@@ -408,6 +445,42 @@
     }
   ],
   "certificates": [
+    {
+      "id": "IC-2026-718143",
+      "recipient_name": "Muhammad Azam ali Khan",
+      "recipient_email": "aw@gmail.com",
+      "program_name": "Power of Silence: Listen Deep, React Less & Grow More",
+      "completion_date": "2026-07-12",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-09T03:45:18.143Z"
+    },
+    {
+      "id": "IC-2026-068147",
+      "recipient_name": "Ali",
+      "recipient_email": "ahmedyasin.official4@gmail.com",
+      "program_name": "Game Theory",
+      "completion_date": "2026-07-09",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-08T13:41:08.148Z"
+    },
+    {
+      "id": "IC-2026-006668",
+      "recipient_name": "Ali",
+      "recipient_email": "adas@gmail.com",
+      "program_name": "Game thoery",
+      "completion_date": "2026-07-30",
+      "status": "revoked",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-08T13:40:06.668Z"
+    },
     {
       "id": "IC-2026-522393",
       "recipient_name": "Ali",

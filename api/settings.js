@@ -50,6 +50,30 @@ export default async function handler(req, res) {
       if (payload.admin.authorizedSignatureUrl !== undefined) {
         siteSettingsPayload.authorized_signature_url = payload.admin.authorizedSignatureUrl;
       }
+      if (payload.admin.presidentName !== undefined) {
+        siteSettingsPayload.president_name = payload.admin.presidentName;
+      }
+      if (payload.admin.presidentTitle !== undefined) {
+        siteSettingsPayload.president_title = payload.admin.presidentTitle;
+      }
+      if (payload.admin.presidentSignatureUrl !== undefined) {
+        siteSettingsPayload.president_signature_url = payload.admin.presidentSignatureUrl;
+      }
+      if (payload.admin.vicePresidentName !== undefined) {
+        siteSettingsPayload.vice_president_name = payload.admin.vicePresidentName;
+      }
+      if (payload.admin.vicePresidentTitle !== undefined) {
+        siteSettingsPayload.vice_president_title = payload.admin.vicePresidentTitle;
+      }
+      if (payload.admin.vicePresidentSignatureUrl !== undefined) {
+        siteSettingsPayload.vice_president_signature_url = payload.admin.vicePresidentSignatureUrl;
+      }
+      if (payload.admin.promotionNotice !== undefined) {
+        siteSettingsPayload.promotion_notice = payload.admin.promotionNotice;
+      }
+      if (payload.admin.promotionNoticeEnabled !== undefined) {
+        siteSettingsPayload.promotion_notice_enabled = payload.admin.promotionNoticeEnabled;
+      }
       await supabase.from('site_settings').upsert(siteSettingsPayload);
     }
 

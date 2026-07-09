@@ -372,6 +372,11 @@ const localDbPlugin = () => ({
               }
             } else if (req.method === 'POST') {
               const payload = JSON.parse(body);
+              if (payload.action === 'resend-email') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, message: 'Email successfully resent (mock simulation)' }));
+                return;
+              }
               const year = new Date(payload.completion_date).getFullYear() || new Date().getFullYear();
               const uniqueSuffix = Date.now().toString().slice(-6);
               const certId = `IC-${year}-${uniqueSuffix}`;
@@ -383,6 +388,9 @@ const localDbPlugin = () => ({
                 program_name: payload.program_name,
                 completion_date: payload.completion_date,
                 status: 'valid',
+                is_paid: !!payload.is_paid,
+                price: payload.price || 0.00,
+                payment_status: payload.payment_status || 'free',
                 created_at: new Date().toISOString()
               };
               data.certificates.unshift(newCert);
@@ -401,6 +409,9 @@ const localDbPlugin = () => ({
             res.end(JSON.stringify({ error: error.message }));
           }
         });
+      } else if (url === '/api/setup-db') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, status: 'configured', message: 'Offline development mode: Database auto-configured.' }));
       } else {
         next();
       }

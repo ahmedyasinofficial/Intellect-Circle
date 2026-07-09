@@ -76,7 +76,21 @@ export default async function handler(req, res) {
     ]);
 
     // Handle site settings
-    const siteSettings = siteRes.data || { title: 'Intellect Circle', logo_url: '/assets/logo.png', web3forms_key: '', navigation_links: [] };
+    const siteSettings = siteRes.data || { 
+      title: 'Intellect Circle', 
+      logo_url: '/assets/logo.png', 
+      web3forms_key: '', 
+      navigation_links: [],
+      authorized_signature_url: '',
+      president_name: 'Ahmad Yasin',
+      president_title: 'President, Intellect Circle',
+      president_signature_url: '',
+      vice_president_name: 'Zainab Shah',
+      vice_president_title: 'Vice President, Intellect Circle',
+      vice_president_signature_url: '',
+      promotion_notice: 'Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.',
+      promotion_notice_enabled: true
+    };
 
     // Format SEO
     const seo = {};
@@ -250,7 +264,15 @@ export default async function handler(req, res) {
         email: 'admin@intellectcircle.com', // Supabase Auth handled, dummy returned for compatibility
         passwordHash: '',
         web3formsKey: siteSettings.web3forms_key || '',
-        authorizedSignatureUrl: siteSettings.authorized_signature_url || ''
+        authorizedSignatureUrl: siteSettings.authorized_signature_url || '',
+        presidentName: siteSettings.president_name || 'Ahmad Yasin',
+        presidentTitle: siteSettings.president_title || 'President, Intellect Circle',
+        presidentSignatureUrl: siteSettings.president_signature_url || '',
+        vicePresidentName: siteSettings.vice_president_name || 'Zainab Shah',
+        vicePresidentTitle: siteSettings.vice_president_title || 'Vice President, Intellect Circle',
+        vicePresidentSignatureUrl: siteSettings.vice_president_signature_url || '',
+        promotionNotice: siteSettings.promotion_notice || 'Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.',
+        promotionNoticeEnabled: siteSettings.promotion_notice_enabled !== false
       },
       seo,
       home,
