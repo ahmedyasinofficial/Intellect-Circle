@@ -57,13 +57,17 @@ function App() {
     if (path === '/apply') return 'apply';
     if (path === '/contact') return 'contact';
     if (path === '/admin') return 'admin';
-    if (path.startsWith('/verify/')) return 'verify';
+    if (path === '/verify' || path.startsWith('/verify/')) return 'verify';
     return 'home';
   });
 
   const [verifyCertId, setVerifyCertId] = useState(() => {
     const path = window.location.pathname;
     if (path.startsWith('/verify/')) return path.substring(8);
+    if (path === '/verify') {
+      const searchParams = new URLSearchParams(window.location.search);
+      return searchParams.get('id') || '';
+    }
     return '';
   });
 
@@ -77,9 +81,14 @@ function App() {
       else if (path === '/apply') setCurrentPage('apply');
       else if (path === '/contact') setCurrentPage('contact');
       else if (path === '/admin') setCurrentPage('admin');
-      else if (path.startsWith('/verify/')) {
+      else if (path === '/verify' || path.startsWith('/verify/')) {
         setCurrentPage('verify');
-        setVerifyCertId(path.substring(8));
+        if (path.startsWith('/verify/')) {
+          setVerifyCertId(path.substring(8));
+        } else {
+          const searchParams = new URLSearchParams(window.location.search);
+          setVerifyCertId(searchParams.get('id') || '');
+        }
       } else setCurrentPage('home');
     };
 
@@ -90,7 +99,7 @@ function App() {
   // Ensure invalid paths redirect to home in history
   useEffect(() => {
     const path = window.location.pathname;
-    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin'];
+    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin', '/verify'];
     if (!validPaths.includes(path) && !path.startsWith('/verify/')) {
       window.history.replaceState(null, '', '/');
     }

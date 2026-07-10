@@ -303,10 +303,9 @@ function Home({ data, navigateTo }) {
         </div>
       </section>
 
-      {/* 8. Featured Session Section */}
       {featuredSession.title && (
         <section className="section" style={{ backgroundColor: 'var(--white)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
-          <div className="container">
+          <div className="container" style={{ maxWidth: '1280px' }}>
             <div className="section-header">
               <h2>Featured Session</h2>
               <p>Explore an upcoming or recently held structured peer learning talk.</p>

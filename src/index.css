@@ -608,18 +608,18 @@ img {
 .featured-session {
   background-color: var(--white);
   border-radius: var(--radius-lg);
-  padding: 50px;
+  padding: 58px;
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border-color);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 50px;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 55px;
   align-items: center;
 }
 
 .featured-session:has(.image-portrait) {
   grid-template-columns: 1fr;
-  max-width: 500px;
+  max-width: 550px;
   margin: 0 auto;
   text-align: center;
 }
@@ -631,7 +631,7 @@ img {
   justify-content: center;
   align-items: center;
   background-color: var(--primary-light);
-  min-height: 240px;
+  min-height: 275px;
   aspect-ratio: 16/10;
 }
 

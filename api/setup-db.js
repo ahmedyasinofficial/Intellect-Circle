@@ -57,6 +57,9 @@ CREATE POLICY "Allow authenticated admins full access to certificates" ON public
 ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_status TEXT DEFAULT 'pending';
 ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ;
 ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_send_after TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '1 hour');
+
+-- 6. Reload Supabase PostgREST API schema cache
+NOTIFY pgrst, 'reload schema';
 `;
 
   if (!isSupabaseActive) {

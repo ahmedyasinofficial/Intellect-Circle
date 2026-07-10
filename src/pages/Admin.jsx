@@ -2802,8 +2802,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             <div style={{ 
               position: 'relative', 
               width: '100%', 
-              aspectRatio: '1.414', 
-              backgroundImage: 'url(/CERTIFICATE%20OF%20COMPLETION.png)',
+              aspectRatio: '1.4149', 
+              backgroundImage: 'url(/CERTIFICATE%20OF%20COMPLETION.jpg)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               borderRadius: '4px',
@@ -2815,23 +2815,23 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               textAlign: 'center',
               fontFamily: 'Helvetica, Arial, sans-serif'
             }}>
-              {/* Recipient Name - over {{RECIPIENT_NAME}} placeholder */}
-              <div style={{ position: 'absolute', top: '37%', left: '7%', right: '7%', textAlign: 'center' }}>
-                <h1 style={{ color: '#B8972F', fontSize: '2.2rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.recipient_name}</h1>
+              {/* Recipient Name - centered at X=1755, Y=700 (28.22%) */}
+              <div style={{ position: 'absolute', top: '28.2%', left: '0', right: '0', textAlign: 'center' }}>
+                <h1 style={{ color: '#B8972F', fontSize: '2.0rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.recipient_name}</h1>
               </div>
 
-              {/* Program Name - over {{PROGRAM_NAME}} placeholder */}
-              <div style={{ position: 'absolute', top: '60%', left: '7%', right: '7%', textAlign: 'center' }}>
-                <h2 style={{ color: '#2D3748', fontSize: '1.5rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.program_name}</h2>
+              {/* Program Name - centered at X=1755, Y=1220 (49.19%) */}
+              <div style={{ position: 'absolute', top: '49.2%', left: '0', right: '0', textAlign: 'center' }}>
+                <h2 style={{ color: '#2D3748', fontSize: '1.35rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.program_name}</h2>
               </div>
 
-              {/* Completion Date - over {{COMPLETION_DATE}} */}
-              <div style={{ position: 'absolute', top: '69%', left: '7%', right: '7%', textAlign: 'center' }}>
-                <p style={{ color: '#4A5568', fontSize: '0.75rem', margin: 0 }}>Conducted on {new Date(previewCert.completion_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              {/* Completion Date - centered at X=1755, Y=1700 (68.55%) */}
+              <div style={{ position: 'absolute', top: '68.5%', left: '0', right: '0', textAlign: 'center' }}>
+                <p style={{ color: '#4A5568', fontSize: '0.75rem', margin: 0, fontWeight: 'bold' }}>{new Date(previewCert.completion_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
               </div>
 
-              {/* President Signature Area */}
-              <div style={{ position: 'absolute', bottom: '13%', left: '10%', width: '22%', textAlign: 'center' }}>
+              {/* President Signature Area - X=640 (18.23%), Y=2030 (81.85%) */}
+              <div style={{ position: 'absolute', top: '72%', left: '7.2%', width: '22%', textAlign: 'center' }}>
                 <div style={{ height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
                   {admin.presidentSignatureUrl ? (
                     <img src={admin.presidentSignatureUrl} alt="President Sig" style={{ maxHeight: '30px', maxWidth: '90px', objectFit: 'contain' }} />
@@ -2839,12 +2839,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     <span style={{ fontSize: '0.6rem', color: '#94A3B8', fontStyle: 'italic' }}>[Signature]</span>
                   )}
                 </div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#2D3748' }}>{admin.presidentName || 'Ahmed Yasin'}</div>
-                <div style={{ fontSize: '0.55rem', color: '#4A5568' }}>{admin.presidentTitle || 'President'}</div>
               </div>
 
-              {/* Vice President Signature Area */}
-              <div style={{ position: 'absolute', bottom: '13%', left: '38%', width: '22%', textAlign: 'center' }}>
+              {/* Vice President Signature Area - X=2070 (58.99%), Y=2030 (81.85%) */}
+              <div style={{ position: 'absolute', top: '72%', left: '48%', width: '22%', textAlign: 'center' }}>
                 <div style={{ height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
                   {admin.vicePresidentSignatureUrl ? (
                     <img src={admin.vicePresidentSignatureUrl} alt="VP Sig" style={{ maxHeight: '30px', maxWidth: '90px', objectFit: 'contain' }} />
@@ -2852,24 +2850,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     <span style={{ fontSize: '0.6rem', color: '#94A3B8', fontStyle: 'italic' }}>[Signature]</span>
                   )}
                 </div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#2D3748' }}>{admin.vicePresidentName || 'Qudsia Mazhar'}</div>
-                <div style={{ fontSize: '0.55rem', color: '#4A5568' }}>{admin.vicePresidentTitle || 'Vice President'}</div>
               </div>
 
-              {/* QR Code Area */}
-              <div style={{ position: 'absolute', bottom: '13%', right: '10%', width: '12%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {/* QR Code Area - X=3120 (88.91%), Y=2050 (82.66%) */}
+              <div style={{ position: 'absolute', top: '75%', left: '83%', width: '12%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/verify/${previewCert.id}`)}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/verify?id=${previewCert.id}`)}`}
                   alt="QR Code"
-                  style={{ width: '50px', height: '50px', marginBottom: '3px' }}
+                  style={{ width: '45px', height: '45px', marginBottom: '3px', background: '#fff', padding: '2px', border: '1px solid #ddd' }}
                   onError={(e) => e.target.style.display = 'none'}
                 />
-                <span style={{ fontSize: '0.4rem', color: '#94A3B8' }}>Scan to Verify</span>
-              </div>
-
-              {/* Certificate ID at bottom */}
-              <div style={{ position: 'absolute', bottom: '3%', left: '10%', right: '10%', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.45rem', color: '#94A3B8' }}>ID: {previewCert.id}</span>
+                <span style={{ fontSize: '0.45rem', color: '#4A5568', fontWeight: 'bold' }}>ID: {previewCert.id}</span>
               </div>
             </div>
           </div>

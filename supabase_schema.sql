@@ -535,4 +535,7 @@ DROP POLICY IF EXISTS "Allow authenticated admins select access to analytics_eve
 CREATE POLICY "Allow authenticated admins select access to analytics_events" ON public.analytics_events
     FOR SELECT USING (true);
 
+-- Reload Supabase PostgREST API schema cache
+NOTIFY pgrst, 'reload schema';
+
 

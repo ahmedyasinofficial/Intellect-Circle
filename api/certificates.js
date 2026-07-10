@@ -80,20 +80,37 @@ https://intellectcircle.dpdns.org`;
 }
 
 // Generate the landscape PDF certificate using the official template image
+// Generate the landscape PDF certificate using the official template image
 async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
   const host = req.headers.host || 'localhost';
   const protocol = req.headers.referer?.split('://')[0] || 'https';
   const baseUrl = `${protocol}://${host}`;
 
-  // Template image URL (public/CERTIFICATE OF COMPLETION.png)
-  const templateUrl = `${baseUrl}/CERTIFICATE%20OF%20COMPLETION.png`;
+  // Template image URL fallback
+  const templateUrl = `${baseUrl}/CERTIFICATE%20OF%20COMPLETION.jpg`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
 
-  // Fetch all images BEFORE building the PDF to prevent blank PDFs
-  const fetchPromises = [
-    fetchImageBuffer(templateUrl),
-    fetchImageBuffer(qrUrl)
-  ];
+  // Try loading template from local filesystem first to avoid loopback fetch errors in local dev
+  let templateBuffer = null;
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const localPath = path.join(process.cwd(), 'public', 'CERTIFICATE OF COMPLETION.jpg');
+    if (fs.existsSync(localPath)) {
+      templateBuffer = fs.readFileSync(localPath);
+    }
+  } catch (err) {
+    console.warn('[PDF Generator] Failed to read template from local filesystem:', err.message);
+  }
+
+  // Fetch remaining images (QR and signatures)
+  const fetchPromises = [];
+  if (!templateBuffer) {
+    fetchPromises.push(fetchImageBuffer(templateUrl));
+  } else {
+    fetchPromises.push(Promise.resolve(templateBuffer));
+  }
+  fetchPromises.push(fetchImageBuffer(qrUrl));
 
   const presSigUrl = settings.president_signature_url;
   if (presSigUrl) {
@@ -111,7 +128,7 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
     fetchPromises.push(Promise.resolve(null));
   }
 
-  const [templateBuffer, qrBuffer, presSigBuffer, vpSigBuffer] = await Promise.all(fetchPromises);
+  const [finalTemplateBuffer, qrBuffer, presSigBuffer, vpSigBuffer] = await Promise.all(fetchPromises);
 
   return new Promise((resolve, reject) => {
     try {
@@ -131,40 +148,38 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
       doc.on('error', err => reject(err));
 
       // --- STEP 1: Draw the template image as full-page background ---
-      if (templateBuffer) {
-        doc.image(templateBuffer, 0, 0, { width: pageW, height: pageH });
+      if (finalTemplateBuffer) {
+        doc.image(finalTemplateBuffer, 0, 0, { width: pageW, height: pageH });
       } else {
         // Fallback: white background if template fails to load
         doc.rect(0, 0, pageW, pageH).fill('#FFFFFF');
       }
 
-      // --- STEP 2: Overlay dynamic text at placeholder positions ---
-      // Colors matching the template design
+      // --- STEP 2: Overlay dynamic text at specified placeholder positions ---
+      // Scaled coordinates from 3509 x 2480 space to 842 x 595 space (Scale X ~ 0.24, Scale Y ~ 0.24)
       const goldColor = '#B8972F';
       const darkColor = '#2D3748';
       const grayColor = '#4A5568';
 
-      // Recipient name — positioned at the {{RECIPIENT_NAME}} placeholder
-      // Template: ~40% from top, centered
+      // Recipient Name: X=1755 (centered), Y=700 (scaled: Y=168)
       doc.fillColor(goldColor)
-         .fontSize(34)
+         .fontSize(38)
          .font('Helvetica-Bold')
-         .text(certificate.recipient_name, 60, 222, {
-           width: pageW - 120,
+         .text(certificate.recipient_name, 0, 168, {
+           width: pageW,
            align: 'center'
          });
 
-      // Program name — positioned at the {{PROGRAM_NAME}} placeholder
-      // Template: ~62% from top, centered
+      // Program Name: X=1755 (centered), Y=1220 (scaled: Y=293)
       doc.fillColor(darkColor)
-         .fontSize(26)
+         .fontSize(24)
          .font('Helvetica-Bold')
-         .text(certificate.program_name, 60, 360, {
-           width: pageW - 120,
+         .text(certificate.program_name, 0, 293, {
+           width: pageW,
            align: 'center'
          });
 
-      // Completion date — positioned at {{COMPLETION_DATE}} placeholder
+      // Completion Date: X=1755 (centered), Y=1700 (scaled: Y=408)
       const completionDateFormatted = new Date(certificate.completion_date).toLocaleDateString('en-US', {
         month: 'long',
         day: 'numeric',
@@ -173,68 +188,41 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
       doc.fillColor(grayColor)
          .fontSize(12)
          .font('Helvetica')
-         .text(`Conducted on ${completionDateFormatted}`, 60, 410, {
-           width: pageW - 120,
+         .text(completionDateFormatted, 0, 408, {
+           width: pageW,
            align: 'center'
          });
 
-      // --- STEP 3: Signature overlays ---
-      // President Signature (left side) — matches [President Signature] placeholder
-      const presSigX = 105;
-      const sigAreaY = 445;
+      // --- STEP 3: Signature overlays (NO text rendered, template has it) ---
+      const sigAreaY = 487; // Y = 2030 (scaled)
 
+      // President Signature: X=640 (scaled: X=153.5)
+      const presSigX = 153.5;
       if (presSigBuffer) {
-        doc.image(presSigBuffer, presSigX + 15, sigAreaY - 5, { width: 120, height: 45, fit: [120, 45] });
+        doc.image(presSigBuffer, presSigX - 60, sigAreaY - 45, { width: 120, height: 40, fit: [120, 40] });
       }
-      // President name — below signature line
-      doc.fillColor(darkColor)
-         .fontSize(11)
-         .font('Helvetica-Bold')
-         .text(settings.president_name || 'Ahmed Yasin', presSigX - 10, sigAreaY + 52, { width: 170, align: 'center' });
-      doc.fillColor(grayColor)
-         .fontSize(9)
-         .font('Helvetica')
-         .text(settings.president_title || 'President', presSigX - 10, sigAreaY + 66, { width: 170, align: 'center' });
 
-      // Vice President Signature (center) — matches [Vice President Signature] placeholder
-      const vpSigX = 370;
-
+      // Vice President Signature: X=2070 (scaled: X=496.7)
+      const vpSigX = 496.7;
       if (vpSigBuffer) {
-        doc.image(vpSigBuffer, vpSigX + 15, sigAreaY - 5, { width: 120, height: 45, fit: [120, 45] });
+        doc.image(vpSigBuffer, vpSigX - 60, sigAreaY - 45, { width: 120, height: 40, fit: [120, 40] });
       }
-      // VP name — below signature line
-      doc.fillColor(darkColor)
-         .fontSize(11)
-         .font('Helvetica-Bold')
-         .text(settings.vice_president_name || 'Qudsia Mazhar', vpSigX - 10, sigAreaY + 52, { width: 170, align: 'center' });
-      doc.fillColor(grayColor)
-         .fontSize(9)
-         .font('Helvetica')
-         .text(settings.vice_president_title || 'Vice President', vpSigX - 10, sigAreaY + 66, { width: 170, align: 'center' });
 
-      // --- STEP 4: QR Code overlay (right side) ---
-      // Positioned at the {{QR_CODE}} placeholder area
-      const qrX = 680;
-      const qrY = sigAreaY - 10;
+      // --- STEP 4: QR Code & Certificate ID overlay ---
+      // QR Code: X=3120 (scaled: X=748.7), Y=2050 (scaled: Y=492)
+      const qrX = 748.7;
+      const qrY = 492;
+      const qrSize = 56;
 
       if (qrBuffer) {
-        doc.image(qrBuffer, qrX, qrY, { width: 70, height: 70 });
+        doc.image(qrBuffer, qrX - (qrSize / 2), qrY - (qrSize / 2) - 15, { width: qrSize, height: qrSize });
       }
 
-      // Small verification text below QR
+      // Certificate ID: Below the QR code
       doc.fillColor(grayColor)
-         .fontSize(6)
+         .fontSize(7)
          .font('Helvetica')
-         .text('Scan to Verify', qrX - 5, qrY + 73, { width: 80, align: 'center' });
-
-      // Certificate ID at the very bottom (subtle)
-      doc.fillColor('#94A3B8')
-         .fontSize(6.5)
-         .font('Helvetica')
-         .text(`ID: ${certificate.id}  |  ${verifyUrl}`, 60, pageH - 30, {
-           width: pageW - 120,
-           align: 'center'
-         });
+         .text(`ID: ${certificate.id}`, qrX - 80, qrY + (qrSize / 2) - 5, { width: 160, align: 'center' });
 
       doc.end();
     } catch (err) {
@@ -343,7 +331,10 @@ export default async function handler(req, res) {
     }
 
     try {
-      const verifyUrl = `https://intellectcircle.dpdns.org/verify/${id}`;
+      const host = req.headers.host || 'localhost';
+      const protocol = req.headers.referer?.split('://')[0] || 'https';
+      const baseUrl = `${protocol}://${host}`;
+      const verifyUrl = `${baseUrl}/verify?id=${id}`;
       const pdfBuffer = await generateCertificatePdf(certificate, settings, verifyUrl, req);
 
       res.setHeader('Content-Type', 'application/pdf');
