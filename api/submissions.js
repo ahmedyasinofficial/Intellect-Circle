@@ -1,4 +1,100 @@
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
+
+async function sendWelcomeEmail({ name, email }) {
+  const mailSubject = `Welcome to the Intellect Circle Community!`;
+  const mailText = `Dear ${name},
+
+Welcome to the Intellect Circle community! We are excited to have you on board.
+
+To get started, please join our WhatsApp Community using the link below:
+https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
+
+Stay connected and follow our social media pages:
+- Instagram: https://instagram.com/intellectcircle
+- LinkedIn: https://www.linkedin.com/company/intellect-circle/
+- Facebook: https://www.facebook.com/profile.php?id=61590726385267
+
+Best regards,
+Intellect Circle Team
+https://intellectcircle.dpdns.org`;
+
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFrom = process.env.SMTP_FROM || 'no-reply@intellectcircle.dpdns.org';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Intellect Circle" <${smtpFrom}>`,
+        to: email,
+        subject: mailSubject,
+        text: mailText
+      });
+      console.log(`[Welcome Email] Sent welcome email to ${email}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[Welcome Email] SMTP error sending to ${email}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  } else {
+    const msg = `[Welcome Email Simulation] SMTP not configured. Welcomed ${name} (${email}).`;
+    console.log(msg);
+    return { success: true, simulated: true };
+  }
+}
+
+async function processPendingWelcomeEmails(supabase) {
+  try {
+    const { data: pending, error } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('type', 'application')
+      .eq('welcome_email_status', 'pending')
+      .lte('welcome_email_send_after', new Date().toISOString());
+
+    if (error) {
+      console.error('[Welcome Email Processor] Failed to fetch pending submissions:', error.message);
+      return;
+    }
+
+    if (!pending || pending.length === 0) {
+      return;
+    }
+
+    console.log(`[Welcome Email Processor] Found ${pending.length} pending welcome emails to send.`);
+    for (const app of pending) {
+      const result = await sendWelcomeEmail({ name: app.name, email: app.email });
+      const status = result.success ? 'sent' : 'failed';
+      
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({
+          welcome_email_status: status,
+          welcome_email_sent_at: new Date().toISOString()
+        })
+        .eq('id', app.id);
+
+      if (updateError) {
+        console.error(`[Welcome Email Processor] Failed to update status for submission ${app.id}:`, updateError.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Welcome Email Processor] Error processing welcome emails:', err.message);
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -26,6 +122,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, message: 'Submission action mocked successfully' });
   }
 
+  const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
+  // Run lazy email check/processor in background
+  processPendingWelcomeEmails(supabase).catch(console.error);
+
   try {
     if (action === 'submit-application') {
       const application = req.body;
@@ -33,7 +134,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing request body' });
       }
 
-      // Insert application row
+      // Insert application row with welcome email status and schedule
       const insertRes = await fetch(`${supabaseUrl}/rest/v1/submissions`, {
         method: 'POST',
         headers: {
@@ -51,7 +152,9 @@ export default async function handler(req, res) {
           occupation: application.occupation,
           why_join: application.whyJoin,
           heard_about: application.heardAboutCombined,
-          created_at: application.submittedAt || new Date().toISOString()
+          created_at: application.submittedAt || new Date().toISOString(),
+          welcome_email_status: 'pending',
+          welcome_email_send_after: new Date(Date.now() + 3600 * 1000).toISOString() // 1 hour from now
         })
       });
 

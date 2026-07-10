@@ -2794,7 +2794,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       {/* CERTIFICATE PREVIEW MODAL */}
       {previewCert && (
         <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-content" style={{ maxWidth: '800px', width: '95%', padding: '20px', background: '#0F172A', border: '2px solid #C9A84C', borderRadius: '8px', color: '#fff', boxShadow: '            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1E293B', paddingBottom: '10px' }}>
+          <div className="modal-content" style={{ maxWidth: '800px', width: '95%', padding: '20px', background: '#0F172A', border: '2px solid #C9A84C', borderRadius: '8px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1E293B', paddingBottom: '10px' }}>
               <h3 style={{ color: '#C9A84C', margin: 0, fontFamily: 'serif' }}>Certificate View Mode</h3>
               <button type="button" className="btn btn-outline" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => setPreviewCert(null)}>Close</button>
             </div>
@@ -2872,8 +2873,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               </div>
             </div>
           </div>
-        </div>
-      )}   </div>
         </div>
       )}
 

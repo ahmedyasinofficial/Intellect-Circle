@@ -52,6 +52,11 @@ CREATE POLICY "Allow anonymous read access to certificates" ON public.certificat
 DROP POLICY IF EXISTS "Allow authenticated admins full access to certificates" ON public.certificates;
 CREATE POLICY "Allow authenticated admins full access to certificates" ON public.certificates
     FOR ALL USING (true);
+
+-- 5. Add columns to submissions for welcome email if they don't exist
+ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_status TEXT DEFAULT 'pending';
+ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ;
+ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_send_after TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '1 hour');
 `;
 
   if (!isSupabaseActive) {

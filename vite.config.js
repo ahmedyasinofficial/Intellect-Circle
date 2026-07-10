@@ -7,6 +7,62 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+async function sendWelcomeEmailLocal({ name, email }) {
+  const mailSubject = `Welcome to the Intellect Circle Community!`;
+  const mailText = `Dear ${name},
+
+Welcome to the Intellect Circle community! We are excited to have you on board.
+
+To get started, please join our WhatsApp Community using the link below:
+https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
+
+Stay connected and follow our social media pages:
+- Instagram: https://instagram.com/intellectcircle
+- LinkedIn: https://www.linkedin.com/company/intellect-circle/
+- Facebook: https://www.facebook.com/profile.php?id=61590726385267
+
+Best regards,
+Intellect Circle Team
+https://intellectcircle.dpdns.org`;
+
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFrom = process.env.SMTP_FROM || 'no-reply@intellectcircle.dpdns.org';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Intellect Circle" <${smtpFrom}>`,
+        to: email,
+        subject: mailSubject,
+        text: mailText
+      });
+      console.log(`[Local Welcome Email] Sent welcome email to ${email}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[Local Welcome Email] SMTP error sending to ${email}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  } else {
+    const msg = `[Local Welcome Email Simulation] SMTP not configured. Welcomed ${name} (${email}).`;
+    console.log(msg);
+    return { success: true, simulated: true };
+  }
+}
+
 // Custom local database persistence plugin for CMS in development
 const localDbPlugin = () => ({
   name: 'local-db-plugin',
@@ -144,9 +200,32 @@ const localDbPlugin = () => ({
 
             if (action === 'submit-application') {
               const application = JSON.parse(body);
+              application.welcome_email_status = 'pending';
+              application.welcome_email_send_after = new Date(Date.now() + 3600 * 1000).toISOString();
+              
               if (!dataContent.submissions.applications) dataContent.submissions.applications = [];
               dataContent.submissions.applications.unshift(application);
               fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
+
+              // Setup 1-hour setTimeout to simulate sending the email
+              setTimeout(() => {
+                sendWelcomeEmailLocal({ name: application.name, email: application.email })
+                  .then((res) => {
+                    try {
+                      const updatedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+                      const foundApp = updatedData.submissions.applications.find(a => a.id === application.id || (a.email === application.email && a.name === application.name));
+                      if (foundApp) {
+                        foundApp.welcome_email_status = res.success ? 'sent' : 'failed';
+                        foundApp.welcome_email_sent_at = new Date().toISOString();
+                        fs.writeFileSync(dataPath, JSON.stringify(updatedData, null, 2), 'utf-8');
+                      }
+                    } catch (err) {
+                      console.error('Failed to update email status in data.json:', err.message);
+                    }
+                  })
+                  .catch(console.error);
+              }, 3600000); // 1 hour
+
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ success: true, message: 'Application submitted successfully' }));
             } else if (action === 'submit-contact') {
