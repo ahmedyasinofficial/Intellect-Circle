@@ -616,21 +616,62 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target.result;
-      const lines = text.split(/\r?\n/);
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length === 0) return;
+
       const results = [];
       const dupes = [];
       const seenEmails = new Set();
 
-      for (let line of lines) {
-        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
-        let emailIdx = cols.findIndex(col => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(col));
+      // Parse a CSV line respecting quoted fields
+      const parseLine = (line) =>
+        line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
+
+      // Detect header row and name column index
+      const nameHeaderVariants = [
+        'name', 'full name', 'fullname', 'participant name', 'participantname',
+        'student name', 'studentname', 'recipient name', 'recipientname',
+        'attendee name', 'attendeename', 'first name', 'firstname',
+        'member name', 'membername', 'person', 'person name'
+      ];
+
+      const firstCols = parseLine(lines[0]);
+      const hasHeader = firstCols.some(col =>
+        nameHeaderVariants.includes(col.toLowerCase()) ||
+        /^(email|e-mail|email\s*address)$/i.test(col)
+      );
+
+      let nameColIdx = -1;
+      let startRow = 0;
+
+      if (hasHeader) {
+        startRow = 1;
+        nameColIdx = firstCols.findIndex(col =>
+          nameHeaderVariants.includes(col.toLowerCase())
+        );
+      }
+
+      for (let i = startRow; i < lines.length; i++) {
+        const cols = parseLine(lines[i]);
+        const emailIdx = cols.findIndex(col => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(col));
 
         if (emailIdx !== -1) {
           const email = cols[emailIdx].toLowerCase();
-          let name = cols[0];
-          if (emailIdx === 0 && cols.length > 1) {
-            name = cols[1];
+
+          // Determine name: use detected header column, else first non-email column
+          let name = '';
+          if (nameColIdx !== -1 && nameColIdx < cols.length) {
+            name = cols[nameColIdx];
+          } else {
+            // Pick the first column that isn't the email
+            for (let c = 0; c < cols.length; c++) {
+              if (c !== emailIdx && cols[c]) {
+                name = cols[c];
+                break;
+              }
+            }
           }
+
           if (!name || name === email) {
             name = email.split('@')[0].replace(/[._-]/g, ' ');
           }
@@ -2355,7 +2396,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         🔄 Reset Layout Defaults
                       </button>
                       <button type="button" className="btn btn-outline" onClick={() => {
-                        setPreviewCert({ _temp: true, id: 'IC-PREVIEW', recipient_name: 'Sample Recipient', program_name: 'Sample Program Name', completion_date: new Date().toISOString().split('T')[0] });
+                        setPreviewCert({
+                          _temp: true,
+                          id: 'IC-PREVIEW',
+                          recipient_name: certForm.recipient_name || 'Sample Recipient',
+                          program_name: certForm.program_name || 'Sample Program Name',
+                          completion_date: certForm.completion_date || new Date().toISOString().split('T')[0]
+                        });
                       }} style={{ padding: '8px 20px' }}>
                         👁 Preview Certificate
                       </button>

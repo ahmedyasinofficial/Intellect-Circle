@@ -192,44 +192,42 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
     idSize:  Number(settings.cert_id_size) || 10,
   };
 
-  const templateUrl = `${baseUrl}/CERTIFICATE%20OF%20COMPLETION.jpg`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
-
-  // Try loading template from local filesystem first
-  let templateBuffer = null;
-  try {
+  // Helper to load image buffer from local file system if local, or fetch over HTTP
+  const resolveImage = async (urlOrPath) => {
+    if (!urlOrPath) return null;
+    
+    // Check if it's a local public path (starts with /uploads/ or is the template)
     const fs = await import('fs');
     const path = await import('path');
-    const localPath = path.join(process.cwd(), 'public', 'CERTIFICATE OF COMPLETION.jpg');
-    if (fs.existsSync(localPath)) {
-      templateBuffer = fs.readFileSync(localPath);
+    let localPath = null;
+    
+    if (urlOrPath.startsWith('/uploads/') || urlOrPath.startsWith('/assets/')) {
+      localPath = path.join(process.cwd(), 'public', urlOrPath);
+    } else if (urlOrPath.includes('CERTIFICATE%20OF%20COMPLETION.jpg') || urlOrPath.includes('CERTIFICATE OF COMPLETION.jpg')) {
+      localPath = path.join(process.cwd(), 'public', 'CERTIFICATE OF COMPLETION.jpg');
     }
-  } catch (err) {
-    console.warn('[PDF Generator] Failed to read template from filesystem:', err.message);
-  }
+    
+    if (localPath) {
+      try {
+        if (fs.existsSync(localPath)) {
+          return fs.readFileSync(localPath);
+        }
+      } catch (err) {
+        console.warn(`[PDF Generator] Failed to read local file ${localPath}:`, err.message);
+      }
+    }
+    
+    // Otherwise fallback to HTTP fetch
+    const targetUrl = urlOrPath.startsWith('http') ? urlOrPath : `${baseUrl}${urlOrPath.startsWith('/') ? '' : '/'}${urlOrPath}`;
+    return fetchImageBuffer(targetUrl);
+  };
 
-  // Fetch images in parallel
-  const fetchPromises = [];
-  fetchPromises.push(templateBuffer ? Promise.resolve(templateBuffer) : fetchImageBuffer(templateUrl));
-  fetchPromises.push(fetchImageBuffer(qrUrl));
-
-  const presSigUrl = settings.president_signature_url;
-  if (presSigUrl) {
-    const absUrl = presSigUrl.startsWith('http') ? presSigUrl : `${baseUrl}${presSigUrl}`;
-    fetchPromises.push(fetchImageBuffer(absUrl));
-  } else {
-    fetchPromises.push(Promise.resolve(null));
-  }
-
-  const vpSigUrl = settings.vice_president_signature_url;
-  if (vpSigUrl) {
-    const absUrl = vpSigUrl.startsWith('http') ? vpSigUrl : `${baseUrl}${vpSigUrl}`;
-    fetchPromises.push(fetchImageBuffer(absUrl));
-  } else {
-    fetchPromises.push(Promise.resolve(null));
-  }
-
-  const [finalTemplateBuffer, qrBuffer, presSigBuffer, vpSigBuffer] = await Promise.all(fetchPromises);
+  // Load the template and signature buffers (local files read synchronously, others via fetch)
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
+  const finalTemplateBuffer = await resolveImage('CERTIFICATE OF COMPLETION.jpg');
+  const qrBuffer = await fetchImageBuffer(qrUrl);
+  const presSigBuffer = settings.president_signature_url ? await resolveImage(settings.president_signature_url) : null;
+  const vpSigBuffer = settings.vice_president_signature_url ? await resolveImage(settings.vice_president_signature_url) : null;
 
   return new Promise((resolve, reject) => {
     try {
@@ -282,10 +280,7 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
       doc.fillColor(grayColor)
          .fontSize(L.dateSize)
          .font('Helvetica')
-         .text(completionDateFormatted, 0, L.dateY * sy, {
-           width: pageW,
-           align: 'center'
-         });
+         .text(completionDateFormatted, L.dateX * sx, L.dateY * sy);
 
       // STEP 5: Signature image overlays (no text — template has names/titles)
       const presPtX = L.presX * sx;
@@ -316,6 +311,47 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
         doc.image(qrBuffer, qrPtX - qrPtSize / 2, qrPtY - qrPtSize / 2, {
           width: qrPtSize, height: qrPtSize
         });
+      } else {
+        // Draw simulated QR code vector fallback for offline/development environments
+        const qx = qrPtX - qrPtSize / 2;
+        const qy = qrPtY - qrPtSize / 2;
+        
+        doc.save();
+        
+        // Background and border
+        doc.rect(qx, qy, qrPtSize, qrPtSize)
+           .fillAndStroke('#FFFFFF', '#000000');
+           
+        // Finder patterns in 3 corners
+        const fsz = qrPtSize * 0.25;
+        const patterns = [
+          { x: qx + 2, y: qy + 2 }, // Top-Left
+          { x: qx + qrPtSize - fsz - 2, y: qy + 2 }, // Top-Right
+          { x: qx + 2, y: qy + qrPtSize - fsz - 2 } // Bottom-Left
+        ];
+        
+        doc.fill('#000000');
+        for (const p of patterns) {
+          doc.rect(p.x, p.y, fsz, fsz).fill();
+          doc.rect(p.x + fsz * 0.2, p.y + fsz * 0.2, fsz * 0.6, fsz * 0.6).fillColor('#FFFFFF').fill();
+          doc.rect(p.x + fsz * 0.35, p.y + fsz * 0.35, fsz * 0.3, fsz * 0.3).fillColor('#000000').fill();
+        }
+        
+        // Draw simulated QR bit matrix
+        doc.fillColor('#000000');
+        const cellSize = qrPtSize / 10;
+        for (let row = 0; row < 10; row++) {
+          for (let col = 0; col < 10; col++) {
+            // Skip finder patterns
+            if ((row < 3 && col < 3) || (row < 3 && col > 6) || (row > 6 && col < 3)) continue;
+            // Pseudo-random bit distribution
+            if ((row + col) % 3 === 0 || (row * col) % 4 === 1) {
+              doc.rect(qx + col * cellSize, qy + row * cellSize, cellSize, cellSize).fill();
+            }
+          }
+        }
+        
+        doc.restore();
       }
 
       // STEP 7: Certificate ID (below QR code)
@@ -408,15 +444,21 @@ export default async function handler(req, res) {
     } else if (!id) {
       return res.status(400).json({ error: 'Missing certificate ID' });
     } else if (!isSupabaseActive) {
-      certificate = {
-        id,
-        recipient_name: 'Alex Johnson',
-        recipient_email: 'alex@example.com',
-        program_name: 'Foundations of Peer Learning',
-        completion_date: '2026-07-08',
-        status: 'valid',
-        payment_status: 'free'
-      };
+      try {
+        const { readFileSync } = await import('fs');
+        const { join, dirname } = await import('path');
+        const { fileURLToPath } = await import('url');
+        const dataPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'data.json');
+        const defaultData = JSON.parse(readFileSync(dataPath, 'utf-8'));
+        const found = (defaultData.certificates || []).find(c => c.id === id);
+        if (!found) {
+          return res.status(404).json({ error: 'Certificate not found in mock database.' });
+        }
+        certificate = found;
+      } catch (err) {
+        console.error('Failed to read local mock DB for certificate download:', err.message);
+        return res.status(500).json({ error: 'Local mock DB read error.' });
+      }
     } else {
       try {
         const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
