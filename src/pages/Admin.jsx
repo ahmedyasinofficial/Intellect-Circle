@@ -76,6 +76,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(null);
   const previewBlobUrlRef = useRef(null);
+  const [previewKey, setPreviewKey] = useState(0);
 
   // Search & Pagination States
   const [sessionSearch, setSessionSearch] = useState('');
@@ -827,6 +828,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       if (res.ok) {
         triggerNotification('Certificate layout saved successfully!', 'success');
         if (refreshData) refreshData();
+        // Bump preview key so any open preview re-fetches with the new layout
+        setPreviewKey(k => k + 1);
       } else {
         triggerNotification('Failed to save layout settings.', 'error');
       }
@@ -925,7 +928,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       });
 
     return () => { cancelled = true; };
-  }, [previewCert, buildCertPdfUrl]);
+  }, [previewCert, buildCertPdfUrl, previewKey]);
 
   const handleCertCreate = async (e) => {
     e.preventDefault();

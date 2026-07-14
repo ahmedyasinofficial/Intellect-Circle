@@ -17,6 +17,13 @@ async function fetchImageBuffer(url) {
 }
 
 // Merge site_settings / local admin data into a single settings object for PDF generation
+// Safely coerce a value to a number; returns undefined when the value is absent
+function toNum(v) {
+  if (v === null || v === undefined || v === '') return undefined;
+  const n = Number(v);
+  return Number.isNaN(n) ? undefined : n;
+}
+
 function normalizeCertificateSettings(raw = {}) {
   const admin = raw.admin || {};
   return {
@@ -31,29 +38,29 @@ function normalizeCertificateSettings(raw = {}) {
       admin.vicePresidentSignatureUrl ||
       admin.vice_president_signature_url ||
       '',
-    cert_name_x: raw.cert_name_x ?? admin.cert_name_x,
-    cert_name_y: raw.cert_name_y ?? admin.cert_name_y,
-    cert_name_size: raw.cert_name_size ?? admin.cert_name_size,
-    cert_program_x: raw.cert_program_x ?? admin.cert_program_x,
-    cert_program_y: raw.cert_program_y ?? admin.cert_program_y,
-    cert_program_size: raw.cert_program_size ?? admin.cert_program_size,
-    cert_date_x: raw.cert_date_x ?? admin.cert_date_x,
-    cert_date_y: raw.cert_date_y ?? admin.cert_date_y,
-    cert_date_size: raw.cert_date_size ?? admin.cert_date_size,
-    cert_pres_x: raw.cert_pres_x ?? admin.cert_pres_x,
-    cert_pres_y: raw.cert_pres_y ?? admin.cert_pres_y,
-    cert_pres_w: raw.cert_pres_w ?? admin.cert_pres_w,
-    cert_pres_h: raw.cert_pres_h ?? admin.cert_pres_h,
-    cert_vp_x: raw.cert_vp_x ?? admin.cert_vp_x,
-    cert_vp_y: raw.cert_vp_y ?? admin.cert_vp_y,
-    cert_vp_w: raw.cert_vp_w ?? admin.cert_vp_w,
-    cert_vp_h: raw.cert_vp_h ?? admin.cert_vp_h,
-    cert_qr_x: raw.cert_qr_x ?? admin.cert_qr_x,
-    cert_qr_y: raw.cert_qr_y ?? admin.cert_qr_y,
-    cert_qr_size: raw.cert_qr_size ?? admin.cert_qr_size,
-    cert_id_x: raw.cert_id_x ?? admin.cert_id_x,
-    cert_id_y: raw.cert_id_y ?? admin.cert_id_y,
-    cert_id_size: raw.cert_id_size ?? admin.cert_id_size,
+    cert_name_x: toNum(raw.cert_name_x) ?? toNum(admin.cert_name_x),
+    cert_name_y: toNum(raw.cert_name_y) ?? toNum(admin.cert_name_y),
+    cert_name_size: toNum(raw.cert_name_size) ?? toNum(admin.cert_name_size),
+    cert_program_x: toNum(raw.cert_program_x) ?? toNum(admin.cert_program_x),
+    cert_program_y: toNum(raw.cert_program_y) ?? toNum(admin.cert_program_y),
+    cert_program_size: toNum(raw.cert_program_size) ?? toNum(admin.cert_program_size),
+    cert_date_x: toNum(raw.cert_date_x) ?? toNum(admin.cert_date_x),
+    cert_date_y: toNum(raw.cert_date_y) ?? toNum(admin.cert_date_y),
+    cert_date_size: toNum(raw.cert_date_size) ?? toNum(admin.cert_date_size),
+    cert_pres_x: toNum(raw.cert_pres_x) ?? toNum(admin.cert_pres_x),
+    cert_pres_y: toNum(raw.cert_pres_y) ?? toNum(admin.cert_pres_y),
+    cert_pres_w: toNum(raw.cert_pres_w) ?? toNum(admin.cert_pres_w),
+    cert_pres_h: toNum(raw.cert_pres_h) ?? toNum(admin.cert_pres_h),
+    cert_vp_x: toNum(raw.cert_vp_x) ?? toNum(admin.cert_vp_x),
+    cert_vp_y: toNum(raw.cert_vp_y) ?? toNum(admin.cert_vp_y),
+    cert_vp_w: toNum(raw.cert_vp_w) ?? toNum(admin.cert_vp_w),
+    cert_vp_h: toNum(raw.cert_vp_h) ?? toNum(admin.cert_vp_h),
+    cert_qr_x: toNum(raw.cert_qr_x) ?? toNum(admin.cert_qr_x),
+    cert_qr_y: toNum(raw.cert_qr_y) ?? toNum(admin.cert_qr_y),
+    cert_qr_size: toNum(raw.cert_qr_size) ?? toNum(admin.cert_qr_size),
+    cert_id_x: toNum(raw.cert_id_x) ?? toNum(admin.cert_id_x),
+    cert_id_y: toNum(raw.cert_id_y) ?? toNum(admin.cert_id_y),
+    cert_id_size: toNum(raw.cert_id_size) ?? toNum(admin.cert_id_size),
   };
 }
 
@@ -166,30 +173,32 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
   const sy = pageH / TPL_H;
 
   // Layout coordinates from settings (with defaults tuned to CERTIFICATE OF COMPLETION.jpg)
+  // Uses ?? so that a saved value of 0 is honoured rather than replaced by the default
+  const d = (val, fallback) => val ?? fallback;
   const L = {
-    nameX:    Number(settings.cert_name_x)    || 1755,
-    nameY:    Number(settings.cert_name_y)    || 900,
-    nameSize: Number(settings.cert_name_size) || 38,
-    progX:    Number(settings.cert_program_x)    || 1755,
-    progY:    Number(settings.cert_program_y)    || 1250,
-    progSize: Number(settings.cert_program_size) || 22,
-    dateX:    Number(settings.cert_date_x)    || 1755,
-    dateY:    Number(settings.cert_date_y)    || 1580,
-    dateSize: Number(settings.cert_date_size) || 14,
-    presX:   Number(settings.cert_pres_x)  || 640,
-    presY:   Number(settings.cert_pres_y)  || 1980,
-    presW:   Number(settings.cert_pres_w)  || 280,
-    presH:   Number(settings.cert_pres_h)  || 80,
-    vpX:     Number(settings.cert_vp_x)    || 2870,
-    vpY:     Number(settings.cert_vp_y)    || 1980,
-    vpW:     Number(settings.cert_vp_w)    || 280,
-    vpH:     Number(settings.cert_vp_h)    || 80,
-    qrX:     Number(settings.cert_qr_x)    || 3120,
-    qrY:     Number(settings.cert_qr_y)    || 2150,
-    qrSize:  Number(settings.cert_qr_size) || 180,
-    idX:     Number(settings.cert_id_x)    || 3120,
-    idY:     Number(settings.cert_id_y)    || 2280,
-    idSize:  Number(settings.cert_id_size) || 10,
+    nameX:    d(settings.cert_name_x,    1755),
+    nameY:    d(settings.cert_name_y,    900),
+    nameSize: d(settings.cert_name_size, 38),
+    progX:    d(settings.cert_program_x,    1755),
+    progY:    d(settings.cert_program_y,    1250),
+    progSize: d(settings.cert_program_size, 22),
+    dateX:    d(settings.cert_date_x,    1755),
+    dateY:    d(settings.cert_date_y,    1580),
+    dateSize: d(settings.cert_date_size, 14),
+    presX:   d(settings.cert_pres_x,  640),
+    presY:   d(settings.cert_pres_y,  1980),
+    presW:   d(settings.cert_pres_w,  280),
+    presH:   d(settings.cert_pres_h,  80),
+    vpX:     d(settings.cert_vp_x,    2870),
+    vpY:     d(settings.cert_vp_y,    1980),
+    vpW:     d(settings.cert_vp_w,    280),
+    vpH:     d(settings.cert_vp_h,    80),
+    qrX:     d(settings.cert_qr_x,    3120),
+    qrY:     d(settings.cert_qr_y,    2150),
+    qrSize:  d(settings.cert_qr_size, 180),
+    idX:     d(settings.cert_id_x,    3120),
+    idY:     d(settings.cert_id_y,    2280),
+    idSize:  d(settings.cert_id_size, 10),
   };
 
   // Helper to load image buffer from local file system if local, or fetch over HTTP
