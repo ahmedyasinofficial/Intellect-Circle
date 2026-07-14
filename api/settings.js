@@ -27,7 +27,7 @@ export default async function handler(req, res) {
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
     return res.status(200).json({ success: true, message: 'Settings saved (mocked fallback)' });
@@ -89,7 +89,11 @@ export default async function handler(req, res) {
           siteSettingsPayload[key] = Number(payload.admin[key]);
         }
       }
-      await supabase.from('site_settings').upsert(siteSettingsPayload);
+      const { error: siteSettingsError } = await supabase.from('site_settings').upsert(siteSettingsPayload);
+      if (siteSettingsError) {
+        console.error('[Settings] site_settings upsert error:', siteSettingsError);
+        return res.status(500).json({ error: `Failed to save site settings: ${siteSettingsError.message}` });
+      }
     }
 
     // 3. Homepage settings
