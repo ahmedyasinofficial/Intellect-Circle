@@ -532,7 +532,7 @@ const localDbPlugin = () => ({
 });
 
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react(), localDbPlugin()],
 })
 
