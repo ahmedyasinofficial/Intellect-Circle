@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { exportToCSV } from '../utils/exportData';
 import MediaLibrary from '../components/MediaLibrary';
@@ -41,6 +41,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [certsLoading, setCertsLoading] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
   const [certForm, setCertForm] = useState({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '' });
+  const [showCertSettings, setShowCertSettings] = useState(false);
+  const [certLayout, setCertLayout] = useState({
+    cert_name_x: 1755, cert_name_y: 900, cert_name_size: 38,
+    cert_program_x: 1755, cert_program_y: 1250, cert_program_size: 22,
+    cert_date_x: 1755, cert_date_y: 1580, cert_date_size: 14,
+    cert_pres_x: 640, cert_pres_y: 1980, cert_pres_w: 280, cert_pres_h: 80,
+    cert_vp_x: 2870, cert_vp_y: 1980, cert_vp_w: 280, cert_vp_h: 80,
+    cert_qr_x: 3120, cert_qr_y: 2150, cert_qr_size: 180,
+    cert_id_x: 3120, cert_id_y: 2280, cert_id_size: 10,
+  });
+  const [certLayoutSaving, setCertLayoutSaving] = useState(false);
 
   // Tab State
   const [activeTab, setActiveTab] = useState('overview');
@@ -61,6 +72,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [isProcessingBatch, setIsProcessingBatch] = useState(false);
   const [attendanceDuplicates, setAttendanceDuplicates] = useState([]);
   const [previewCert, setPreviewCert] = useState(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+  const previewBlobUrlRef = useRef(null);
 
   // Search & Pagination States
   const [sessionSearch, setSessionSearch] = useState('');
@@ -504,19 +519,41 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   // Upload handlers for signatures
   const handlePresidentSignatureUpload = (e) => {
     const file = e.target.files[0];
-    handleFileUpload(file, (url) => {
+    handleFileUpload(file, async (url) => {
+      // Update hidden input if present (Settings tab form)
       const sigInput = document.querySelector('input[name="presidentSignatureUrl"]');
       if (sigInput) sigInput.value = url;
-      triggerNotification('President signature uploaded. Save settings to apply.');
+      // Directly save to DB
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+          body: JSON.stringify({ admin: { presidentSignatureUrl: url } })
+        });
+        triggerNotification('President signature uploaded and saved!', 'success');
+        if (refreshData) refreshData();
+      } catch (err) {
+        triggerNotification('Upload succeeded but save failed. Please save settings manually.', 'error');
+      }
     });
   };
 
   const handleVicePresidentSignatureUpload = (e) => {
     const file = e.target.files[0];
-    handleFileUpload(file, (url) => {
+    handleFileUpload(file, async (url) => {
       const sigInput = document.querySelector('input[name="vicePresidentSignatureUrl"]');
       if (sigInput) sigInput.value = url;
-      triggerNotification('Vice President signature uploaded. Save settings to apply.');
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+          body: JSON.stringify({ admin: { vicePresidentSignatureUrl: url } })
+        });
+        triggerNotification('Vice President signature uploaded and saved!', 'success');
+        if (refreshData) refreshData();
+      } catch (err) {
+        triggerNotification('Upload succeeded but save failed. Please save settings manually.', 'error');
+      }
     });
   };
 
@@ -711,6 +748,143 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       fetchDbStatus();
     }
   }, [isLoggedIn, activeTab]);
+
+  // Hydrate certLayout from database (admin = site_settings row)
+  useEffect(() => {
+    const layoutKeys = [
+      'cert_name_x', 'cert_name_y', 'cert_name_size',
+      'cert_program_x', 'cert_program_y', 'cert_program_size',
+      'cert_date_x', 'cert_date_y', 'cert_date_size',
+      'cert_pres_x', 'cert_pres_y', 'cert_pres_w', 'cert_pres_h',
+      'cert_vp_x', 'cert_vp_y', 'cert_vp_w', 'cert_vp_h',
+      'cert_qr_x', 'cert_qr_y', 'cert_qr_size',
+      'cert_id_x', 'cert_id_y', 'cert_id_size',
+    ];
+    const fromDb = {};
+    let found = false;
+    for (const k of layoutKeys) {
+      if (admin[k] !== undefined && admin[k] !== null) {
+        fromDb[k] = Number(admin[k]);
+        found = true;
+      }
+    }
+    if (found) setCertLayout(prev => ({ ...prev, ...fromDb }));
+  }, [admin]);
+
+  // Save certificate layout coordinates to Supabase via settings API
+  const saveCertLayout = async () => {
+    setCertLayoutSaving(true);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({ admin: { ...certLayout } })
+      });
+      if (res.ok) {
+        triggerNotification('Certificate layout saved successfully!', 'success');
+        if (refreshData) refreshData();
+      } else {
+        triggerNotification('Failed to save layout settings.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('Error saving layout: ' + err.message, 'error');
+    }
+    setCertLayoutSaving(false);
+  };
+
+  const handleResetLayout = () => {
+    const defaultLayout = {
+      cert_name_x: 1755, cert_name_y: 900, cert_name_size: 38,
+      cert_program_x: 1755, cert_program_y: 1250, cert_program_size: 22,
+      cert_date_x: 1755, cert_date_y: 1580, cert_date_size: 14,
+      cert_pres_x: 640, cert_pres_y: 1980, cert_pres_w: 280, cert_pres_h: 80,
+      cert_vp_x: 2870, cert_vp_y: 1980, cert_vp_w: 280, cert_vp_h: 80,
+      cert_qr_x: 3120, cert_qr_y: 2150, cert_qr_size: 180,
+      cert_id_x: 3120, cert_id_y: 2280, cert_id_size: 10,
+    };
+    setCertLayout(defaultLayout);
+    triggerNotification('Layout values reset to defaults. Click Save to persist.', 'success');
+  };
+
+  const buildCertPdfUrl = useCallback((cert, { inline = false } = {}) => {
+    const params = new URLSearchParams({ action: 'download-pdf' });
+    if (inline) params.set('inline', 'true');
+
+    if (cert._temp || !cert.id) {
+      params.set('temp', 'true');
+      params.set('id', cert.id || 'IC-PREVIEW');
+      params.set('recipient_name', cert.recipient_name || 'Sample Recipient');
+      params.set('program_name', cert.program_name || 'Sample Program');
+      params.set('completion_date', cert.completion_date || new Date().toISOString().split('T')[0]);
+    } else {
+      params.set('id', cert.id);
+    }
+
+    return `/api/certificates?${params.toString()}`;
+  }, []);
+
+  const handleCertDownload = useCallback(async (cert) => {
+    try {
+      const res = await fetch(buildCertPdfUrl(cert, { inline: false }));
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `certificate_${cert.id || 'preview'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      triggerNotification('Failed to download certificate PDF.', 'error');
+    }
+  }, [buildCertPdfUrl]);
+
+  useEffect(() => {
+    if (!previewCert) {
+      if (previewBlobUrlRef.current) {
+        URL.revokeObjectURL(previewBlobUrlRef.current);
+        previewBlobUrlRef.current = null;
+      }
+      setPreviewPdfUrl(null);
+      setPreviewLoading(false);
+      setPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewPdfUrl(null);
+
+    fetch(buildCertPdfUrl(previewCert, { inline: true }))
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to load certificate preview');
+        }
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        if (previewBlobUrlRef.current) URL.revokeObjectURL(previewBlobUrlRef.current);
+        const blobUrl = URL.createObjectURL(blob);
+        previewBlobUrlRef.current = blobUrl;
+        setPreviewPdfUrl(blobUrl);
+        setPreviewLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPreviewError(err.message);
+        setPreviewLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [previewCert, buildCertPdfUrl]);
 
   const handleCertCreate = async (e) => {
     e.preventDefault();
@@ -2051,6 +2225,145 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </div>
               )}
 
+              {/* Certificate Settings Toggle */}
+              <div style={{ marginBottom: '20px' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ width: '100%', textAlign: 'left', padding: '12px 16px', fontSize: '0.95rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  onClick={() => setShowCertSettings(!showCertSettings)}
+                >
+                  <span>⚙️ Certificate Settings & Layout</span>
+                  <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>{showCertSettings ? '▲ Collapse' : '▼ Expand'}</span>
+                </button>
+              </div>
+
+              {showCertSettings && (
+                <>
+                  {/* Signature Management */}
+                  <div className="admin-box" style={{ marginBottom: '24px', border: '1px solid var(--accent-color)' }}>
+                    <div className="admin-box-title" style={{ color: 'var(--accent-color)' }}>Certificate Signature Settings</div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                      Upload signature images for the President and Vice President. These will be overlaid on generated certificates.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                      {/* President Signature */}
+                      <div style={{ padding: '15px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)' }}>
+                        <label className="form-label" style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>President Signature</label>
+                        {admin.presidentSignatureUrl ? (
+                          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                            <div style={{ padding: '10px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', background: '#fafafa', marginBottom: '8px' }}>
+                              <img src={admin.presidentSignatureUrl} alt="President Signature" style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <label className="btn btn-outline" style={{ padding: '4px 10px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                                Replace
+                                <input type="file" accept="image/*" onChange={handlePresidentSignatureUpload} style={{ display: 'none' }} />
+                              </label>
+                              <button type="button" className="btn btn-outline" style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#ef4444', borderColor: '#ef4444' }}
+                                onClick={async () => {
+                                  await saveDatabase({ admin: { ...admin, presidentSignatureUrl: '' } });
+                                  triggerNotification('President signature removed.', 'success');
+                                  if (refreshData) refreshData();
+                                }}>Delete</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ padding: '20px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', textAlign: 'center', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                              No signature uploaded
+                            </div>
+                            <input type="file" accept="image/*" onChange={handlePresidentSignatureUpload} className="form-input" style={{ padding: '5px' }} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Vice President Signature */}
+                      <div style={{ padding: '15px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)' }}>
+                        <label className="form-label" style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block' }}>Vice President Signature</label>
+                        {admin.vicePresidentSignatureUrl ? (
+                          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                            <div style={{ padding: '10px', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', background: '#fafafa', marginBottom: '8px' }}>
+                              <img src={admin.vicePresidentSignatureUrl} alt="VP Signature" style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <label className="btn btn-outline" style={{ padding: '4px 10px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                                Replace
+                                <input type="file" accept="image/*" onChange={handleVicePresidentSignatureUpload} style={{ display: 'none' }} />
+                              </label>
+                              <button type="button" className="btn btn-outline" style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#ef4444', borderColor: '#ef4444' }}
+                                onClick={async () => {
+                                  await saveDatabase({ admin: { ...admin, vicePresidentSignatureUrl: '' } });
+                                  triggerNotification('VP signature removed.', 'success');
+                                  if (refreshData) refreshData();
+                                }}>Delete</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ padding: '20px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-sm)', textAlign: 'center', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                              No signature uploaded
+                            </div>
+                            <input type="file" accept="image/*" onChange={handleVicePresidentSignatureUpload} className="form-input" style={{ padding: '5px' }} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Adjust Certificate Layout */}
+                  <div className="admin-box" style={{ marginBottom: '24px', border: '1px solid #64748B' }}>
+                    <div className="admin-box-title" style={{ color: '#94A3B8' }}>Adjust Certificate Layout</div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
+                      Fine-tune the X, Y coordinates and sizes of each dynamic field on the certificate template (3509 × 2480 pixel space). Changes apply to all future certificate PDFs.
+                    </p>
+
+                    {/* Layout input groups */}
+                    {[
+                      { label: 'Recipient Name', keys: ['cert_name_x', 'cert_name_y', 'cert_name_size'], labels: ['X', 'Y', 'Font Size'] },
+                      { label: 'Program Name', keys: ['cert_program_x', 'cert_program_y', 'cert_program_size'], labels: ['X', 'Y', 'Font Size'] },
+                      { label: 'Completion Date', keys: ['cert_date_x', 'cert_date_y', 'cert_date_size'], labels: ['X', 'Y', 'Font Size'] },
+                      { label: 'President Signature', keys: ['cert_pres_x', 'cert_pres_y', 'cert_pres_w', 'cert_pres_h'], labels: ['X', 'Y', 'Width', 'Height'] },
+                      { label: 'VP Signature', keys: ['cert_vp_x', 'cert_vp_y', 'cert_vp_w', 'cert_vp_h'], labels: ['X', 'Y', 'Width', 'Height'] },
+                      { label: 'QR Code', keys: ['cert_qr_x', 'cert_qr_y', 'cert_qr_size'], labels: ['X', 'Y', 'Size'] },
+                      { label: 'Certificate ID', keys: ['cert_id_x', 'cert_id_y', 'cert_id_size'], labels: ['X', 'Y', 'Font Size'] },
+                    ].map(group => (
+                      <div key={group.label} style={{ marginBottom: '12px', padding: '10px 14px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)' }}>
+                        <label style={{ fontWeight: '600', fontSize: '0.85rem', display: 'block', marginBottom: '8px', color: 'var(--accent-color)' }}>{group.label}</label>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {group.keys.map((key, i) => (
+                            <div key={key} style={{ flex: '1', minWidth: '80px' }}>
+                              <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>{group.labels[i]}</label>
+                              <input
+                                type="number"
+                                value={certLayout[key]}
+                                onChange={e => setCertLayout(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                                className="form-input"
+                                style={{ padding: '5px 8px', fontSize: '0.82rem', width: '100%' }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                      <button type="button" className="btn" onClick={saveCertLayout} disabled={certLayoutSaving} style={{ padding: '8px 20px' }}>
+                        {certLayoutSaving ? 'Saving...' : '💾 Save Layout Settings'}
+                      </button>
+                      <button type="button" className="btn btn-outline" onClick={handleResetLayout} style={{ padding: '8px 20px', color: '#f59e0b', borderColor: '#f59e0b' }}>
+                        🔄 Reset Layout Defaults
+                      </button>
+                      <button type="button" className="btn btn-outline" onClick={() => {
+                        setPreviewCert({ _temp: true, id: 'IC-PREVIEW', recipient_name: 'Sample Recipient', program_name: 'Sample Program Name', completion_date: new Date().toISOString().split('T')[0] });
+                      }} style={{ padding: '8px 20px' }}>
+                        👁 Preview Certificate
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Google Meet Attendance CSV Automated Certificate Generator */}
               <div className="admin-box" style={{ marginBottom: '30px', border: '1px solid var(--accent-color)' }}>
                 <div className="admin-box-title" style={{ color: 'var(--accent-color)' }}>Attendance-Based Automation (Google Meet CSV)</div>
@@ -2200,6 +2513,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                       return;
                                     }
                                     setPreviewCert({
+                                      _temp: true,
+                                      id: 'IC-PREVIEW',
                                       recipient_name: a.name,
                                       recipient_email: a.email,
                                       program_name: sessionForAttendance,
@@ -2388,6 +2703,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                 className="btn btn-outline"
                                 style={{ fontSize: '0.75rem', padding: '4px 10px' }}
                                 onClick={() => setPreviewCert({
+                                  id: cert.id,
                                   recipient_name: cert.recipient_name,
                                   recipient_email: cert.recipient_email,
                                   program_name: cert.program_name,
@@ -2396,14 +2712,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                               >
                                 Preview
                               </button>
-                              <a
-                                href={`/api/certificates?action=download-pdf&id=${encodeURIComponent(cert.id)}`}
+                              <button
+                                type="button"
                                 className="btn btn-outline"
                                 style={{ fontSize: '0.75rem', padding: '4px 10px' }}
                                 title="Download PDF"
+                                onClick={() => handleCertDownload(cert)}
                               >
                                 <DownloadIcon style={{ width: '14px', height: '14px' }} /> PDF
-                              </a>
+                              </button>
                               <button
                                 className="btn btn-outline"
                                 style={{ fontSize: '0.75rem', padding: '4px 10px' }}
@@ -2791,78 +3108,37 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         />
       )}
 
-      {/* CERTIFICATE PREVIEW MODAL */}
+      {/* CERTIFICATE PREVIEW MODAL — renders actual PDF via blob URL (no auto-download) */}
       {previewCert && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-content" style={{ maxWidth: '800px', width: '95%', padding: '20px', background: '#0F172A', border: '2px solid #C9A84C', borderRadius: '8px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1E293B', paddingBottom: '10px' }}>
-              <h3 style={{ color: '#C9A84C', margin: 0, fontFamily: 'serif' }}>Certificate View Mode</h3>
-              <button type="button" className="btn btn-outline" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => setPreviewCert(null)}>Close</button>
-            </div>
-            <div style={{ 
-              position: 'relative', 
-              width: '100%', 
-              aspectRatio: '1.4149', 
-              backgroundImage: 'url(/CERTIFICATE%20OF%20COMPLETION.jpg)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              borderRadius: '4px',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              textAlign: 'center',
-              fontFamily: 'Helvetica, Arial, sans-serif'
-            }}>
-              {/* Recipient Name - centered at X=1755, Y=700 (28.22%) */}
-              <div style={{ position: 'absolute', top: '28.2%', left: '0', right: '0', textAlign: 'center' }}>
-                <h1 style={{ color: '#B8972F', fontSize: '2.0rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.recipient_name}</h1>
-              </div>
-
-              {/* Program Name - centered at X=1755, Y=1220 (49.19%) */}
-              <div style={{ position: 'absolute', top: '49.2%', left: '0', right: '0', textAlign: 'center' }}>
-                <h2 style={{ color: '#2D3748', fontSize: '1.35rem', margin: 0, fontWeight: 'bold', fontFamily: 'Helvetica, Arial, sans-serif' }}>{previewCert.program_name}</h2>
-              </div>
-
-              {/* Completion Date - centered at X=1755, Y=1700 (68.55%) */}
-              <div style={{ position: 'absolute', top: '68.5%', left: '0', right: '0', textAlign: 'center' }}>
-                <p style={{ color: '#4A5568', fontSize: '0.75rem', margin: 0, fontWeight: 'bold' }}>{new Date(previewCert.completion_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-              </div>
-
-              {/* President Signature Area - X=640 (18.23%), Y=2030 (81.85%) */}
-              <div style={{ position: 'absolute', top: '72%', left: '7.2%', width: '22%', textAlign: 'center' }}>
-                <div style={{ height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
-                  {admin.presidentSignatureUrl ? (
-                    <img src={admin.presidentSignatureUrl} alt="President Sig" style={{ maxHeight: '30px', maxWidth: '90px', objectFit: 'contain' }} />
-                  ) : (
-                    <span style={{ fontSize: '0.6rem', color: '#94A3B8', fontStyle: 'italic' }}>[Signature]</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Vice President Signature Area - X=2070 (58.99%), Y=2030 (81.85%) */}
-              <div style={{ position: 'absolute', top: '72%', left: '48%', width: '22%', textAlign: 'center' }}>
-                <div style={{ height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
-                  {admin.vicePresidentSignatureUrl ? (
-                    <img src={admin.vicePresidentSignatureUrl} alt="VP Sig" style={{ maxHeight: '30px', maxWidth: '90px', objectFit: 'contain' }} />
-                  ) : (
-                    <span style={{ fontSize: '0.6rem', color: '#94A3B8', fontStyle: 'italic' }}>[Signature]</span>
-                  )}
-                </div>
-              </div>
-
-              {/* QR Code Area - X=3120 (88.91%), Y=2050 (82.66%) */}
-              <div style={{ position: 'absolute', top: '75%', left: '83%', width: '12%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/verify?id=${previewCert.id}`)}`}
-                  alt="QR Code"
-                  style={{ width: '45px', height: '45px', marginBottom: '3px', background: '#fff', padding: '2px', border: '1px solid #ddd' }}
-                  onError={(e) => e.target.style.display = 'none'}
-                />
-                <span style={{ fontSize: '0.45rem', color: '#4A5568', fontWeight: 'bold' }}>ID: {previewCert.id}</span>
+        <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={() => setPreviewCert(null)}>
+          <div className="modal-content" style={{ maxWidth: '900px', width: '95%', padding: '20px', background: '#0F172A', border: '2px solid #C9A84C', borderRadius: '8px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid #1E293B', paddingBottom: '10px' }}>
+              <h3 style={{ color: '#C9A84C', margin: 0, fontFamily: 'serif' }}>Certificate Preview</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: '4px 14px', fontSize: '0.85rem' }}
+                  onClick={() => handleCertDownload(previewCert)}
+                >
+                  ⬇ Download PDF
+                </button>
+                <button type="button" className="btn btn-outline" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => setPreviewCert(null)}>Close</button>
               </div>
             </div>
+            {previewLoading && (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>Generating preview...</div>
+            )}
+            {previewError && (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#FCA5A5' }}>{previewError}</div>
+            )}
+            {previewPdfUrl && !previewLoading && (
+              <iframe
+                src={previewPdfUrl}
+                style={{ width: '100%', height: '560px', border: '1px solid #1E293B', borderRadius: '4px', background: '#fff' }}
+                title="Certificate Preview"
+              />
+            )}
           </div>
         </div>
       )}

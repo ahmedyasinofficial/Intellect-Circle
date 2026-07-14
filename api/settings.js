@@ -74,6 +74,21 @@ export default async function handler(req, res) {
       if (payload.admin.promotionNoticeEnabled !== undefined) {
         siteSettingsPayload.promotion_notice_enabled = payload.admin.promotionNoticeEnabled;
       }
+      // Certificate layout coordinates
+      const layoutKeys = [
+        'cert_name_x', 'cert_name_y', 'cert_name_size',
+        'cert_program_x', 'cert_program_y', 'cert_program_size',
+        'cert_date_x', 'cert_date_y', 'cert_date_size',
+        'cert_pres_x', 'cert_pres_y', 'cert_pres_w', 'cert_pres_h',
+        'cert_vp_x', 'cert_vp_y', 'cert_vp_w', 'cert_vp_h',
+        'cert_qr_x', 'cert_qr_y', 'cert_qr_size',
+        'cert_id_x', 'cert_id_y', 'cert_id_size',
+      ];
+      for (const key of layoutKeys) {
+        if (payload.admin[key] !== undefined) {
+          siteSettingsPayload[key] = Number(payload.admin[key]);
+        }
+      }
       await supabase.from('site_settings').upsert(siteSettingsPayload);
     }
 

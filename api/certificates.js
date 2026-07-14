@@ -16,6 +16,73 @@ async function fetchImageBuffer(url) {
   }
 }
 
+// Merge site_settings / local admin data into a single settings object for PDF generation
+function normalizeCertificateSettings(raw = {}) {
+  const admin = raw.admin || {};
+  return {
+    ...raw,
+    president_signature_url:
+      raw.president_signature_url ||
+      admin.presidentSignatureUrl ||
+      admin.president_signature_url ||
+      '',
+    vice_president_signature_url:
+      raw.vice_president_signature_url ||
+      admin.vicePresidentSignatureUrl ||
+      admin.vice_president_signature_url ||
+      '',
+    cert_name_x: raw.cert_name_x ?? admin.cert_name_x,
+    cert_name_y: raw.cert_name_y ?? admin.cert_name_y,
+    cert_name_size: raw.cert_name_size ?? admin.cert_name_size,
+    cert_program_x: raw.cert_program_x ?? admin.cert_program_x,
+    cert_program_y: raw.cert_program_y ?? admin.cert_program_y,
+    cert_program_size: raw.cert_program_size ?? admin.cert_program_size,
+    cert_date_x: raw.cert_date_x ?? admin.cert_date_x,
+    cert_date_y: raw.cert_date_y ?? admin.cert_date_y,
+    cert_date_size: raw.cert_date_size ?? admin.cert_date_size,
+    cert_pres_x: raw.cert_pres_x ?? admin.cert_pres_x,
+    cert_pres_y: raw.cert_pres_y ?? admin.cert_pres_y,
+    cert_pres_w: raw.cert_pres_w ?? admin.cert_pres_w,
+    cert_pres_h: raw.cert_pres_h ?? admin.cert_pres_h,
+    cert_vp_x: raw.cert_vp_x ?? admin.cert_vp_x,
+    cert_vp_y: raw.cert_vp_y ?? admin.cert_vp_y,
+    cert_vp_w: raw.cert_vp_w ?? admin.cert_vp_w,
+    cert_vp_h: raw.cert_vp_h ?? admin.cert_vp_h,
+    cert_qr_x: raw.cert_qr_x ?? admin.cert_qr_x,
+    cert_qr_y: raw.cert_qr_y ?? admin.cert_qr_y,
+    cert_qr_size: raw.cert_qr_size ?? admin.cert_qr_size,
+    cert_id_x: raw.cert_id_x ?? admin.cert_id_x,
+    cert_id_y: raw.cert_id_y ?? admin.cert_id_y,
+    cert_id_size: raw.cert_id_size ?? admin.cert_id_size,
+  };
+}
+
+async function loadCertificateSettings(isSupabaseActive, supabaseUrl, supabaseKey) {
+  if (isSupabaseActive) {
+    try {
+      const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+      const { data } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+      if (data) return normalizeCertificateSettings(data);
+    } catch (err) {
+      console.warn('[Certificates] Failed to load site_settings from Supabase:', err.message);
+    }
+    return {};
+  }
+
+  try {
+    const { readFileSync } = await import('fs');
+    const { join, dirname } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const defaultData = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'data.json'), 'utf-8'));
+    return normalizeCertificateSettings({
+      ...(defaultData.siteSettings || {}),
+      admin: defaultData.admin || {},
+    });
+  } catch (e) {
+    return {};
+  }
+}
+
 // Helper to send the certificate email
 async function sendCertificateEmail({ recipient_name, recipient_email, program_name, verifyUrl, pdfBuffer, certificateId }) {
   const mailSubject = `Intellect Circle Completion Certificate: ${program_name}`;
@@ -80,17 +147,55 @@ https://intellectcircle.dpdns.org`;
 }
 
 // Generate the landscape PDF certificate using the official template image
-// Generate the landscape PDF certificate using the official template image
+// All coordinates are read from settings (pixel space 3509x2480) and scaled to A4 landscape (842x595 pt)
 async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
   const host = req.headers.host || 'localhost';
   const protocol = req.headers.referer?.split('://')[0] || 'https';
   const baseUrl = `${protocol}://${host}`;
 
-  // Template image URL fallback
+  // Template dimensions (pixel space)
+  const TPL_W = 3509;
+  const TPL_H = 2480;
+
+  // A4 Landscape (point space)
+  const pageW = 842;
+  const pageH = 595;
+
+  // Scale factors
+  const sx = pageW / TPL_W;
+  const sy = pageH / TPL_H;
+
+  // Layout coordinates from settings (with defaults tuned to CERTIFICATE OF COMPLETION.jpg)
+  const L = {
+    nameX:    Number(settings.cert_name_x)    || 1755,
+    nameY:    Number(settings.cert_name_y)    || 900,
+    nameSize: Number(settings.cert_name_size) || 38,
+    progX:    Number(settings.cert_program_x)    || 1755,
+    progY:    Number(settings.cert_program_y)    || 1250,
+    progSize: Number(settings.cert_program_size) || 22,
+    dateX:    Number(settings.cert_date_x)    || 1755,
+    dateY:    Number(settings.cert_date_y)    || 1580,
+    dateSize: Number(settings.cert_date_size) || 14,
+    presX:   Number(settings.cert_pres_x)  || 640,
+    presY:   Number(settings.cert_pres_y)  || 1980,
+    presW:   Number(settings.cert_pres_w)  || 280,
+    presH:   Number(settings.cert_pres_h)  || 80,
+    vpX:     Number(settings.cert_vp_x)    || 2870,
+    vpY:     Number(settings.cert_vp_y)    || 1980,
+    vpW:     Number(settings.cert_vp_w)    || 280,
+    vpH:     Number(settings.cert_vp_h)    || 80,
+    qrX:     Number(settings.cert_qr_x)    || 3120,
+    qrY:     Number(settings.cert_qr_y)    || 2150,
+    qrSize:  Number(settings.cert_qr_size) || 180,
+    idX:     Number(settings.cert_id_x)    || 3120,
+    idY:     Number(settings.cert_id_y)    || 2280,
+    idSize:  Number(settings.cert_id_size) || 10,
+  };
+
   const templateUrl = `${baseUrl}/CERTIFICATE%20OF%20COMPLETION.jpg`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
 
-  // Try loading template from local filesystem first to avoid loopback fetch errors in local dev
+  // Try loading template from local filesystem first
   let templateBuffer = null;
   try {
     const fs = await import('fs');
@@ -100,16 +205,12 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
       templateBuffer = fs.readFileSync(localPath);
     }
   } catch (err) {
-    console.warn('[PDF Generator] Failed to read template from local filesystem:', err.message);
+    console.warn('[PDF Generator] Failed to read template from filesystem:', err.message);
   }
 
-  // Fetch remaining images (QR and signatures)
+  // Fetch images in parallel
   const fetchPromises = [];
-  if (!templateBuffer) {
-    fetchPromises.push(fetchImageBuffer(templateUrl));
-  } else {
-    fetchPromises.push(Promise.resolve(templateBuffer));
-  }
+  fetchPromises.push(templateBuffer ? Promise.resolve(templateBuffer) : fetchImageBuffer(templateUrl));
   fetchPromises.push(fetchImageBuffer(qrUrl));
 
   const presSigUrl = settings.president_signature_url;
@@ -132,10 +233,6 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
 
   return new Promise((resolve, reject) => {
     try {
-      // A4 Landscape: 842 x 595 points
-      const pageW = 842;
-      const pageH = 595;
-
       const doc = new PDFDocument({
         size: 'A4',
         layout: 'landscape',
@@ -147,82 +244,87 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', err => reject(err));
 
-      // --- STEP 1: Draw the template image as full-page background ---
+      // STEP 1: Full-page background
       if (finalTemplateBuffer) {
         doc.image(finalTemplateBuffer, 0, 0, { width: pageW, height: pageH });
       } else {
-        // Fallback: white background if template fails to load
         doc.rect(0, 0, pageW, pageH).fill('#FFFFFF');
       }
 
-      // --- STEP 2: Overlay dynamic text at specified placeholder positions ---
-      // Scaled coordinates from 3509 x 2480 space to 842 x 595 space (Scale X ~ 0.24, Scale Y ~ 0.24)
       const goldColor = '#B8972F';
       const darkColor = '#2D3748';
       const grayColor = '#4A5568';
 
-      // Recipient Name: X=1755 (centered), Y=700 (scaled: Y=168)
+      // STEP 2: Recipient Name (centered on template)
       doc.fillColor(goldColor)
-         .fontSize(38)
+         .fontSize(L.nameSize)
          .font('Helvetica-Bold')
-         .text(certificate.recipient_name, 0, 168, {
+         .text(certificate.recipient_name, 0, L.nameY * sy, {
            width: pageW,
            align: 'center'
          });
 
-      // Program Name: X=1755 (centered), Y=1220 (scaled: Y=293)
+      // STEP 3: Program Name (centered on template)
       doc.fillColor(darkColor)
-         .fontSize(24)
+         .fontSize(L.progSize)
          .font('Helvetica-Bold')
-         .text(certificate.program_name, 0, 293, {
+         .text(certificate.program_name, 0, L.progY * sy, {
            width: pageW,
            align: 'center'
          });
 
-      // Completion Date: X=1755 (centered), Y=1700 (scaled: Y=408)
+      // STEP 4: Completion Date (centered at date position)
       const completionDateFormatted = new Date(certificate.completion_date).toLocaleDateString('en-US', {
         month: 'long',
         day: 'numeric',
         year: 'numeric'
       });
       doc.fillColor(grayColor)
-         .fontSize(12)
+         .fontSize(L.dateSize)
          .font('Helvetica')
-         .text(completionDateFormatted, 0, 408, {
+         .text(completionDateFormatted, 0, L.dateY * sy, {
            width: pageW,
            align: 'center'
          });
 
-      // --- STEP 3: Signature overlays (NO text rendered, template has it) ---
-      const sigAreaY = 487; // Y = 2030 (scaled)
-
-      // President Signature: X=640 (scaled: X=153.5)
-      const presSigX = 153.5;
+      // STEP 5: Signature image overlays (no text — template has names/titles)
+      const presPtX = L.presX * sx;
+      const presPtY = L.presY * sy;
+      const presPtW = L.presW * sx;
+      const presPtH = L.presH * sy;
       if (presSigBuffer) {
-        doc.image(presSigBuffer, presSigX - 60, sigAreaY - 45, { width: 120, height: 40, fit: [120, 40] });
+        doc.image(presSigBuffer, presPtX - presPtW / 2, presPtY - presPtH / 2, {
+          width: presPtW, height: presPtH, fit: [presPtW, presPtH]
+        });
       }
 
-      // Vice President Signature: X=2070 (scaled: X=496.7)
-      const vpSigX = 496.7;
+      const vpPtX = L.vpX * sx;
+      const vpPtY = L.vpY * sy;
+      const vpPtW = L.vpW * sx;
+      const vpPtH = L.vpH * sy;
       if (vpSigBuffer) {
-        doc.image(vpSigBuffer, vpSigX - 60, sigAreaY - 45, { width: 120, height: 40, fit: [120, 40] });
+        doc.image(vpSigBuffer, vpPtX - vpPtW / 2, vpPtY - vpPtH / 2, {
+          width: vpPtW, height: vpPtH, fit: [vpPtW, vpPtH]
+        });
       }
 
-      // --- STEP 4: QR Code & Certificate ID overlay ---
-      // QR Code: X=3120 (scaled: X=748.7), Y=2050 (scaled: Y=492)
-      const qrX = 748.7;
-      const qrY = 492;
-      const qrSize = 56;
-
+      // STEP 6: QR Code
+      const qrPtX = L.qrX * sx;
+      const qrPtY = L.qrY * sy;
+      const qrPtSize = L.qrSize * sx;
       if (qrBuffer) {
-        doc.image(qrBuffer, qrX - (qrSize / 2), qrY - (qrSize / 2) - 15, { width: qrSize, height: qrSize });
+        doc.image(qrBuffer, qrPtX - qrPtSize / 2, qrPtY - qrPtSize / 2, {
+          width: qrPtSize, height: qrPtSize
+        });
       }
 
-      // Certificate ID: Below the QR code
+      // STEP 7: Certificate ID (below QR code)
+      const idPtX = L.idX * sx;
+      const idPtY = L.idY * sy;
       doc.fillColor(grayColor)
-         .fontSize(7)
+         .fontSize(L.idSize)
          .font('Helvetica')
-         .text(`ID: ${certificate.id}`, qrX - 80, qrY + (qrSize / 2) - 5, { width: 160, align: 'center' });
+         .text(`ID: ${certificate.id}`, idPtX - 80 * sx, idPtY, { width: 160 * sx, align: 'center' });
 
       doc.end();
     } catch (err) {
@@ -231,6 +333,9 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
   });
 }
 
+// ============================================================
+// API Handler
+// ============================================================
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -242,33 +347,17 @@ export default async function handler(req, res) {
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_KEY;
   const isSupabaseActive = !!(supabaseUrl && supabaseKey);
 
-  // Default site settings profiles for signature blocks
-  let settings = {
-    president_name: 'Ahmad Yasin',
-    president_title: 'President, Intellect Circle',
-    president_signature_url: '',
-    vice_president_name: 'Zainab Shah',
-    vice_president_title: 'Vice President, Intellect Circle',
-    vice_president_signature_url: ''
-  };
+  // Load settings (used for both public and admin endpoints)
+  const settings = await loadCertificateSettings(isSupabaseActive, supabaseUrl, supabaseKey);
 
-  if (isSupabaseActive) {
-    try {
-      const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
-      const { data: dbSettings } = await supabase.from('site_settings').select('*').eq('id', 1).single();
-      if (dbSettings) {
-        settings = { ...settings, ...dbSettings };
-      }
-    } catch (e) {
-      console.warn('[Certificates Handler] Failed to fetch settings from Supabase:', e.message);
-    }
-  }
+  // ================================================================
+  // 1. PUBLIC ENDPOINTS (No Authentication Required)
+  // ================================================================
 
-  // 1. PUBLIC ENDPOINTS (No Auth Required)
-  // Verification lookup check: GET /api/certificates?id=CERTIFICATE_ID
+  // Verification lookup: GET /api/certificates?id=CERTIFICATE_ID (not download-pdf)
   if (req.method === 'GET' && req.query.id && req.query.action !== 'download-pdf') {
     const { id } = req.query;
 
@@ -298,16 +387,27 @@ export default async function handler(req, res) {
     }
   }
 
-  // Server-side PDF generation & download: GET /api/certificates?action=download-pdf&id=CERTIFICATE_ID
+  // Server-side PDF generation & download/preview:
+  // GET /api/certificates?action=download-pdf&id=CERTIFICATE_ID
+  // GET /api/certificates?action=download-pdf&id=CERTIFICATE_ID&inline=true  (for iframe preview)
+  // GET /api/certificates?action=download-pdf&temp=true&recipient_name=...&program_name=...&completion_date=...
   if (req.method === 'GET' && req.query.action === 'download-pdf') {
-    const { id } = req.query;
-    if (!id) {
-      return res.status(400).json({ error: 'Missing certificate ID' });
-    }
+    const { id, inline, temp, recipient_name, program_name, completion_date } = req.query;
 
     let certificate;
-    if (!isSupabaseActive) {
-      // Offline fallback
+    if (temp === 'true') {
+      // Temporary preview certificate (not saved in DB)
+      certificate = {
+        id: id || 'IC-PREVIEW',
+        recipient_name: recipient_name || 'Sample Recipient',
+        recipient_email: 'preview@example.com',
+        program_name: program_name || 'Sample Program',
+        completion_date: completion_date || new Date().toISOString().split('T')[0],
+        status: 'valid'
+      };
+    } else if (!id) {
+      return res.status(400).json({ error: 'Missing certificate ID' });
+    } else if (!isSupabaseActive) {
       certificate = {
         id,
         recipient_name: 'Alex Johnson',
@@ -334,14 +434,18 @@ export default async function handler(req, res) {
       const host = req.headers.host || 'localhost';
       const protocol = req.headers.referer?.split('://')[0] || 'https';
       const baseUrl = `${protocol}://${host}`;
-      const verifyUrl = `${baseUrl}/verify?id=${id}`;
+      const verifyUrl = `${baseUrl}/verify?id=${certificate.id}`;
       const pdfBuffer = await generateCertificatePdf(certificate, settings, verifyUrl, req);
 
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="certificate_${id}.pdf"`);
+      if (inline === 'true') {
+        res.setHeader('Content-Disposition', `inline; filename="certificate_${certificate.id}_preview.pdf"`);
+      } else {
+        res.setHeader('Content-Disposition', `attachment; filename="certificate_${certificate.id}.pdf"`);
+      }
       return res.status(200).send(pdfBuffer);
     } catch (err) {
-      console.error('[PDF Generator] Error sending PDF stream:', err.message);
+      console.error('[PDF Generator] Error:', err.message);
       if (!res.headersSent) {
         return res.status(500).json({ error: 'Failed to generate PDF' });
       }

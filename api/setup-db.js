@@ -41,6 +41,31 @@ ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS vice_president_signatu
 ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promotion_notice TEXT DEFAULT 'Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.';
 ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS promotion_notice_enabled BOOLEAN DEFAULT TRUE;
 
+-- Layout adjustments in pixel coordinates (relative to 3509 x 2480 space)
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_name_x NUMERIC DEFAULT 1755;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_name_y NUMERIC DEFAULT 800;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_name_size NUMERIC DEFAULT 38;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_program_x NUMERIC DEFAULT 1755;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_program_y NUMERIC DEFAULT 1320;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_program_size NUMERIC DEFAULT 24;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_date_x NUMERIC DEFAULT 1950;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_date_y NUMERIC DEFAULT 1700;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_date_size NUMERIC DEFAULT 12;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_pres_x NUMERIC DEFAULT 640;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_pres_y NUMERIC DEFAULT 2030;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_pres_w NUMERIC DEFAULT 120;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_pres_h NUMERIC DEFAULT 40;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_vp_x NUMERIC DEFAULT 2070;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_vp_y NUMERIC DEFAULT 2030;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_vp_w NUMERIC DEFAULT 120;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_vp_h NUMERIC DEFAULT 40;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_qr_x NUMERIC DEFAULT 3120;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_qr_y NUMERIC DEFAULT 2050;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_qr_size NUMERIC DEFAULT 45;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_id_x NUMERIC DEFAULT 3120;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_id_y NUMERIC DEFAULT 2130;
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_id_size NUMERIC DEFAULT 7;
+
 -- 3. Enable RLS on Certificates Table
 ALTER TABLE public.certificates ENABLE ROW LEVEL SECURITY;
 
@@ -57,6 +82,7 @@ CREATE POLICY "Allow authenticated admins full access to certificates" ON public
 ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_status TEXT DEFAULT 'pending';
 ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ;
 ALTER TABLE public.submissions ADD COLUMN IF NOT EXISTS welcome_email_send_after TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '1 hour');
+
 
 -- 6. Reload Supabase PostgREST API schema cache
 NOTIFY pgrst, 'reload schema';

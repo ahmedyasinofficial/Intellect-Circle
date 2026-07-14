@@ -113,8 +113,11 @@ const localDbPlugin = () => ({
             const dataPath = path.resolve(__dirname, 'src/data.json');
             const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
             
-            // Merge settings
+            // Merge settings (safely merging admin object recursively)
             const merged = { ...data, ...payload };
+            if (data.admin && payload.admin) {
+              merged.admin = { ...data.admin, ...payload.admin };
+            }
             delete merged.submissions;
             
             fs.writeFileSync(dataPath, JSON.stringify(merged, null, 2), 'utf-8');
@@ -410,32 +413,62 @@ const localDbPlugin = () => ({
 
             if (req.method === 'GET') {
               if (action === 'download-pdf') {
-                const mockPdf = Buffer.from(
-                  '%PDF-1.4\n' +
-                  '1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n' +
-                  '2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj\n' +
-                  '3 0 obj <</Type /Page /Parent 2 0 R /Resources <<>> /MediaBox [0 0 595 842] /Contents 4 0 R>> endobj\n' +
-                  '4 0 obj <</Length 47>> stream\n' +
-                  'BT /F1 24 Tf 50 700 Td (Intellect Circle Mock PDF) Tj ET\n' +
-                  'endstream\n' +
-                  'endobj\n' +
-                  'xref\n' +
-                  '0 5\n' +
-                  '0000000000 65535 f\n' +
-                  '0000000009 00000 n\n' +
-                  '0000000056 00000 n\n' +
-                  '0000000111 00000 n\n' +
-                  '0000000212 00000 n\n' +
-                  'trailer <</Size 5 /Root 1 0 R>>\n' +
-                  'startxref\n' +
-                  '306\n' +
-                  '%%EOF'
-                );
-                res.writeHead(200, {
-                  'Content-Type': 'application/pdf',
-                  'Content-Disposition': `attachment; filename="certificate_${id || 'mock'}.pdf"`
-                });
-                res.end(mockPdf);
+                (async () => {
+                  try {
+                    const { default: handler } = await import('./api/certificates.js');
+                    const query = {};
+                    for (const [key, val] of parsedUrl.searchParams.entries()) {
+                      query[key] = val;
+                    }
+                    req.query = query;
+                    if (!req.body) req.body = body ? JSON.parse(body) : {};
+
+                    // Add Express-compatible response helpers that preserve setHeader() calls
+                    if (!res.status) {
+                      res.status = (code) => {
+                        res.statusCode = code;
+                        return res;
+                      };
+                    }
+                    if (!res.json) {
+                      res.json = (d) => {
+                        if (!res.headersSent) {
+                          res.setHeader('Content-Type', 'application/json');
+                          res.writeHead(res.statusCode || 200);
+                        }
+                        res.end(JSON.stringify(d));
+                        return res;
+                      };
+                    }
+                    if (!res.send) {
+                      res.send = (dataContent) => {
+                        if (!res.headersSent) {
+                          if (Buffer.isBuffer(dataContent)) {
+                            if (!res.getHeader('Content-Type')) {
+                              res.setHeader('Content-Type', 'application/octet-stream');
+                            }
+                            res.setHeader('Content-Length', dataContent.length);
+                          } else if (typeof dataContent === 'object') {
+                            res.setHeader('Content-Type', 'application/json');
+                            dataContent = JSON.stringify(dataContent);
+                          }
+                          // writeHead with no explicit headers — uses all headers set via setHeader()
+                          res.writeHead(res.statusCode || 200);
+                        }
+                        res.end(dataContent);
+                        return res;
+                      };
+                    }
+
+                    await handler(req, res);
+                  } catch (err) {
+                    console.error('[Vite PDF Proxy] Error:', err);
+                    if (!res.headersSent) {
+                      res.writeHead(500, { 'Content-Type': 'application/json' });
+                    }
+                    res.end(JSON.stringify({ error: err.message }));
+                  }
+                })();
               } else if (id) {
                 const cert = data.certificates.find(c => c.id === id);
                 if (cert) {

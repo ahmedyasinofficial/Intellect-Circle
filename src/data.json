@@ -1,17 +1,7 @@
 {
   "admin": {
-    "email": "intellectcircle.official4@gmail.com",
-    "passwordHash": "898c201cfb2e075d710cf099437059fb0ce21117e361fe90050c807b53ef47ca",
-    "web3formsKey": "",
-    "authorizedSignatureUrl": "",
-    "presidentName": "Ahmad Yasin",
-    "presidentTitle": "President, Intellect Circle",
-    "presidentSignatureUrl": "",
-    "vicePresidentName": "Zainab Shah",
-    "vicePresidentTitle": "Vice President, Intellect Circle",
-    "vicePresidentSignatureUrl": "",
-    "promotionNotice": "Verified Intellect Circle digital certificates are provided free of charge for this session as part of our launch promotion.",
-    "promotionNoticeEnabled": true
+    "presidentSignatureUrl": "/uploads/Untitled design (6).png",
+    "vicePresidentSignatureUrl": "/uploads/Untitled design (7).png"
   },
   "seo": {
     "home": {
@@ -323,6 +313,13 @@
   },
   "activity_logs": [
     {
+      "id": "log-1783713645116",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-10T20:00:45.116Z"
+    },
+    {
       "id": "log-1783699866070",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",
@@ -416,6 +413,27 @@
   ],
   "media": [
     {
+      "id": "media-1783718823857",
+      "name": "Untitled design (7).png",
+      "url": "/uploads/Untitled design (7).png",
+      "size": 1709912,
+      "mime_type": "image/png"
+    },
+    {
+      "id": "media-1783717493744",
+      "name": "Untitled design (6).png",
+      "url": "/uploads/Untitled design (6).png",
+      "size": 445465,
+      "mime_type": "image/png"
+    },
+    {
+      "id": "media-1783716925521",
+      "name": "Untitled design (6).png",
+      "url": "/uploads/Untitled design (6).png",
+      "size": 445465,
+      "mime_type": "image/png"
+    },
+    {
       "id": "media-1783337572613",
       "name": "23423.png",
       "url": "/uploads/23423.png",
@@ -452,6 +470,30 @@
     }
   ],
   "certificates": [
+    {
+      "id": "IC-2026-696813",
+      "recipient_name": "Ahmed",
+      "recipient_email": "ah@gmail.com",
+      "program_name": "game ",
+      "completion_date": "2026-07-29",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-10T21:08:16.814Z"
+    },
+    {
+      "id": "IC-2026-709266",
+      "recipient_name": "Ahmed",
+      "recipient_email": "q@gmail.com",
+      "program_name": "Game Theory",
+      "completion_date": "2026-07-11",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-10T20:01:49.266Z"
+    },
     {
       "id": "IC-2026-718143",
       "recipient_name": "Muhammad Azam ali Khan",
