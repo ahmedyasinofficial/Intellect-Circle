@@ -608,18 +608,18 @@ img {
 .featured-session {
   background-color: var(--white);
   border-radius: var(--radius-lg);
-  padding: 65px; /* Increased from 58px */
+  padding: 80px; /* Increased from 65px */
   box-shadow: var(--shadow-md);
   border: 1px solid var(--border-color);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(370px, 1fr)); /* Column min width increased from 330px */
-  gap: 55px;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); /* Column min width increased from 370px */
+  gap: 65px; /* Increased from 55px */
   align-items: center;
 }
 
 .featured-session:has(.image-portrait) {
   grid-template-columns: 1fr;
-  max-width: 610px; /* Increased from 550px */
+  max-width: 680px; /* Increased from 610px */
   margin: 0 auto;
   text-align: center;
 }
@@ -942,24 +942,22 @@ img {
 
 /* Sessions Page */
 .sessions-layout {
-  display: grid;
-  grid-template-columns: 1.8fr 1fr;
-  gap: 50px;
+  display: block;
 }
 
 .upcoming-card {
   background-color: var(--white);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  padding: 40px;
+  padding: 55px; /* Increased from 40px */
   box-shadow: var(--shadow-sm);
-  margin-bottom: 50px;
+  margin-bottom: 60px; /* Increased from 50px */
 }
 
 .upcoming-card.has-photo {
   display: grid;
   grid-template-columns: 1.25fr 0.75fr;
-  gap: 40px;
+  gap: 50px; /* Increased from 40px */
   align-items: center;
 }
 

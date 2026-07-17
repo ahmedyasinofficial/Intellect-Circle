@@ -9,6 +9,7 @@ import Apply from './pages/Apply'
 import Contact from './pages/Contact'
 import Admin from './pages/Admin'
 import Verify from './pages/Verify'
+import Blog from './pages/Blog'
 import defaultData from './data.json'
 import { supabase, isSupabaseConfigured } from './supabase'
 
@@ -58,6 +59,7 @@ function App() {
     if (path === '/contact') return 'contact';
     if (path === '/admin') return 'admin';
     if (path === '/verify' || path.startsWith('/verify/')) return 'verify';
+    if (path === '/blog' || path.startsWith('/blog/')) return 'blog';
     return 'home';
   });
 
@@ -68,6 +70,12 @@ function App() {
       const searchParams = new URLSearchParams(window.location.search);
       return searchParams.get('id') || '';
     }
+    return '';
+  });
+
+  const [blogPostId, setBlogPostId] = useState(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/blog/')) return path.substring(6);
     return '';
   });
 
@@ -89,6 +97,13 @@ function App() {
           const searchParams = new URLSearchParams(window.location.search);
           setVerifyCertId(searchParams.get('id') || '');
         }
+      } else if (path === '/blog' || path.startsWith('/blog/')) {
+        setCurrentPage('blog');
+        if (path.startsWith('/blog/')) {
+          setBlogPostId(path.substring(6));
+        } else {
+          setBlogPostId('');
+        }
       } else setCurrentPage('home');
     };
 
@@ -99,8 +114,8 @@ function App() {
   // Ensure invalid paths redirect to home in history
   useEffect(() => {
     const path = window.location.pathname;
-    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin', '/verify'];
-    if (!validPaths.includes(path) && !path.startsWith('/verify/')) {
+    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin', '/verify', '/blog'];
+    if (!validPaths.includes(path) && !path.startsWith('/verify/') && !path.startsWith('/blog/')) {
       window.history.replaceState(null, '', '/');
     }
   }, []);
@@ -310,6 +325,9 @@ function App() {
     } else if (page === 'verify') {
       path = `/verify/${param}`;
       setVerifyCertId(param);
+    } else if (page === 'blog') {
+      path = param ? `/blog/${param}` : '/blog';
+      setBlogPostId(param || '');
     } else if (page !== 'home') {
       path = `/${page}`;
     }
@@ -349,6 +367,8 @@ function App() {
         );
       case 'verify':
         return <Verify certId={verifyCertId} navigateTo={navigateTo} />;
+      case 'blog':
+        return <Blog blogPostId={blogPostId} data={data} navigateTo={navigateTo} />;
       case 'home':
       default:
         return <Home data={data} navigateTo={navigateTo} />;

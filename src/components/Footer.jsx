@@ -55,7 +55,8 @@ function Footer({ data, navigateTo }) {
           <ul className="footer-links">
             <li><a href="/" onClick={(e) => { e.preventDefault(); navigateTo('home'); }}>Home</a></li>
             <li><a href="/about" onClick={(e) => { e.preventDefault(); navigateTo('about'); }}>About Us</a></li>
-            <li><a href="/sessions" onClick={(e) => { e.preventDefault(); navigateTo('sessions'); }}>Sessions & Blog</a></li>
+            <li><a href="/sessions" onClick={(e) => { e.preventDefault(); navigateTo('sessions'); }}>Sessions</a></li>
+            <li><a href="/blog" onClick={(e) => { e.preventDefault(); navigateTo('blog'); }}>Blog</a></li>
             <li><a href="/hierarchy" onClick={(e) => { e.preventDefault(); navigateTo('team'); }}>Hierarchy</a></li>
           </ul>
         </div>

@@ -51,6 +51,15 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
+                href="/blog"
+                onClick={(e) => { e.preventDefault(); handleNavClick('blog'); }}
+                className={`nav-link ${currentPage === 'blog' ? 'active' : ''}`}
+              >
+                Blog
+              </a>
+            </li>
+            <li>
+              <a
                 href="/hierarchy"
                 onClick={(e) => { e.preventDefault(); handleNavClick('team'); }}
                 className={`nav-link ${currentPage === 'team' ? 'active' : ''}`}

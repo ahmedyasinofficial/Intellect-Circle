@@ -323,7 +323,7 @@ function Home({ data, navigateTo }) {
               </div>
               <div className="featured-info">
                 <span className="session-badge">
-                  {featuredSession.isUpcoming ? 'Upcoming Presentation' : 'Past Archive Recap'}
+                  {featuredSession.isUpcoming ? 'Upcoming Session' : 'Past Archive Recap'}
                 </span>
                 <h3>{featuredSession.title}</h3>
                 <p>{featuredSession.summary}</p>
