@@ -47,7 +47,7 @@ function Sessions({ data, navigateTo }) {
 
       {/* 2. Main Sessions Grid (Now full-width single column) */}
       <section className="section">
-        <div className="container sessions-layout" style={{ maxWidth: '1100px', margin: '0 auto' }}>
+        <div className="container sessions-layout" style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div className="sessions-main-col" style={{ width: '100%' }}>
             
             {/* Upcoming Sessions */}
@@ -240,8 +240,8 @@ function Sessions({ data, navigateTo }) {
       <section className="section" style={{ backgroundColor: 'var(--primary-light)', borderTop: '1px solid var(--border-color)', padding: '80px 0' }}>
         <div className="container">
           <div className="section-header" style={{ maxWidth: '700px', margin: '0 auto 50px', textAlign: 'center' }}>
-            <span className="session-badge" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-color)' }}>Our Format</span>
-            <h2 style={{ fontFamily: 'var(--font-serif)', color: 'var(--primary-dark)', fontSize: '2rem', marginTop: '10px' }}>How Our Sessions Work</h2>
+            <h2 style={{ fontFamily: 'var(--font-serif)', color: 'var(--primary-dark)', fontSize: '2.5rem', marginBottom: '8px' }}>How Our Sessions Work</h2>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--accent-color)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1.5px', marginTop: 0, marginBottom: '24px' }}>Our Format</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', lineHeight: '1.7' }}>
               {(data.sessionsFormat || {}).description || 'Each group runs four sessions every month. Three are held online, one is physical. Members propose topics they want to present. The local team reviews and approves, a poster is made, and the session is held. Anyone with knowledge or a hunger to share can speak.'}
             </p>
