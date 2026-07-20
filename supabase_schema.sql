@@ -348,24 +348,24 @@ VALUES (
     'What is Intellect Circle?',
     'A selective peer-to-peer knowledge sharing community built on structure and mutual respect.',
     'Ready to expand your intellectual horizons?',
-    'Applications are open for our upcoming cohort in Punjab.',
+    'Applications are open for our upcoming cohort.',
     'Apply for Membership'
 ) ON CONFLICT (id) DO NOTHING;
 
 -- Seed SEO Settings
 INSERT INTO public.seo_settings (page_key, title, description, keywords, og_image, favicon, canonical_url)
 VALUES 
-('home', 'Intellect Circle - Youth Learning Community in Punjab', 'A refined, selective, and structured intellectual circle for youth in Punjab, Pakistan. Share knowledge, engage in deep discussions, and grow together.', 'youth community, punjab, learning circle, deep talk, peer education', '', '/favicon.ico', ''),
+('home', 'Intellect Circle - Youth Learning Community', 'A refined, selective, and structured intellectual circle for youth in Pakistan. Share knowledge, engage in deep discussions, and grow together.', 'youth community, punjab, learning circle, deep talk, peer education', '', '/favicon.ico', ''),
 ('about', 'Our Identity & Mission - Intellect Circle', 'Explore our vision, core values, history, and what makes Intellect Circle a unique peer-led intellectual community for youth.', 'mission, values, founder story, intellect circle history', '', '/favicon.ico', ''),
 ('sessions', 'Sessions & Recap Blog - Intellect Circle', 'Stay updated on upcoming presentations, browse past session archives, and read recap articles of our structured peer talks.', 'presentations, speech, game theory, neural plasticity, macroeconomics', '', '/favicon.ico', ''),
 ('team', 'Meet the Core Leadership - Intellect Circle', 'Meet the dedicated youth steering Intellect Circle: President, Operations, Media, Impact, and Core Members.', 'president, operations, design team, punjab youth leadership', '', '/favicon.ico', ''),
-('apply', 'Join Our Community - Intellect Circle Application', 'Apply to join Intellect Circle. We look for serious, motivated youth aged 17-30 in Punjab, Pakistan.', 'apply membership, application form, Lahore youth cohort', '', '/favicon.ico', ''),
+('apply', 'Join Our Community - Intellect Circle Application', 'Apply to join Intellect Circle. We look for serious, motivated youth aged 17-30 in Pakistan.', 'apply membership, application form, Lahore youth cohort', '', '/favicon.ico', ''),
 ('contact', 'Get in Touch - Intellect Circle', 'Reach out to the Intellect Circle team. Submit contact inquiries or find our social media handles and email address.', 'contact email, whatsapp number, address, social media links', '', '/favicon.ico', '')
 ON CONFLICT (page_key) DO NOTHING;
 
 -- Seed Contact Settings
 INSERT INTO public.contact_settings (id, email, whatsapp, address)
-VALUES (1, 'intellectcircle.official4@gmail.com', '', 'Punjab, Pakistan')
+VALUES (1, 'intellectcircle.official4@gmail.com', '', 'Pakistan')
 ON CONFLICT (id) DO NOTHING;
 
 -- Seed Social Links
@@ -393,7 +393,7 @@ VALUES
 INSERT INTO public.how_it_works_steps (number, text, sort_order)
 VALUES 
 ('01', 'Propose a topic you want to present.', 1),
-('02', 'Punjab core team reviews and structures the session.', 2),
+('02', 'The core team reviews and structures the session.', 2),
 ('03', 'Host the talk, lead the Q&A, and publish the recap.', 3);
 
 -- Seed Pillars
@@ -437,7 +437,7 @@ VALUES
 ('Ahmad Yasin', 'Founder & President, Intellect Circles', 'Clinical Psychology student passionate about human behavior, critical thinking, and youth empowerment.', '/uploads/Photo_004.png', '["Psychology", "Research", "Leadership"]'::jsonb, 1, true),
 ('Muhammad Rehan', 'Head of Operations', 'Software engineer dedicated to structured operational design and community growth.', '', '["Systems Design", "Project Mgmt", "Research"]'::jsonb, 2, true),
 ('Hamdan', 'Head of Media', 'Visual designer and writer focusing on storytelling and clean digital presentation.', '', '["Visual Design", "Creative Writing", "Media"]'::jsonb, 3, true),
-('Muhammad Juanid', 'Head of Growth & Impact', 'Development specialist working on extending youth access to learning platforms across Punjab.', '', '["Community Growth", "Impact Strategy", "Youth Access"]'::jsonb, 4, true);
+('Muhammad Juanid', 'Head of Growth & Impact', 'Development specialist working on extending youth access to learning platforms.', '', '["Community Growth", "Impact Strategy", "Youth Access"]'::jsonb, 4, true);
 
 -- Seed Sessions
 INSERT INTO public.sessions (title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link)
