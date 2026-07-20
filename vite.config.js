@@ -29,7 +29,7 @@ https://intellectcircle.dpdns.org`;
   const smtpPort = parseInt(process.env.SMTP_PORT || '587');
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
-  const smtpFrom = process.env.SMTP_FROM || 'no-reply@intellectcircle.dpdns.org';
+  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
 
   if (smtpHost && smtpUser && smtpPass) {
     try {
@@ -58,6 +58,58 @@ https://intellectcircle.dpdns.org`;
     }
   } else {
     const msg = `[Local Welcome Email Simulation] SMTP not configured. Welcomed ${name} (${email}).`;
+    console.log(msg);
+    return { success: true, simulated: true };
+  }
+}
+
+async function sendReceiptEmailLocal({ name, email }) {
+  const mailSubject = `Application Received - Intellect Circle`;
+  const mailText = `Dear ${name},
+
+Thank you for your application to join Intellect Circle. We have received your submission, and our admissions committee is currently reviewing it.
+
+Our weekly review process ensures we maintain a focused and high-signal community. We will be in touch with you shortly regarding the next steps, which may include a brief introductory call.
+
+Please check your spam folder if you do not receive further updates from us, and ensure to mark our emails as safe.
+
+Best regards,
+Intellect Circle Admissions Team
+https://intellectcircle.dpdns.org`;
+
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Intellect Circle" <${smtpFrom}>`,
+        to: email,
+        subject: mailSubject,
+        text: mailText
+      });
+      console.log(`[Local Receipt Email] Sent application receipt email to ${email}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[Local Receipt Email] SMTP error sending to ${email}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  } else {
+    const msg = `[Local Receipt Email Simulation] SMTP not configured. Acknowledged application for ${name} (${email}).`;
     console.log(msg);
     return { success: true, simulated: true };
   }
@@ -228,6 +280,9 @@ const localDbPlugin = () => ({
                   })
                   .catch(console.error);
               }, 3600000); // 1 hour
+
+              // Send local auto-acknowledgement / receipt email immediately
+              sendReceiptEmailLocal({ name: application.name, email: application.email }).catch(console.error);
 
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ success: true, message: 'Application submitted successfully' }));

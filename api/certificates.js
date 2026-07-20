@@ -112,7 +112,7 @@ https://intellectcircle.dpdns.org`;
   const smtpPort = parseInt(process.env.SMTP_PORT || '587');
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
-  const smtpFrom = process.env.SMTP_FROM || 'no-reply@intellectcircle.dpdns.org';
+  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
 
   if (smtpHost && smtpUser && smtpPass) {
     try {
