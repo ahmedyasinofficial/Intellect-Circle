@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 function Apply({ data, submitApplication }) {
   const admin = data.admin || {};
-  
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -42,7 +42,7 @@ function Apply({ data, submitApplication }) {
   const validateStep1 = () => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = 'Full name is required.';
-    
+
     // Email is mandatory
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email) {
@@ -107,7 +107,7 @@ function Apply({ data, submitApplication }) {
     setEmailStatus(null);
 
     // Construct final how-heard details
-    const howHeardSource = formData.heardAbout === 'Others' 
+    const howHeardSource = formData.heardAbout === 'Others'
       ? `Others (${formData.heardAboutOther || 'No specification'})`
       : formData.heardAbout;
 
@@ -168,7 +168,7 @@ function Apply({ data, submitApplication }) {
 
     setIsSubmitting(false);
     setIsSuccess(true);
-    
+
     // Clear form
     setFormData({
       name: '',
@@ -203,8 +203,24 @@ function Apply({ data, submitApplication }) {
             </div>
             <h3 style={{ fontSize: '1.6rem', marginBottom: '10px' }}>Application Submitted!</h3>
             <p style={{ marginBottom: '20px', color: 'var(--text-muted)' }}>
-              Thank you for applying to join Intellect Circle. Our admissions committee reviews applications weekly. Please check your spam folder for the confirmation email as well.
+              Thank you for applying to join Intellect Circle. Our admissions committee reviews applications weekly.
             </p>
+            <div style={{ 
+              backgroundColor: 'rgba(212, 163, 89, 0.1)', 
+              borderLeft: '4px solid var(--accent-color)', 
+              padding: '15px 20px', 
+              borderRadius: '4px', 
+              textAlign: 'left', 
+              marginBottom: '25px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>📧</span>
+              <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '500', color: 'var(--text-color)', lineHeight: '1.5' }}>
+                Please check your <strong>spam or junk folder</strong> for the confirmation email.
+              </p>
+            </div>
             <div style={{ backgroundColor: 'var(--primary-light)', padding: '20px', borderRadius: 'var(--radius-md)', textAlign: 'left', marginBottom: '30px', fontSize: '0.95rem' }}>
               <h4 style={{ fontFamily: 'var(--font-sans)', fontWeight: '600', marginBottom: '8px', color: 'var(--primary-color)' }}>Next Steps:</h4>
               <ol style={{ paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', color: 'var(--text-muted)' }}>
@@ -293,7 +309,7 @@ function Apply({ data, submitApplication }) {
                       type="tel"
                       id="mobileNumber"
                       name="mobileNumber"
-                      placeholder="e.g. +923001234567"
+
                       className="form-input"
                       value={formData.mobileNumber}
                       onChange={handleChange}

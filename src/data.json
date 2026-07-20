@@ -1307,8 +1307,9 @@
         "heardAboutOther": "",
         "heardAboutCombined": "Instagram",
         "submittedAt": "2026-07-20T17:54:47.071Z",
-        "welcome_email_status": "pending",
-        "welcome_email_send_after": "2026-07-20T18:54:47.085Z"
+        "welcome_email_status": "sent",
+        "welcome_email_send_after": "2026-07-20T18:54:47.085Z",
+        "welcome_email_sent_at": "2026-07-20T18:54:47.155Z"
       }
     ],
     "contacts": []

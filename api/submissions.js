@@ -216,7 +216,11 @@ export default async function handler(req, res) {
       }
 
       // Send auto-acknowledgement / receipt email immediately
-      sendReceiptEmail({ name: application.name, email: application.email }).catch(console.error);
+      try {
+        await sendReceiptEmail({ name: application.name, email: application.email });
+      } catch (emailErr) {
+        console.error('[Receipt Email Error] Auto-acknowledgement email delivery failed:', emailErr.message || emailErr);
+      }
 
       return res.status(200).json({ success: true, message: 'Application submitted successfully' });
     }
