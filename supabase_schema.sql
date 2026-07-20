@@ -343,7 +343,7 @@ INSERT INTO public.homepage_content (id, hero_headline, hero_tagline, hero_descr
 VALUES (
     1, 
     'Intellect Circle', 
-    'A structured learning community for aspiring intellects.', 
+    '.A structured learning community for aspiring intellects', 
     'Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.',
     'What is Intellect Circle?',
     'A selective peer-to-peer knowledge sharing community built on structure and mutual respect.',
