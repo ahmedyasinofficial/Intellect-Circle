@@ -7,6 +7,7 @@ function Apply({ data, submitApplication }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    mobileNumber: '',
     age: '',
     city: '',
     occupation: '',
@@ -48,6 +49,14 @@ function Apply({ data, submitApplication }) {
       newErrors.email = 'Email address is required.';
     } else if (!emailRegex.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address.';
+    }
+
+    // Mobile Number is mandatory
+    const phoneRegex = /^\+?[0-9\s\-()]{10,16}$/;
+    if (!formData.mobileNumber || !formData.mobileNumber.trim()) {
+      newErrors.mobileNumber = 'Mobile number is required.';
+    } else if (!phoneRegex.test(formData.mobileNumber.trim())) {
+      newErrors.mobileNumber = 'Please enter a valid mobile number (10-15 digits).';
     }
 
     const ageVal = parseInt(formData.age, 10);
@@ -130,6 +139,7 @@ function Apply({ data, submitApplication }) {
 
               Full Name: ${formData.name}
               Email Address: ${formData.email}
+              Mobile Number: ${formData.mobileNumber}
               Age: ${formData.age}
               City: ${formData.city}
               Occupation/Study: ${formData.occupation}
@@ -163,6 +173,7 @@ function Apply({ data, submitApplication }) {
     setFormData({
       name: '',
       email: '',
+      mobileNumber: '',
       age: '',
       city: '',
       occupation: '',
@@ -192,7 +203,7 @@ function Apply({ data, submitApplication }) {
             </div>
             <h3 style={{ fontSize: '1.6rem', marginBottom: '10px' }}>Application Submitted!</h3>
             <p style={{ marginBottom: '20px', color: 'var(--text-muted)' }}>
-              Thank you for applying to join Intellect Circle. Our admissions committee reviews applications weekly.
+              Thank you for applying to join Intellect Circle. Our admissions committee reviews applications weekly. Please check your spam folder for the confirmation email as well.
             </p>
             <div style={{ backgroundColor: 'var(--primary-light)', padding: '20px', borderRadius: 'var(--radius-md)', textAlign: 'left', marginBottom: '30px', fontSize: '0.95rem' }}>
               <h4 style={{ fontFamily: 'var(--font-sans)', fontWeight: '600', marginBottom: '8px', color: 'var(--primary-color)' }}>Next Steps:</h4>
@@ -274,6 +285,21 @@ function Apply({ data, submitApplication }) {
                       disabled={isSubmitting}
                     />
                     {errors.email && <div className="form-error">{errors.email}</div>}
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="mobileNumber" className="form-label">Mobile Number *</label>
+                    <input
+                      type="tel"
+                      id="mobileNumber"
+                      name="mobileNumber"
+                      placeholder="e.g. +923001234567"
+                      className="form-input"
+                      value={formData.mobileNumber}
+                      onChange={handleChange}
+                      disabled={isSubmitting}
+                    />
+                    {errors.mobileNumber && <div className="form-error">{errors.mobileNumber}</div>}
                   </div>
 
                   <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>

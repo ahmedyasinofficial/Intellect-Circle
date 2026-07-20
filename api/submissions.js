@@ -147,6 +147,7 @@ export default async function handler(req, res) {
           type: 'application',
           name: application.name,
           email: application.email,
+          mobile_number: application.mobileNumber,
           age: parseInt(application.age, 10) || null,
           city: application.city,
           occupation: application.occupation,

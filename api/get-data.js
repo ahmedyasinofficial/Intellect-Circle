@@ -239,6 +239,7 @@ export default async function handler(req, res) {
             id: row.id,
             name: row.name,
             email: row.email,
+            mobileNumber: row.mobile_number,
             age: row.age,
             city: row.city,
             occupation: row.occupation,

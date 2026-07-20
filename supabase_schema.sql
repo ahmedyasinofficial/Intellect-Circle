@@ -207,6 +207,7 @@ CREATE TABLE IF NOT EXISTS public.submissions (
     why_join TEXT,
     heard_about TEXT,
     message TEXT,
+    mobile_number TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     welcome_email_status TEXT DEFAULT 'pending',
     welcome_email_sent_at TIMESTAMPTZ,

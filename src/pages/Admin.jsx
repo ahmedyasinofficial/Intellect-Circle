@@ -1950,6 +1950,18 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             <span className="val">{app.city}</span>
                           </div>
                           <div className="sub-field">
+                            <span className="label">Mobile Number</span>
+                            <span className="val">
+                              {app.mobileNumber ? (
+                                <a href={`tel:${app.mobileNumber}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                                  {app.mobileNumber}
+                                </a>
+                              ) : (
+                                'Not provided'
+                              )}
+                            </span>
+                          </div>
+                          <div className="sub-field">
                             <span className="label">Study/Occupation</span>
                             <span className="val">{app.occupation}</span>
                           </div>
