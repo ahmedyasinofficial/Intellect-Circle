@@ -129,7 +129,7 @@ async function processPendingWelcomeEmails(supabase) {
     for (const app of pending) {
       const result = await sendWelcomeEmail({ name: app.name, email: app.email });
       const status = result.success ? 'sent' : 'failed';
-      
+
       const { error: updateError } = await supabase
         .from('submissions')
         .update({
