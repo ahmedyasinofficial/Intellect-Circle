@@ -67,14 +67,14 @@ async function sendReceiptEmailLocal({ name, email }) {
   const mailSubject = `Application Received - Intellect Circle`;
   const mailText = `Dear ${name},
 
-Thank you for your application to join Intellect Circle. We have received your submission, and our admissions committee is currently reviewing it.
+Thank you for your application to join Intellect Circle. We have received your submission, and our team is currently reviewing it.
 
 Our weekly review process ensures we maintain a focused and high-signal community. We will be in touch with you shortly regarding the next steps, which may include a brief introductory call.
 
 Please check your spam folder if you do not receive further updates from us, and ensure to mark our emails as safe.
 
 Best regards,
-Intellect Circle Admissions Team
+Intellect Circle Team
 https://intellectcircle.dpdns.org`;
 
   const smtpHost = process.env.SMTP_HOST;
@@ -164,14 +164,14 @@ const localDbPlugin = () => ({
             const payload = JSON.parse(body);
             const dataPath = path.resolve(__dirname, 'src/data.json');
             const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-            
+
             // Merge settings (safely merging admin object recursively)
             const merged = { ...data, ...payload };
             if (data.admin && payload.admin) {
               merged.admin = { ...data.admin, ...payload.admin };
             }
             delete merged.submissions;
-            
+
             fs.writeFileSync(dataPath, JSON.stringify(merged, null, 2), 'utf-8');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true, message: 'Settings saved to local data.json' }));
@@ -257,7 +257,7 @@ const localDbPlugin = () => ({
               const application = JSON.parse(body);
               application.welcome_email_status = 'pending';
               application.welcome_email_send_after = new Date(Date.now() + 3600 * 1000).toISOString();
-              
+
               if (!dataContent.submissions.applications) dataContent.submissions.applications = [];
               dataContent.submissions.applications.unshift(application);
               fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
@@ -318,7 +318,7 @@ const localDbPlugin = () => ({
             const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
             const action = parsedUrl.searchParams.get('action');
             const search = parsedUrl.searchParams.get('search');
-            
+
             const dataPath = path.resolve(__dirname, 'src/data.json');
             const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
             if (!data.media) data.media = [];
@@ -547,7 +547,7 @@ const localDbPlugin = () => ({
               const year = new Date(payload.completion_date).getFullYear() || new Date().getFullYear();
               const uniqueSuffix = Date.now().toString().slice(-6);
               const certId = `IC-${year}-${uniqueSuffix}`;
-              
+
               const newCert = {
                 id: certId,
                 recipient_name: payload.recipient_name,
