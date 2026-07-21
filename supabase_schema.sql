@@ -355,10 +355,10 @@ VALUES (
 -- Seed SEO Settings
 INSERT INTO public.seo_settings (page_key, title, description, keywords, og_image, favicon, canonical_url)
 VALUES 
-('home', 'Intellect Circle - Youth Learning Community', 'A refined, selective, and structured intellectual circle for youth in Pakistan. Share knowledge, engage in deep discussions, and grow together.', 'youth community, punjab, learning circle, deep talk, peer education', '', '/favicon.ico', ''),
-('about', 'Our Identity & Mission - Intellect Circle', 'Explore our vision, core values, history, and what makes Intellect Circle a unique peer-led intellectual community for youth.', 'mission, values, founder story, intellect circle history', '', '/favicon.ico', ''),
+('home', 'Intellect Circle - Youth Learning Community', 'A refined, selective, and structured intellectual circle for youth in Pakistan. Share knowledge, engage in deep discussions, and grow together.', 'youth community, learning circle, deep talk, peer education', '', '/favicon.ico', ''),
+('about', 'Our Identity & Mission - Intellect Circle', 'Explore our vision, core values, history, and what makes Intellect Circle a unique peer-led intellectual community for youth.', 'mission, values, founder story intellect circle history', '', '/favicon.ico', ''),
 ('sessions', 'Sessions & Recap Blog - Intellect Circle', 'Stay updated on upcoming presentations, browse past session archives, and read recap articles of our structured peer talks.', 'presentations, speech, game theory, neural plasticity, macroeconomics', '', '/favicon.ico', ''),
-('team', 'Meet the Core Leadership - Intellect Circle', 'Meet the dedicated youth steering Intellect Circle: President, Operations, Media, Impact, and Core Members.', 'president, operations, design team, punjab youth leadership', '', '/favicon.ico', ''),
+('team', 'Meet the Core Leadership - Intellect Circle', 'Meet the dedicated youth steering Intellect Circle: President, Operations, Media, Impact, and Core Members.', 'president, operations, design team,youth leadership', '', '/favicon.ico', ''),
 ('apply', 'Join Our Community - Intellect Circle Application', 'Apply to join Intellect Circle. We look for serious, motivated youth aged 17-30 in Pakistan.', 'apply membership, application form, Lahore youth cohort', '', '/favicon.ico', ''),
 ('contact', 'Get in Touch - Intellect Circle', 'Reach out to the Intellect Circle team. Submit contact inquiries or find our social media handles and email address.', 'contact email, whatsapp number, address, social media links', '', '/favicon.ico', '')
 ON CONFLICT (page_key) DO NOTHING;
