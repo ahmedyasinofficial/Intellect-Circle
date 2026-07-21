@@ -203,14 +203,14 @@ function Apply({ data, submitApplication }) {
             </div>
             <h3 style={{ fontSize: '1.6rem', marginBottom: '10px' }}>Application Submitted!</h3>
             <p style={{ marginBottom: '20px', color: 'var(--text-muted)' }}>
-              Thank you for applying to join Intellect Circle. Our admissions committee reviews applications weekly.
+              Thank you for applying to join Intellect Circle. Our team reviews applications weekly.
             </p>
-            <div style={{ 
-              backgroundColor: 'rgba(212, 163, 89, 0.1)', 
-              borderLeft: '4px solid var(--accent-color)', 
-              padding: '15px 20px', 
-              borderRadius: '4px', 
-              textAlign: 'left', 
+            <div style={{
+              backgroundColor: 'rgba(212, 163, 89, 0.1)',
+              borderLeft: '4px solid var(--accent-color)',
+              padding: '15px 20px',
+              borderRadius: '4px',
+              textAlign: 'left',
               marginBottom: '25px',
               display: 'flex',
               alignItems: 'center',
