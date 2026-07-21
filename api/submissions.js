@@ -60,14 +60,14 @@ async function sendReceiptEmail({ name, email }) {
   const mailSubject = `Application Received - Intellect Circle`;
   const mailText = `Dear ${name},
 
-Thank you for your application to join Intellect Circle. We have received your submission, and our admissions committee is currently reviewing it.
+Thank you for your application to join Intellect Circle. We have received your submission, and our team is currently reviewing it.
 
 Our weekly review process ensures we maintain a focused and high-signal community. We will be in touch with you shortly regarding the next steps, which may include a brief introductory call.
 
 Please check your spam folder if you do not receive further updates from us, and ensure to mark our emails as safe.
 
 Best regards,
-Intellect Circle Admissions Team
+Intellect Circle Team
 https://intellectcircle.dpdns.org`;
 
   const smtpHost = process.env.SMTP_HOST;
