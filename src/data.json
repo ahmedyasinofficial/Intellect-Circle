@@ -410,6 +410,13 @@
   },
   "activity_logs": [
     {
+      "id": "log-1785072588042",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-07-26T13:29:48.042Z"
+    },
+    {
       "id": "log-1784570031862",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",
@@ -637,6 +644,67 @@
     }
   ],
   "certificates": [
+    {
+      "id": "IC-2026-999207",
+      "recipient_name": "asd",
+      "recipient_email": "a@gmail.com",
+      "program_name": "as",
+      "completion_date": "2026-07-26",
+      "certificate_type": "Collaboration Certificate",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-26T13:53:19.207Z"
+    },
+    {
+      "id": "IC-2026-683140",
+      "recipient_name": "a",
+      "recipient_email": "a@gmail.com",
+      "program_name": "asd",
+      "completion_date": "2026-07-08",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-26T13:48:03.140Z"
+    },
+    {
+      "id": "IC-2026-577700",
+      "recipient_name": "a",
+      "recipient_email": "a@gmail.com",
+      "program_name": "aas",
+      "completion_date": "2026-07-27",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-26T13:46:17.700Z"
+    },
+    {
+      "id": "IC-2026-238093",
+      "recipient_name": "a",
+      "recipient_email": "a@gmail.com",
+      "program_name": "asdf",
+      "completion_date": "2026-07-27",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-26T13:40:38.093Z"
+    },
+    {
+      "id": "IC-2026-172735",
+      "recipient_name": "Ali",
+      "recipient_email": "a@gmail.com",
+      "program_name": "Gm",
+      "completion_date": "2026-07-30",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-07-26T13:39:32.735Z"
+    },
     {
       "id": "IC-2026-352590",
       "recipient_name": "Humaira Shahnaz Yaseen",

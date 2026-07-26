@@ -40,7 +40,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [certificates, setCertificates] = useState([]);
   const [certsLoading, setCertsLoading] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
-  const [certForm, setCertForm] = useState({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '' });
+  const [certForm, setCertForm] = useState({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '', certificate_type: '' });
   const [showCertSettings, setShowCertSettings] = useState(false);
   const [certLayout, setCertLayout] = useState({
     cert_name_x: 1755, cert_name_y: 900, cert_name_size: 38,
@@ -68,6 +68,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [attendeeSearch, setAttendeeSearch] = useState('');
   const [sessionForAttendance, setSessionForAttendance] = useState('');
   const [dateForAttendance, setDateForAttendance] = useState(new Date().toISOString().split('T')[0]);
+  const [certTypeForAttendance, setCertTypeForAttendance] = useState('');
   const [automationLogs, setAutomationLogs] = useState([]);
   const [isProcessingBatch, setIsProcessingBatch] = useState(false);
   const [attendanceDuplicates, setAttendanceDuplicates] = useState([]);
@@ -718,6 +719,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       triggerNotification('Please select the program/session.', 'error');
       return;
     }
+    if (!certTypeForAttendance) {
+      triggerNotification('Please select a certificate type.', 'error');
+      return;
+    }
 
     setIsProcessingBatch(true);
     setAutomationLogs([`Starting batch processing of ${selectedIds.length} certificates...`]);
@@ -740,6 +745,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             recipient_email: attendee.email,
             program_name: sessionForAttendance,
             completion_date: dateForAttendance,
+            certificate_type: certTypeForAttendance,
             is_paid: false,
             price: 0.00,
             payment_status: 'free'
@@ -863,8 +869,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       params.set('recipient_name', cert.recipient_name || 'Sample Recipient');
       params.set('program_name', cert.program_name || 'Sample Program');
       params.set('completion_date', cert.completion_date || new Date().toISOString().split('T')[0]);
+      if (cert.certificate_type) params.set('certificate_type', cert.certificate_type);
     } else {
       params.set('id', cert.id);
+      if (cert.certificate_type) params.set('certificate_type', cert.certificate_type);
     }
 
     return `/api/certificates?${params.toString()}`;
@@ -932,8 +940,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   const handleCertCreate = async (e) => {
     e.preventDefault();
-    if (!certForm.recipient_name || !certForm.recipient_email || !certForm.program_name || !certForm.completion_date) {
-      triggerNotification('All certificate fields are required.', 'error');
+    if (!certForm.recipient_name || !certForm.recipient_email || !certForm.program_name || !certForm.completion_date || !certForm.certificate_type) {
+      triggerNotification('All certificate fields including certificate type are required.', 'error');
       return;
     }
     setLoading(true);
@@ -949,6 +957,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           recipient_email: certForm.recipient_email,
           program_name: certForm.program_name,
           completion_date: certForm.completion_date,
+          certificate_type: certForm.certificate_type,
           is_paid: false,
           price: 0.00,
           payment_status: 'free'
@@ -957,7 +966,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       const resJson = await res.json();
       if (resJson.success) {
         triggerNotification(`Certificate ${resJson.data.id} generated and emailed successfully.`);
-        setCertForm({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '' });
+        setCertForm({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '', certificate_type: '' });
         setShowCertForm(false);
         fetchCertificates();
       } else {
@@ -2464,6 +2473,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           </select>
                         </div>
                         <div className="form-group">
+                          <label className="form-label">Certificate Type *</label>
+                          <select
+                            className="form-input"
+                            value={certTypeForAttendance}
+                            onChange={(e) => setCertTypeForAttendance(e.target.value)}
+                            required
+                          >
+                            <option value="">-- Select Certificate Type --</option>
+                            <option value="Intellect Circle Certificate">Intellect Circle Certificate</option>
+                            <option value="Collaboration Certificate">Collaboration Certificate</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
                           <label className="form-label">Completion Date *</label>
                           <input
                             type="date"
@@ -2574,13 +2596,18 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                       triggerNotification('Please select a session first to preview.', 'error');
                                       return;
                                     }
+                                    if (!certTypeForAttendance) {
+                                      triggerNotification('Please select a certificate type first to preview.', 'error');
+                                      return;
+                                    }
                                     setPreviewCert({
                                       _temp: true,
                                       id: 'IC-PREVIEW',
                                       recipient_name: a.name,
                                       recipient_email: a.email,
                                       program_name: sessionForAttendance,
-                                      completion_date: dateForAttendance
+                                      completion_date: dateForAttendance,
+                                      certificate_type: certTypeForAttendance
                                     });
                                   }}
                                 >
@@ -2663,6 +2690,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           placeholder="e.g. Foundations of Peer Learning"
                           required
                         />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Certificate Type *</label>
+                        <select
+                          className="form-input"
+                          value={certForm.certificate_type}
+                          onChange={(e) => setCertForm({...certForm, certificate_type: e.target.value})}
+                          required
+                        >
+                          <option value="">-- Select Certificate Type --</option>
+                          <option value="Intellect Circle Certificate">Intellect Circle Certificate</option>
+                          <option value="Collaboration Certificate">Collaboration Certificate</option>
+                        </select>
                       </div>
                       <div className="form-group">
                         <label className="form-label">Completion Date *</label>

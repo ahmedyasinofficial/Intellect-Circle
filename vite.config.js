@@ -554,6 +554,7 @@ const localDbPlugin = () => ({
                 recipient_email: payload.recipient_email,
                 program_name: payload.program_name,
                 completion_date: payload.completion_date,
+                certificate_type: payload.certificate_type,
                 status: 'valid',
                 is_paid: !!payload.is_paid,
                 price: payload.price || 0.00,

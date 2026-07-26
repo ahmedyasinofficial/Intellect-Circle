@@ -205,20 +205,22 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
   const resolveImage = async (urlOrPath) => {
     if (!urlOrPath) return null;
     
-    // Check if it's a local public path (starts with /uploads/ or is the template)
     const fs = await import('fs');
     const path = await import('path');
     let localPath = null;
     
-    if (urlOrPath.startsWith('/uploads/') || urlOrPath.startsWith('/assets/')) {
-      localPath = path.join(process.cwd(), 'public', urlOrPath);
+    if (urlOrPath.includes('collaboration-certificate.jpg')) {
+      localPath = path.join(process.cwd(), 'public', 'collaboration-certificate.jpg');
     } else if (urlOrPath.includes('CERTIFICATE%20OF%20COMPLETION.jpg') || urlOrPath.includes('CERTIFICATE OF COMPLETION.jpg')) {
       localPath = path.join(process.cwd(), 'public', 'CERTIFICATE OF COMPLETION.jpg');
+    } else if (urlOrPath.startsWith('/')) {
+      localPath = path.join(process.cwd(), 'public', urlOrPath);
     }
     
     if (localPath) {
       try {
         if (fs.existsSync(localPath)) {
+          console.log(`[PDF Generator] Using template image at exact path: ${localPath}`);
           return fs.readFileSync(localPath);
         }
       } catch (err) {
@@ -233,7 +235,12 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
 
   // Load the template and signature buffers (local files read synchronously, others via fetch)
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
-  const finalTemplateBuffer = await resolveImage('CERTIFICATE OF COMPLETION.jpg');
+  const certType = certificate?.certificate_type || certificate?.type || certificate?.cert_type || req?.query?.certificate_type || req?.query?.type || '';
+  const isCollaboration = typeof certType === 'string' && certType.toLowerCase().includes('collaboration');
+  const templatePath = isCollaboration
+    ? '/collaboration-certificate.jpg'
+    : 'CERTIFICATE OF COMPLETION.jpg';
+  const finalTemplateBuffer = await resolveImage(templatePath);
   const qrBuffer = await fetchImageBuffer(qrUrl);
   const presSigBuffer = settings.president_signature_url ? await resolveImage(settings.president_signature_url) : null;
   const vpSigBuffer = settings.vice_president_signature_url ? await resolveImage(settings.vice_president_signature_url) : null;
@@ -437,7 +444,7 @@ export default async function handler(req, res) {
   // GET /api/certificates?action=download-pdf&id=CERTIFICATE_ID&inline=true  (for iframe preview)
   // GET /api/certificates?action=download-pdf&temp=true&recipient_name=...&program_name=...&completion_date=...
   if (req.method === 'GET' && req.query.action === 'download-pdf') {
-    const { id, inline, temp, recipient_name, program_name, completion_date } = req.query;
+    const { id, inline, temp, recipient_name, program_name, completion_date, certificate_type } = req.query;
 
     let certificate;
     if (temp === 'true') {
@@ -448,6 +455,7 @@ export default async function handler(req, res) {
         recipient_email: 'preview@example.com',
         program_name: program_name || 'Sample Program',
         completion_date: completion_date || new Date().toISOString().split('T')[0],
+        certificate_type: certificate_type || 'Intellect Circle Certificate',
         status: 'valid'
       };
     } else if (!id) {
@@ -482,6 +490,9 @@ export default async function handler(req, res) {
     }
 
     try {
+      if (certificate && !certificate.certificate_type && certificate_type) {
+        certificate.certificate_type = certificate_type;
+      }
       const host = req.headers.host || 'localhost';
       const protocol = req.headers.referer?.split('://')[0] || 'https';
       const baseUrl = `${protocol}://${host}`;
@@ -543,7 +554,7 @@ export default async function handler(req, res) {
 
   // POST /api/certificates (Generate new certificate & email it)
   if (req.method === 'POST') {
-    const { recipient_name, recipient_email, program_name, completion_date, is_paid, price, payment_status, action } = req.body || {};
+    const { recipient_name, recipient_email, program_name, completion_date, certificate_type, is_paid, price, payment_status, action } = req.body || {};
 
     // Check if the action is to resend an email for an existing certificate
     if (action === 'resend-email') {
@@ -596,7 +607,7 @@ export default async function handler(req, res) {
     }
 
     // Standard certificate generation
-    if (!recipient_name || !recipient_email || !program_name || !completion_date) {
+    if (!recipient_name || !recipient_email || !program_name || !completion_date || !certificate_type) {
       return res.status(400).json({ error: 'Missing required certificate fields.' });
     }
 
@@ -610,6 +621,7 @@ export default async function handler(req, res) {
       recipient_email,
       program_name,
       completion_date,
+      certificate_type,
       status: 'valid',
       is_paid: !!is_paid,
       price: price || 0.00,
@@ -628,6 +640,7 @@ export default async function handler(req, res) {
             recipient_email,
             program_name,
             completion_date,
+            certificate_type,
             status: 'valid',
             is_paid: !!is_paid,
             price: price || 0.00,
@@ -637,7 +650,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error) throw error;
-        newCert = data;
+        newCert = { ...newCert, ...data, certificate_type: (data && data.certificate_type) || certificate_type };
       } catch (err) {
         return res.status(500).json({ error: err.message });
       }

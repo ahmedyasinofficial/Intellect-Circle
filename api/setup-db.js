@@ -24,12 +24,14 @@ CREATE TABLE IF NOT EXISTS public.certificates (
     recipient_email TEXT NOT NULL,
     program_name TEXT NOT NULL,
     completion_date DATE NOT NULL,
+    certificate_type TEXT,
     status TEXT NOT NULL DEFAULT 'valid' CHECK (status IN ('valid', 'revoked')),
     is_paid BOOLEAN DEFAULT FALSE,
     price NUMERIC(10, 2) DEFAULT 0.00,
     payment_status TEXT DEFAULT 'free',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.certificates ADD COLUMN IF NOT EXISTS certificate_type TEXT;
 
 -- 2. Add columns to site_settings if they don't exist
 ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS president_name TEXT DEFAULT 'Ahmad Yasin';
