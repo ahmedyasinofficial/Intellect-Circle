@@ -148,14 +148,20 @@ function Team({ data, saveDatabase }) {
         </div>
       </section>
 
-      {/* 2. Team Grid Section */}
-      <section className="section">
+      {/* 2. Hierarchy Sections */}
+      <section className="section hierarchy-sections">
         <div className="container">
-          <div className="team-grid">
-            {team.map((member) => {
+          {(() => {
+            // Helper to render member card
+            const renderMemberCard = (member, isPresident = false) => {
+              if (!member) return null;
               const skills = getSkills(member);
               return (
-                <div className="team-card premium" key={member.id} tabIndex={0}>
+                <div 
+                  className={`team-card premium ${isPresident ? 'president-card' : ''}`} 
+                  key={member.id || member.name} 
+                  tabIndex={0}
+                >
                   <div className="team-avatar-wrapper">
                     {member.photo ? (
                       <img 
@@ -205,8 +211,50 @@ function Team({ data, saveDatabase }) {
                   </div>
                 </div>
               );
-            })}
-          </div>
+            };
+
+            // Categorize team members
+            const isExecutive = (role) => {
+              const r = (role || '').toLowerCase();
+              return r.includes('president') || r.includes('secretary') || r.includes('founder');
+            };
+
+            const execMembers = team.filter(m => isExecutive(m.role));
+            const deptHeads = team.filter(m => !isExecutive(m.role));
+
+            return (
+              <div className="hierarchy-content">
+                {/* Section 1: Executive Hierarchy */}
+                {execMembers.length > 0 && (
+                  <div className="hierarchy-block exec-block">
+                    <div className="hierarchy-section-header">
+                      <h3>Executive Hierarchy</h3>
+                      <p>Core leadership steering strategic vision, operations, and governance.</p>
+                    </div>
+                    <div className="exec-cards-row">
+                      {execMembers.map((member) => {
+                        const isPres = (member.role || '').toLowerCase().includes('president') && !(member.role || '').toLowerCase().includes('vice');
+                        return renderMemberCard(member, isPres);
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 2: Department Heads */}
+                {deptHeads.length > 0 && (
+                  <div className="hierarchy-block dept-block">
+                    <div className="hierarchy-section-header">
+                      <h3>Department Heads</h3>
+                      <p>Leaders managing operational domains, media design, and community impact.</p>
+                    </div>
+                    <div className="dept-cards-grid">
+                      {deptHeads.map((member) => renderMemberCard(member, false))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </section>
 
