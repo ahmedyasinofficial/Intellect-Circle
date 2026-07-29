@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import Header from './components/Header'
 import Footer from './components/Footer'
+import WebsiteChatbot from './components/WebsiteChatbot'
 import Home from './pages/Home'
 import About from './pages/About'
 import Sessions from './pages/Sessions'
@@ -382,6 +383,7 @@ function App() {
         {renderPage()}
       </main>
       <Footer data={data} navigateTo={navigateTo} />
+      {currentPage !== 'admin' && <WebsiteChatbot />}
     </div>
   )
 }
