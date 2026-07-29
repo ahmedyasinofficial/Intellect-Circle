@@ -73,14 +73,17 @@ export default function WebsiteChatbot() {
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
 
-  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
   const panelRef = useRef(null);
 
-  // Auto-scroll to newest message
+  // Auto-scroll ONLY internal messages container to newest message
   useEffect(() => {
-    if (isOpen && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isOpen && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [messages, loading, isOpen]);
 
@@ -237,7 +240,7 @@ export default function WebsiteChatbot() {
           </div>
 
           {/* Messages */}
-          <div className="wc-messages" role="log" aria-live="polite" aria-label="Chat messages">
+          <div ref={messagesContainerRef} className="wc-messages" role="log" aria-live="polite" aria-label="Chat messages">
             {messages.map((msg, i) => (
               <div key={i} className={`wc-msg wc-msg--${msg.role}`}>
                 {msg.role === 'assistant' && (
@@ -281,8 +284,6 @@ export default function WebsiteChatbot() {
                 ))}
               </div>
             )}
-
-            <div ref={messagesEndRef} aria-hidden="true" />
           </div>
 
           {/* Input area */}

@@ -40,11 +40,16 @@ function GeminiAssistant({ articleTitle, articleContent }) {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
+  const messagesListRef = useRef(null);
 
   useEffect(() => {
-    if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > 0 && messagesListRef.current) {
+      messagesListRef.current.scrollTo({
+        top: messagesListRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages, loading]);
 
   const handleAsk = async (e) => {
     e.preventDefault();
@@ -108,7 +113,7 @@ function GeminiAssistant({ articleTitle, articleContent }) {
       </div>
 
       {/* Messages */}
-      <div style={{ padding: '20px 24px', minHeight: '140px', maxHeight: '320px', overflowY: 'auto' }}>
+      <div ref={messagesListRef} style={{ padding: '20px 24px', minHeight: '140px', maxHeight: '320px', overflowY: 'auto' }}>
         {messages.length === 0 && !loading && (
           <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '10px', opacity: 0.4 }}>

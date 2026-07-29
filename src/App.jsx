@@ -11,6 +11,7 @@ import Contact from './pages/Contact'
 import Admin from './pages/Admin'
 import Verify from './pages/Verify'
 import Blog from './pages/Blog'
+import Assistant from './pages/Assistant'
 import defaultData from './data.json'
 import { supabase, isSupabaseConfigured } from './supabase'
 
@@ -58,6 +59,7 @@ function App() {
     if (path === '/team' || path === '/hierarchy') return 'team';
     if (path === '/apply') return 'apply';
     if (path === '/contact') return 'contact';
+    if (path === '/assistant' || path === '/ai') return 'assistant';
     if (path === '/admin') return 'admin';
     if (path === '/verify' || path.startsWith('/verify/')) return 'verify';
     if (path === '/blog' || path.startsWith('/blog/')) return 'blog';
@@ -80,6 +82,11 @@ function App() {
     return '';
   });
 
+  // Scroll to top on every route/page/article navigation change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage, blogPostId, verifyCertId]);
+
   // Listen for history popstate events (back/forward navigation)
   useEffect(() => {
     const handlePopState = () => {
@@ -89,6 +96,7 @@ function App() {
       else if (path === '/team' || path === '/hierarchy') setCurrentPage('team');
       else if (path === '/apply') setCurrentPage('apply');
       else if (path === '/contact') setCurrentPage('contact');
+      else if (path === '/assistant' || path === '/ai') setCurrentPage('assistant');
       else if (path === '/admin') setCurrentPage('admin');
       else if (path === '/verify' || path.startsWith('/verify/')) {
         setCurrentPage('verify');
@@ -106,6 +114,7 @@ function App() {
           setBlogPostId('');
         }
       } else setCurrentPage('home');
+      window.scrollTo(0, 0);
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -115,7 +124,7 @@ function App() {
   // Ensure invalid paths redirect to home in history
   useEffect(() => {
     const path = window.location.pathname;
-    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/admin', '/verify', '/blog'];
+    const validPaths = ['/', '/about', '/sessions', '/team', '/hierarchy', '/apply', '/contact', '/assistant', '/ai', '/admin', '/verify', '/blog'];
     if (!validPaths.includes(path) && !path.startsWith('/verify/') && !path.startsWith('/blog/')) {
       window.history.replaceState(null, '', '/');
     }
@@ -354,6 +363,8 @@ function App() {
         return <Apply data={data} submitApplication={submitApplication} />;
       case 'contact':
         return <Contact data={data} submitContact={submitContact} />;
+      case 'assistant':
+        return <Assistant data={data} navigateTo={navigateTo} />;
       case 'admin':
         return (
           <Admin

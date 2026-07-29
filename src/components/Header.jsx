@@ -60,6 +60,15 @@ function Header({ currentPage, navigateTo }) {
             </li>
             <li>
               <a
+                href="/assistant"
+                onClick={(e) => { e.preventDefault(); handleNavClick('assistant'); }}
+                className={`nav-link ${currentPage === 'assistant' ? 'active' : ''}`}
+              >
+                AI Assistant
+              </a>
+            </li>
+            <li>
+              <a
                 href="/hierarchy"
                 onClick={(e) => { e.preventDefault(); handleNavClick('team'); }}
                 className={`nav-link ${currentPage === 'team' ? 'active' : ''}`}
