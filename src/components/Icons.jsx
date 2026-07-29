@@ -181,3 +181,28 @@ export const CertificateIcon = (props) => (
   </svg>
 );
 
+export const HelpIcon = (props) => (
+  <svg {...commonProps} {...props}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+export const UserPlusIcon = (props) => (
+  <svg {...commonProps} {...props}>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="8.5" cy="7" r="4" />
+    <line x1="20" y1="8" x2="20" y2="14" />
+    <line x1="17" y1="11" x2="23" y2="11" />
+  </svg>
+);
+
+export const BookOpenIcon = (props) => (
+  <svg {...commonProps} {...props}>
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </svg>
+);
+
+

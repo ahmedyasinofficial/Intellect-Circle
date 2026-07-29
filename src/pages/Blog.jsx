@@ -16,7 +16,7 @@ function formatDate(dateVal) {
 function renderContent(text) {
   if (!text) return null;
   const contentStr = typeof text === 'string' ? text : String(text);
-  
+
   try {
     return contentStr.split('\n\n').map((block, i) => {
       if (!block) return null;
@@ -60,6 +60,7 @@ function GeminiAssistant({ articleTitle, articleContent }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const messagesListRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (messages.length > 0 && messagesListRef.current) {
@@ -93,127 +94,135 @@ function GeminiAssistant({ articleTitle, articleContent }) {
 
   return (
     <div style={{
-      marginTop: '3.5rem',
-      border: '1px solid rgba(201,168,76,0.3)',
+      marginTop: '3rem',
+      border: '1px solid rgba(201,168,76,0.35)',
       borderRadius: '16px',
       background: 'linear-gradient(135deg, #fffdf5 0%, #fff 100%)',
       overflow: 'hidden',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.06)'
+      boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+      animation: 'blogAssistantSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both'
     }}>
       {/* Header */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '12px',
-        padding: '18px 24px',
+        display: 'flex', alignItems: 'center', justifyBetween: 'space-between',
+        gap: '10px',
+        padding: '16px 20px',
         borderBottom: '1px solid rgba(201,168,76,0.2)',
-        background: 'linear-gradient(90deg, var(--primary-dark) 0%, #1a2840 100%)'
+        background: 'linear-gradient(90deg, var(--primary-dark) 0%, #1a2840 100%)',
+        flexWrap: 'wrap'
       }}>
-        <div style={{
-          width: '36px', height: '36px', borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--accent-color), #e8c84a)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-        }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-            <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z"/>
-            <path d="M12 8v4l3 3"/>
-          </svg>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 220px', minWidth: 0 }}>
+          <div style={{
+            width: '34px', height: '34px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--accent-color), #e8c84a)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z" />
+              <path d="M12 8v4l3 3" />
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, color: 'white', fontWeight: '600', fontSize: '0.92rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Intellect Circle AI Assistant</p>
+            <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '0.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Ask anything about this article</p>
+          </div>
         </div>
-        <div>
-          <p style={{ margin: 0, color: 'white', fontWeight: '600', fontSize: '0.95rem' }}>Gemini AI Assistant</p>
-          <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '0.78rem' }}>Ask anything about this article</p>
-        </div>
         <div style={{
-          marginLeft: 'auto', padding: '4px 10px', borderRadius: '20px',
-          background: 'rgba(201,168,76,0.25)', border: '1px solid rgba(201,168,76,0.4)'
+          padding: '4px 10px', borderRadius: '20px',
+          background: 'rgba(201,168,76,0.25)', border: '1px solid rgba(201,168,76,0.4)',
+          flexShrink: 0
         }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--accent-color)', fontWeight: '600', letterSpacing: '0.5px' }}>
-            POWERED BY GEMINI
+          <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: '700', letterSpacing: '0.5px' }}>
+            POWERED BY WENDLLY
           </span>
         </div>
       </div>
 
       {/* Messages */}
-      <div ref={messagesListRef} style={{ padding: '20px 24px', minHeight: '140px', maxHeight: '320px', overflowY: 'auto' }}>
+      <div ref={messagesListRef} style={{ padding: '18px 20px', minHeight: '130px', maxHeight: '300px', overflowY: 'auto', overscrollBehavior: 'contain' }}>
         {messages.length === 0 && !loading && (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '10px', opacity: 0.4 }}>
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '8px', opacity: 0.4 }}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            <p style={{ fontSize: '0.88rem', margin: 0 }}>
+            <p style={{ fontSize: '0.86rem', margin: 0, lineHeight: '1.5' }}>
               Ask a question like <em>"What is the main takeaway?"</em> or <em>"Summarize this article."</em>
             </p>
           </div>
         )}
         {messages.map((msg, i) => (
           <div key={i} style={{
-            display: 'flex', gap: '10px', marginBottom: '14px',
+            display: 'flex', gap: '10px', marginBottom: '12px',
             justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
           }}>
             {msg.role === 'assistant' && (
               <div style={{
-                width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
                 background: 'linear-gradient(135deg, var(--accent-color), #e8c84a)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="white">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
                 </svg>
               </div>
             )}
             <div style={{
-              maxWidth: '75%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+              maxWidth: '82%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
               background: msg.role === 'user' ? 'var(--primary-dark)' : 'var(--primary-light)',
               color: msg.role === 'user' ? 'white' : 'var(--text-color)',
-              fontSize: '0.88rem', lineHeight: '1.6',
-              border: msg.role === 'assistant' ? '1px solid var(--border-color)' : 'none'
+              fontSize: '0.88rem', lineHeight: '1.55',
+              border: msg.role === 'assistant' ? '1px solid var(--border-color)' : 'none',
+              wordBreak: 'break-word'
             }}>
               {msg.text}
             </div>
           </div>
         ))}
         {loading && (
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
             <div style={{
-              width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+              width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
               background: 'linear-gradient(135deg, var(--accent-color), #e8c84a)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="white">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
               </svg>
             </div>
             <div style={{
-              padding: '10px 18px', borderRadius: '4px 16px 16px 16px',
+              padding: '10px 16px', borderRadius: '4px 16px 16px 16px',
               background: 'var(--primary-light)', border: '1px solid var(--border-color)',
               display: 'flex', gap: '5px', alignItems: 'center'
             }}>
               {[0, 1, 2].map(d => (
                 <span key={d} style={{
-                  width: '7px', height: '7px', borderRadius: '50%',
+                  width: '6px', height: '6px', borderRadius: '50%',
                   background: 'var(--accent-color)', opacity: 0.7,
                   animation: `dotBounce 1.2s ${d * 0.2}s ease-in-out infinite`
-                }}/>
+                }} />
               ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* Input */}
+      {/* Input Form */}
       <form onSubmit={handleAsk} style={{
-        display: 'flex', gap: '10px', padding: '14px 20px',
+        display: 'flex', gap: '8px', padding: '12px 16px',
         borderTop: '1px solid var(--border-color)',
         background: 'white'
       }}>
         <input
+          ref={inputRef}
           type="text"
           placeholder="Ask about this article…"
           value={question}
           onChange={e => setQuestion(e.target.value)}
           disabled={loading}
           style={{
-            flex: 1, padding: '10px 16px', borderRadius: '24px',
+            flex: 1, minWidth: 0, padding: '10px 16px', borderRadius: '24px',
             border: '1px solid var(--border-color)',
-            fontSize: '0.9rem', outline: 'none',
+            fontSize: '16px', outline: 'none',
             background: loading ? '#f9f9f9' : 'white',
             transition: 'border-color 0.2s'
           }}
@@ -224,11 +233,11 @@ function GeminiAssistant({ articleTitle, articleContent }) {
           type="submit"
           disabled={loading || !question.trim()}
           style={{
-            padding: '10px 20px', borderRadius: '24px',
+            padding: '10px 18px', borderRadius: '24px',
             background: loading || !question.trim() ? '#ccc' : 'var(--accent-color)',
             color: 'white', border: 'none', fontWeight: '600',
-            fontSize: '0.88rem', cursor: loading || !question.trim() ? 'not-allowed' : 'pointer',
-            transition: 'background 0.2s', whiteSpace: 'nowrap'
+            fontSize: '0.86rem', cursor: loading || !question.trim() ? 'not-allowed' : 'pointer',
+            transition: 'background 0.2s', whiteSpace: 'nowrap', flexShrink: 0
           }}
         >
           {loading ? 'Thinking…' : 'Ask AI'}
@@ -236,6 +245,10 @@ function GeminiAssistant({ articleTitle, articleContent }) {
       </form>
 
       <style>{`
+        @keyframes blogAssistantSlideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         @keyframes dotBounce {
           0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
           40% { transform: scale(1.2); opacity: 1; }
@@ -260,17 +273,17 @@ function ArticleView({ blog, navigateTo }) {
       {/* Hero Banner */}
       <div style={{
         background: 'linear-gradient(135deg, var(--primary-dark) 0%, #1a2840 100%)',
-        padding: '60px 20px 50px',
+        padding: 'clamp(36px, 6vw, 60px) 16px 40px',
         borderBottom: '3px solid var(--accent-color)'
       }}>
-        <div className="container" style={{ maxWidth: '760px' }}>
+        <div className="container" style={{ maxWidth: '760px', paddingLeft: '14px', paddingRight: '14px' }}>
           <button
             onClick={() => navigateTo('blog')}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-              color: 'rgba(255,255,255,0.85)', padding: '7px 16px', borderRadius: '20px',
-              fontSize: '0.82rem', cursor: 'pointer', marginBottom: '28px',
+              color: 'rgba(255,255,255,0.85)', padding: '6px 14px', borderRadius: '20px',
+              fontSize: '0.8rem', cursor: 'pointer', marginBottom: '24px',
               transition: 'all 0.2s', fontWeight: '500'
             }}
             onMouseEnter={e => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
@@ -278,22 +291,22 @@ function ArticleView({ blog, navigateTo }) {
           >
             &larr; Back to Articles
           </button>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
             <span style={{
-              padding: '5px 14px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: '600',
+              padding: '4px 12px', borderRadius: '20px', fontSize: '0.76rem', fontWeight: '600',
               background: 'rgba(201,168,76,0.2)', border: '1px solid rgba(201,168,76,0.4)', color: 'var(--accent-color)'
             }}>Article</span>
           </div>
           <h1 style={{
-            fontSize: 'clamp(1.6rem, 4vw, 2.3rem)', color: 'white', margin: '0 0 20px',
-            lineHeight: '1.35', fontFamily: 'var(--font-serif)'
+            fontSize: 'clamp(1.5rem, 4.5vw, 2.3rem)', color: 'white', margin: '0 0 16px',
+            lineHeight: '1.3', fontFamily: 'var(--font-serif)'
           }}>{title}</h1>
-          <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.88rem' }}>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem' }}>
               ✍ By <strong style={{ color: 'white' }}>{author}</strong>
             </span>
             {dateStr && (
-              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem' }}>
+              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>
                 {dateStr}
               </span>
             )}
@@ -302,15 +315,15 @@ function ArticleView({ blog, navigateTo }) {
       </div>
 
       {/* Article Body */}
-      <div className="container" style={{ maxWidth: '760px', padding: '48px 20px 80px' }}>
+      <div className="container" style={{ maxWidth: '760px', padding: '36px 16px 60px' }}>
         {excerpt && (
           <p style={{
-            fontSize: '1.1rem', color: 'var(--text-muted)', lineHeight: '1.8',
-            marginBottom: '2rem', paddingBottom: '2rem',
+            fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: '1.8',
+            marginBottom: '1.8rem', paddingBottom: '1.8rem',
             borderBottom: '1px solid var(--border-color)', fontStyle: 'italic'
           }}>{excerpt}</p>
         )}
-        <div style={{ fontSize: '1rem', color: 'var(--text-color)', lineHeight: '1.9' }}>
+        <div style={{ fontSize: '0.98rem', color: 'var(--text-color)', lineHeight: '1.85', wordBreak: 'break-word' }}>
           {renderContent(content)}
         </div>
 
@@ -323,6 +336,7 @@ function ArticleView({ blog, navigateTo }) {
     </div>
   );
 }
+
 
 // ─── Blog List / Search View ──────────────────────────────────────────────────
 function BlogList({ blogs = [], navigateTo }) {
@@ -381,7 +395,7 @@ function BlogList({ blogs = [], navigateTo }) {
               style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}
               width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"
             >
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               type="text"
@@ -514,7 +528,7 @@ function BlogList({ blogs = [], navigateTo }) {
           ) : (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: '16px', opacity: 0.3 }}>
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <h3 style={{ marginBottom: '8px', color: 'var(--primary-dark)' }}>No articles found</h3>
               <p style={{ fontSize: '0.9rem' }}>Try a different keyword or <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: 'var(--accent-color)', cursor: 'pointer', fontWeight: '600' }}>clear the search</button>.</p>
@@ -586,7 +600,7 @@ function BlogCard({ blog, navigateTo }) {
         }}>
           Read article
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: hovered ? 'translateX(3px)' : 'translateX(0)', transition: 'transform 0.2s' }}>
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
           </svg>
         </span>
       </div>
@@ -597,7 +611,7 @@ function BlogCard({ blog, navigateTo }) {
 // ─── Main Blog Page Component ─────────────────────────────────────────────────
 export default function Blog({ blogPostId, data, navigateTo }) {
   const rawBlogs = Array.isArray(data?.blog) ? data.blog : [];
-  
+
   const blogs = [...rawBlogs].sort((a, b) => {
     const timeA = a ? new Date(a.date || a.published_at || a.publishedAt || 0).getTime() || 0 : 0;
     const timeB = b ? new Date(b.date || b.published_at || b.publishedAt || 0).getTime() || 0 : 0;
