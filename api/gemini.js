@@ -24,9 +24,11 @@ export default async function handler(req, res) {
     'Keep responses under 250 words unless the user explicitly asks for more detail.'
   ].filter(Boolean).join('\n');
 
+  const MODEL = 'gemini-3.1-flash-lite';
+
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +51,12 @@ export default async function handler(req, res) {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       console.error('Gemini API error:', err);
-      return res.status(response.status).json({ error: err?.error?.message || 'Gemini API error' });
+      return res.status(response.status).json({
+        error: err?.error?.message || 'Gemini API error',
+        upstreamStatus: response.status,
+        googleMessage: err?.error?.message || null,
+        model: MODEL
+      });
     }
 
     const data = await response.json();
