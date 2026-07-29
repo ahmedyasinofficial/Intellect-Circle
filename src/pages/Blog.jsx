@@ -1,38 +1,57 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// ─── Safe Date Formatter ──────────────────────────────────────────────────────
+function formatDate(dateVal) {
+  if (!dateVal) return '';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (e) {
+    return String(dateVal);
+  }
+}
+
 // ─── Markdown-to-JSX renderer ────────────────────────────────────────────────
 function renderContent(text) {
   if (!text) return null;
-  return text.split('\n\n').map((block, i) => {
-    if (block.startsWith('### '))
-      return <h3 key={i} style={{ fontSize: '1.25rem', margin: '1.5rem 0 0.5rem', color: 'var(--primary-dark)' }}>{block.slice(4)}</h3>;
-    if (block.startsWith('## '))
-      return <h2 key={i} style={{ fontSize: '1.5rem', margin: '2rem 0 0.75rem', color: 'var(--primary-dark)', fontFamily: 'var(--font-serif)' }}>{block.slice(3)}</h2>;
-    if (block.startsWith('# '))
-      return <h1 key={i} style={{ fontSize: '1.75rem', margin: '2rem 0 0.75rem', color: 'var(--primary-dark)', fontFamily: 'var(--font-serif)' }}>{block.slice(2)}</h1>;
-    if (/^(\d+\. |[*\-] )/.test(block)) {
-      const items = block.split('\n').filter(Boolean);
+  const contentStr = typeof text === 'string' ? text : String(text);
+  
+  try {
+    return contentStr.split('\n\n').map((block, i) => {
+      if (!block) return null;
+      if (block.startsWith('### '))
+        return <h3 key={i} style={{ fontSize: '1.25rem', margin: '1.5rem 0 0.5rem', color: 'var(--primary-dark)' }}>{block.slice(4)}</h3>;
+      if (block.startsWith('## '))
+        return <h2 key={i} style={{ fontSize: '1.5rem', margin: '2rem 0 0.75rem', color: 'var(--primary-dark)', fontFamily: 'var(--font-serif)' }}>{block.slice(3)}</h2>;
+      if (block.startsWith('# '))
+        return <h1 key={i} style={{ fontSize: '1.75rem', margin: '2rem 0 0.75rem', color: 'var(--primary-dark)', fontFamily: 'var(--font-serif)' }}>{block.slice(2)}</h1>;
+      if (/^(\d+\. |[*\-] )/.test(block)) {
+        const items = block.split('\n').filter(Boolean);
+        return (
+          <ul key={i} style={{ paddingLeft: '1.5rem', margin: '1rem 0', lineHeight: '1.9' }}>
+            {items.map((item, j) => {
+              const clean = item.replace(/^(\d+\. |[*\-] )/, '');
+              const parts = clean.split('**');
+              return (
+                <li key={j}>
+                  {parts.map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}
+                </li>
+              );
+            })}
+          </ul>
+        );
+      }
+      const parts = block.split('**');
       return (
-        <ul key={i} style={{ paddingLeft: '1.5rem', margin: '1rem 0', lineHeight: '1.9' }}>
-          {items.map((item, j) => {
-            const clean = item.replace(/^(\d+\. |[*\-] )/, '');
-            const parts = clean.split('**');
-            return (
-              <li key={j}>
-                {parts.map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}
-              </li>
-            );
-          })}
-        </ul>
+        <p key={i} style={{ lineHeight: '1.9', margin: '0 0 1.1rem' }}>
+          {parts.map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}
+        </p>
       );
-    }
-    const parts = block.split('**');
-    return (
-      <p key={i} style={{ lineHeight: '1.9', margin: '0 0 1.1rem' }}>
-        {parts.map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}
-      </p>
-    );
-  });
+    });
+  } catch (err) {
+    return <p style={{ lineHeight: '1.9', margin: '0 0 1.1rem' }}>{contentStr}</p>;
+  }
 }
 
 // ─── Gemini Q&A Component ─────────────────────────────────────────────────────
@@ -177,7 +196,6 @@ function GeminiAssistant({ articleTitle, articleContent }) {
             </div>
           </div>
         )}
-        <div ref={bottomRef}/>
       </div>
 
       {/* Input */}
@@ -229,6 +247,14 @@ function GeminiAssistant({ articleTitle, articleContent }) {
 
 // ─── Article Detail View ──────────────────────────────────────────────────────
 function ArticleView({ blog, navigateTo }) {
+  if (!blog) return null;
+
+  const title = blog.title || 'Untitled Article';
+  const author = blog.author || 'Intellect Circle Member';
+  const excerpt = blog.excerpt || '';
+  const content = blog.content || excerpt || '';
+  const dateStr = blog.date || formatDate(blog.publishedAt || blog.published_at);
+
   return (
     <div style={{ minHeight: '80vh', background: 'var(--primary-light)' }}>
       {/* Hero Banner */}
@@ -250,7 +276,7 @@ function ArticleView({ blog, navigateTo }) {
             onMouseEnter={e => { e.target.style.background = 'rgba(255,255,255,0.2)'; }}
             onMouseLeave={e => { e.target.style.background = 'rgba(255,255,255,0.1)'; }}
           >
-            ← Back to Articles
+            &larr; Back to Articles
           </button>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
             <span style={{
@@ -261,35 +287,37 @@ function ArticleView({ blog, navigateTo }) {
           <h1 style={{
             fontSize: 'clamp(1.6rem, 4vw, 2.3rem)', color: 'white', margin: '0 0 20px',
             lineHeight: '1.35', fontFamily: 'var(--font-serif)'
-          }}>{blog.title}</h1>
+          }}>{title}</h1>
           <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.88rem' }}>
-              ✍ By <strong style={{ color: 'white' }}>{blog.author}</strong>
+              ✍ By <strong style={{ color: 'white' }}>{author}</strong>
             </span>
-            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem' }}>
-              {blog.date || (blog.publishedAt ? new Date(blog.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '')}
-            </span>
+            {dateStr && (
+              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.82rem' }}>
+                {dateStr}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Article Body */}
       <div className="container" style={{ maxWidth: '760px', padding: '48px 20px 80px' }}>
-        {blog.excerpt && (
+        {excerpt && (
           <p style={{
             fontSize: '1.1rem', color: 'var(--text-muted)', lineHeight: '1.8',
             marginBottom: '2rem', paddingBottom: '2rem',
             borderBottom: '1px solid var(--border-color)', fontStyle: 'italic'
-          }}>{blog.excerpt}</p>
+          }}>{excerpt}</p>
         )}
         <div style={{ fontSize: '1rem', color: 'var(--text-color)', lineHeight: '1.9' }}>
-          {renderContent(blog.content)}
+          {renderContent(content)}
         </div>
 
         {/* Gemini AI Assistant */}
         <GeminiAssistant
-          articleTitle={blog.title}
-          articleContent={`${blog.excerpt || ''}\n\n${blog.content || ''}`}
+          articleTitle={title}
+          articleContent={`${excerpt}\n\n${typeof content === 'string' ? content : ''}`}
         />
       </div>
     </div>
@@ -297,7 +325,7 @@ function ArticleView({ blog, navigateTo }) {
 }
 
 // ─── Blog List / Search View ──────────────────────────────────────────────────
-function BlogList({ blogs, navigateTo }) {
+function BlogList({ blogs = [], navigateTo }) {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const POSTS_PER_PAGE = 6;
@@ -307,7 +335,8 @@ function BlogList({ blogs, navigateTo }) {
     setCurrentPage(1);
   }, [search]);
 
-  const filtered = blogs.filter(b => {
+  const filtered = (blogs || []).filter(b => {
+    if (!b) return false;
     const q = search.toLowerCase();
     return (
       (b.title || '').toLowerCase().includes(q) ||
@@ -316,7 +345,7 @@ function BlogList({ blogs, navigateTo }) {
     );
   });
 
-  const totalPages = Math.ceil(filtered.length / POSTS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / POSTS_PER_PAGE));
   const paginatedBlogs = filtered.slice(
     (currentPage - 1) * POSTS_PER_PAGE,
     currentPage * POSTS_PER_PAGE
@@ -341,7 +370,7 @@ function BlogList({ blogs, navigateTo }) {
           <h1 style={{
             fontSize: 'clamp(2rem, 5vw, 3rem)', color: 'white', margin: '0 0 18px',
             fontFamily: 'var(--font-serif)', lineHeight: '1.2'
-          }}>Articles & Session Recaps</h1>
+          }}>Articles &amp; Session Recaps</h1>
           <p style={{ color: 'rgba(255,255,255,0.65)', maxWidth: '560px', margin: '0 auto 36px', lineHeight: '1.7', fontSize: '1rem' }}>
             Deep-dive written recaps of our community sessions, expert analyses, and intellectual discussions.
           </p>
@@ -377,7 +406,7 @@ function BlogList({ blogs, navigateTo }) {
                   background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)',
                   cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '4px'
                 }}
-              >×</button>
+              >&times;</button>
             )}
           </div>
           {search && (
@@ -399,8 +428,8 @@ function BlogList({ blogs, navigateTo }) {
                 gap: '28px',
                 marginBottom: '40px'
               }}>
-                {paginatedBlogs.map(blog => (
-                  <BlogCard key={blog.id} blog={blog} navigateTo={navigateTo} />
+                {paginatedBlogs.map((blog, idx) => (
+                  <BlogCard key={blog.id || idx} blog={blog} navigateTo={navigateTo} />
                 ))}
               </div>
 
@@ -499,9 +528,12 @@ function BlogList({ blogs, navigateTo }) {
 
 function BlogCard({ blog, navigateTo }) {
   const [hovered, setHovered] = useState(false);
-  const dateStr = blog.date || (blog.publishedAt
-    ? new Date(blog.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    : '');
+  if (!blog) return null;
+
+  const dateStr = blog.date || formatDate(blog.publishedAt || blog.published_at);
+  const title = blog.title || 'Untitled Article';
+  const author = blog.author || 'Intellect Circle Member';
+  const excerpt = blog.excerpt || blog.summary || '';
 
   return (
     <article
@@ -527,7 +559,7 @@ function BlogCard({ blog, navigateTo }) {
           background: 'var(--accent-light)', color: 'var(--accent-color)',
           border: '1px solid rgba(201,168,76,0.3)'
         }}>RECAP</span>
-        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{dateStr}</span>
+        {dateStr && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{dateStr}</span>}
       </div>
 
       <h2 style={{
@@ -535,18 +567,18 @@ function BlogCard({ blog, navigateTo }) {
         lineHeight: '1.45', fontFamily: 'var(--font-serif)',
         transition: 'color 0.2s',
         color: hovered ? 'var(--accent-color)' : 'var(--primary-dark)'
-      }}>{blog.title}</h2>
+      }}>{title}</h2>
 
       <p style={{
         fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.65',
         margin: '0 0 20px', flex: 1,
         display: '-webkit-box', WebkitLineClamp: 3,
         WebkitBoxOrient: 'vertical', overflow: 'hidden'
-      }}>{blog.excerpt}</p>
+      }}>{excerpt}</p>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: 'auto' }}>
         <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-          By <strong style={{ color: 'var(--primary-dark)' }}>{blog.author}</strong>
+          By <strong style={{ color: 'var(--primary-dark)' }}>{author}</strong>
         </span>
         <span style={{
           fontSize: '0.82rem', fontWeight: '600', color: 'var(--accent-color)',
@@ -562,24 +594,27 @@ function BlogCard({ blog, navigateTo }) {
   );
 }
 
-// ─── Main Blog Page ───────────────────────────────────────────────────────────
+// ─── Main Blog Page Component ─────────────────────────────────────────────────
 export default function Blog({ blogPostId, data, navigateTo }) {
-  // Sort blogs in descending chronological order
-  const blogs = [...(data.blog || [])].sort((a, b) => {
-    const dateA = new Date(a.date || a.published_at || a.publishedAt || 0);
-    const dateB = new Date(b.date || b.published_at || b.publishedAt || 0);
-    return dateB - dateA;
+  const rawBlogs = Array.isArray(data?.blog) ? data.blog : [];
+  
+  const blogs = [...rawBlogs].sort((a, b) => {
+    const timeA = a ? new Date(a.date || a.published_at || a.publishedAt || 0).getTime() || 0 : 0;
+    const timeB = b ? new Date(b.date || b.published_at || b.publishedAt || 0).getTime() || 0 : 0;
+    return timeB - timeA;
   });
 
-  // If there's a post ID in the URL, find and show that article
-  if (blogPostId) {
-    const post = blogs.find(b => b.id === blogPostId);
+  // If there's a valid post ID in props/URL
+  const targetId = blogPostId && blogPostId !== 'undefined' && blogPostId !== 'null' ? String(blogPostId).trim() : '';
+
+  if (targetId) {
+    const post = blogs.find(b => b && (String(b.id).trim() === targetId || (b.title && String(b.title).toLowerCase().trim() === targetId.toLowerCase())));
     if (post) return <ArticleView blog={post} navigateTo={navigateTo} />;
-    // Post not found — show a friendly error and redirect
+
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px', padding: '40px 20px', textAlign: 'center' }}>
         <h2 style={{ color: 'var(--primary-dark)', fontFamily: 'var(--font-serif)' }}>Article Not Found</h2>
-        <p style={{ color: 'var(--text-muted)', maxWidth: '400px' }}>We couldn't find an article with that ID. It may have been removed or the link might be incorrect.</p>
+        <p style={{ color: 'var(--text-muted)', maxWidth: '400px' }}>We couldn't find the requested article. It may have been removed or updated.</p>
         <button onClick={() => navigateTo('blog')} className="btn btn-accent">&larr; Browse All Articles</button>
       </div>
     );
