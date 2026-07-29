@@ -80,6 +80,7 @@ export default function Assistant({ data, navigateTo }) {
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+      textareaRef.current.focus();
     }
 
     try {
@@ -114,6 +115,7 @@ export default function Assistant({ data, navigateTo }) {
       }]);
     } finally {
       setLoading(false);
+      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   }, [input, loading, buildHistory]);
 
@@ -350,21 +352,14 @@ export default function Assistant({ data, navigateTo }) {
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || loading}
-              className="btn btn-accent"
-              style={{
-                borderRadius: '24px',
-                padding: '10px 20px',
-                height: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                fontWeight: '600',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}
+              className="btn btn-accent assistant-send-btn"
+              aria-label="Send message"
             >
-              {loading ? 'Thinking...' : 'Send'}
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+              <span className="assistant-send-label">{loading ? 'Thinking...' : 'Send'}</span>
             </button>
           </div>
         </div>

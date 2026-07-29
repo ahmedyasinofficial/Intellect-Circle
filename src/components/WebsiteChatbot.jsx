@@ -121,9 +121,10 @@ export default function WebsiteChatbot() {
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
 
-    // Reset textarea height
+    // Reset textarea height and maintain active focus
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+      textareaRef.current.focus();
     }
 
     try {
@@ -158,6 +159,7 @@ export default function WebsiteChatbot() {
       }]);
     } finally {
       setLoading(false);
+      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   }, [input, loading, buildHistory]);
 

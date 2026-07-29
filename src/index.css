@@ -3688,6 +3688,19 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
   color: var(--text-color);
 }
 
+.assistant-send-btn {
+  border-radius: 24px;
+  padding: 10px 20px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .assistant-hero {
     padding: 44px 16px 38px;
@@ -3706,12 +3719,24 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
     height: 34px;
   }
   .assistant-chat-messages {
-    padding: 16px 14px;
+    padding: 14px 12px;
     height: clamp(320px, 50vh, 420px);
   }
   .assistant-input-textarea {
     font-size: 16px; /* Prevents mobile iOS zoom on input focus */
     padding: 10px 14px;
+    border-radius: 20px;
+  }
+  .assistant-send-btn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    gap: 0;
+  }
+  .assistant-send-label {
+    display: none;
   }
 }
+
 

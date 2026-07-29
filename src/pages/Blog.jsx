@@ -78,6 +78,9 @@ function GeminiAssistant({ articleTitle, articleContent }) {
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setQuestion('');
     setLoading(true);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
     try {
       const res = await fetch('/api/gemini', {
         method: 'POST',
@@ -88,8 +91,10 @@ function GeminiAssistant({ articleTitle, articleContent }) {
       setMessages(prev => [...prev, { role: 'assistant', text: json.answer || 'No response received.' }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', text: 'Could not reach the AI assistant. Please try again.' }]);
+    } finally {
+      setLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
-    setLoading(false);
   };
 
   return (
