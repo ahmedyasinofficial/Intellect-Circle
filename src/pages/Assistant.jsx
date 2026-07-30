@@ -217,7 +217,7 @@ export default function Assistant({ data, navigateTo }) {
               </div>
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ color: 'white', margin: 0, fontSize: '0.96rem', fontFamily: 'var(--font-sans)', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Intellect Circle AI Assistant</h3>
-                <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '0.76rem' }}>Powered by Wendlly</p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', margin: 0, fontSize: '0.76rem' }}>Powered by Vendlly</p>
               </div>
             </div>
 
