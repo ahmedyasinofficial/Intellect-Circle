@@ -138,7 +138,7 @@ function GeminiAssistant({ articleTitle, articleContent }) {
           flexShrink: 0
         }}>
           <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: '700', letterSpacing: '0.5px' }}>
-            POWERED BY WENDLLY
+            POWERED BY VENDLLY
           </span>
         </div>
       </div>
