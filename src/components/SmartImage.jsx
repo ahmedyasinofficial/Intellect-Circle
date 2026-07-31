@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useImageOrientation } from '../hooks/useImageOrientation';
 
 function SmartImage({ src, alt, className = '', imgClassName = '', style = {}, ...props }) {
   const orientation = useImageOrientation(src);
+  const [hasError, setHasError] = useState(false);
+
+  // Reset error state when src changes so the image can attempt to load again
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
   
   return (
     <div 
@@ -14,8 +20,9 @@ function SmartImage({ src, alt, className = '', imgClassName = '', style = {}, .
         src={src} 
         alt={alt} 
         className={`image-${orientation} ${imgClassName}`} 
-        onError={(e) => {
-          e.target.style.display = 'none';
+        style={hasError ? { display: 'none' } : undefined}
+        onError={() => {
+          setHasError(true);
         }}
       />
     </div>
