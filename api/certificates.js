@@ -92,8 +92,14 @@ async function loadCertificateSettings(isSupabaseActive, supabaseUrl, supabaseKe
 
 // Helper to send the certificate email
 async function sendCertificateEmail({ recipient_name, recipient_email, program_name, verifyUrl, pdfBuffer, certificateId }) {
+  if (!recipient_email || !recipient_email.trim()) {
+    console.log(`[Email Service] No recipient email provided for certificate ${certificateId}. Skipping email delivery.`);
+    return { success: true, method: 'skipped', message: 'No recipient email provided. Email delivery skipped.' };
+  }
+
+  const displayName = (recipient_name && recipient_name.trim()) ? recipient_name : 'Valued Member';
   const mailSubject = `Intellect Circle Completion Certificate: ${program_name}`;
-  const mailText = `Dear ${recipient_name},
+  const mailText = `Dear ${displayName},
 
 Congratulations on completing the program "${program_name}" conducted by Intellect Circle.
 
@@ -269,14 +275,16 @@ async function generateCertificatePdf(certificate, settings, verifyUrl, req) {
       const darkColor = '#2D3748';
       const grayColor = '#4A5568';
 
-      // STEP 2: Recipient Name (centered on template)
-      doc.fillColor(goldColor)
-         .fontSize(L.nameSize)
-         .font('Helvetica-Bold')
-         .text(certificate.recipient_name, 0, L.nameY * sy, {
-           width: pageW,
-           align: 'center'
-         });
+      // STEP 2: Recipient Name (centered on template if provided)
+      if (certificate.recipient_name && certificate.recipient_name.trim()) {
+        doc.fillColor(goldColor)
+           .fontSize(L.nameSize)
+           .font('Helvetica-Bold')
+           .text(certificate.recipient_name, 0, L.nameY * sy, {
+             width: pageW,
+             align: 'center'
+           });
+      }
 
       // STEP 3: Program Name (centered on template)
       doc.fillColor(darkColor)
@@ -607,9 +615,12 @@ export default async function handler(req, res) {
     }
 
     // Standard certificate generation
-    if (!recipient_name || !recipient_email || !program_name || !completion_date || !certificate_type) {
-      return res.status(400).json({ error: 'Missing required certificate fields.' });
+    if (!program_name || !completion_date || !certificate_type) {
+      return res.status(400).json({ error: 'Missing required certificate fields (program_name, completion_date, certificate_type).' });
     }
+
+    const cleanName = (typeof recipient_name === 'string' && recipient_name.trim()) ? recipient_name.trim() : null;
+    const cleanEmail = (typeof recipient_email === 'string' && recipient_email.trim()) ? recipient_email.trim() : null;
 
     const year = new Date(completion_date).getFullYear() || new Date().getFullYear();
     const uniqueSuffix = Date.now().toString().slice(-6);
@@ -617,8 +628,8 @@ export default async function handler(req, res) {
 
     let newCert = {
       id: certId,
-      recipient_name,
-      recipient_email,
+      recipient_name: cleanName,
+      recipient_email: cleanEmail,
       program_name,
       completion_date,
       certificate_type,
@@ -636,8 +647,8 @@ export default async function handler(req, res) {
           .from('certificates')
           .insert({
             id: certId,
-            recipient_name,
-            recipient_email,
+            recipient_name: cleanName,
+            recipient_email: cleanEmail,
             program_name,
             completion_date,
             certificate_type,
@@ -684,7 +695,9 @@ export default async function handler(req, res) {
       });
 
       let responseMsg = 'Certificate generated successfully.';
-      if (emailRes.success) {
+      if (emailRes.method === 'skipped') {
+        responseMsg += ' (Email delivery skipped as no recipient email was provided.)';
+      } else if (emailRes.success) {
         responseMsg += ` Email sent via ${emailRes.method}.`;
         if (emailRes.method === 'simulation') {
           // Log email to mock logs for easy admin visibility
@@ -694,7 +707,8 @@ export default async function handler(req, res) {
         responseMsg += ` However, email delivery failed: ${emailRes.error}`;
       }
 
-      await logActivity(adminUser.email, 'Generate Certificate', `Issued certificate ${newCert.id} to ${newCert.recipient_name} (${newCert.recipient_email})`);
+      const logTarget = [newCert.recipient_name, newCert.recipient_email].filter(Boolean).join(' - ') || 'No recipient specified';
+      await logActivity(adminUser.email, 'Generate Certificate', `Issued certificate ${newCert.id} (${logTarget})`);
 
       return res.status(200).json({ success: true, data: newCert, message: responseMsg });
     } catch (err) {

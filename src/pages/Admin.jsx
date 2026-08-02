@@ -940,12 +940,14 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   const handleCertCreate = async (e) => {
     e.preventDefault();
-    if (!certForm.recipient_name || !certForm.recipient_email || !certForm.program_name || !certForm.completion_date || !certForm.certificate_type) {
-      triggerNotification('All certificate fields including certificate type are required.', 'error');
+    if (!certForm.program_name || !certForm.completion_date || !certForm.certificate_type) {
+      triggerNotification('Program name, completion date, and certificate type are required.', 'error');
       return;
     }
     setLoading(true);
     try {
+      const cleanName = certForm.recipient_name.trim() || null;
+      const cleanEmail = certForm.recipient_email.trim() || null;
       const res = await fetch('/api/certificates', {
         method: 'POST',
         headers: {
@@ -953,8 +955,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           ...(token && { 'Authorization': `Bearer ${token}` })
         },
         body: JSON.stringify({
-          recipient_name: certForm.recipient_name,
-          recipient_email: certForm.recipient_email,
+          recipient_name: cleanName,
+          recipient_email: cleanEmail,
           program_name: certForm.program_name,
           completion_date: certForm.completion_date,
           certificate_type: certForm.certificate_type,
@@ -965,7 +967,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       });
       const resJson = await res.json();
       if (resJson.success) {
-        triggerNotification(`Certificate ${resJson.data.id} generated and emailed successfully.`);
+        triggerNotification(resJson.message || `Certificate ${resJson.data.id} generated successfully.`);
         setCertForm({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '', certificate_type: '' });
         setShowCertForm(false);
         fetchCertificates();
@@ -2659,25 +2661,23 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   <form onSubmit={handleCertCreate}>
                     <div className="admin-section-grid">
                       <div className="form-group">
-                        <label className="form-label">Recipient Full Name *</label>
+                        <label className="form-label">Recipient Full Name</label>
                         <input
                           type="text"
                           className="form-input"
                           value={certForm.recipient_name}
                           onChange={(e) => setCertForm({...certForm, recipient_name: e.target.value})}
-                          placeholder="e.g. Muhammad Ali Khan"
-                          required
+                          placeholder="e.g. Muhammad Ali Khan (Optional)"
                         />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">Recipient Email *</label>
+                        <label className="form-label">Recipient Email</label>
                         <input
                           type="email"
                           className="form-input"
                           value={certForm.recipient_email}
                           onChange={(e) => setCertForm({...certForm, recipient_email: e.target.value})}
-                          placeholder="e.g. recipient@email.com"
-                          required
+                          placeholder="e.g. recipient@email.com (Optional)"
                         />
                       </div>
                       <div className="form-group">
@@ -2717,7 +2717,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     </div>
                     <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
                       <button type="submit" className="btn btn-accent" disabled={loading}>
-                        {loading ? 'Generating...' : 'Generate & Email'}
+                        {loading ? 'Generating...' : 'Generate Certificate'}
                       </button>
                       <button type="button" className="btn btn-outline" onClick={() => setShowCertForm(false)}>Cancel</button>
                     </div>
@@ -2764,18 +2764,18 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         .filter(c => {
                           const query = certSearch.toLowerCase();
                           return (
-                            c.id.toLowerCase().includes(query) ||
-                            c.recipient_name.toLowerCase().includes(query) ||
-                            c.recipient_email.toLowerCase().includes(query) ||
-                            c.program_name.toLowerCase().includes(query)
+                            (c.id || '').toLowerCase().includes(query) ||
+                            (c.recipient_name || '').toLowerCase().includes(query) ||
+                            (c.recipient_email || '').toLowerCase().includes(query) ||
+                            (c.program_name || '').toLowerCase().includes(query)
                           );
                         })
                         .map(cert => (
                         <tr key={cert.id}>
                           <td><code style={{ fontSize: '0.8rem', background: '#f1f5f9', padding: '3px 8px', borderRadius: '4px' }}>{cert.id}</code></td>
                           <td>
-                            <div style={{ fontWeight: 500 }}>{cert.recipient_name}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{cert.recipient_email}</div>
+                            <div style={{ fontWeight: 500 }}>{cert.recipient_name || <em style={{ color: 'var(--text-muted)' }}>N/A</em>}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{cert.recipient_email || 'No email provided'}</div>
                           </td>
                           <td>
                             {cert.program_name}

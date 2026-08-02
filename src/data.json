@@ -410,6 +410,13 @@
   },
   "activity_logs": [
     {
+      "id": "log-1785701650545",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-08-02T20:14:10.545Z"
+    },
+    {
       "id": "log-1785086237770",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",
@@ -651,6 +658,19 @@
     }
   ],
   "certificates": [
+    {
+      "id": "IC-2026-670813",
+      "recipient_name": null,
+      "recipient_email": null,
+      "program_name": "sadf",
+      "completion_date": "2026-08-18",
+      "certificate_type": "Collaboration Certificate",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-08-02T20:14:30.813Z"
+    },
     {
       "id": "IC-2026-095183",
       "recipient_name": "a",

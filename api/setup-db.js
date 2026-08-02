@@ -20,8 +20,8 @@ export default async function handler(req, res) {
 -- 1. Create Certificates Table
 CREATE TABLE IF NOT EXISTS public.certificates (
     id TEXT PRIMARY KEY,
-    recipient_name TEXT NOT NULL,
-    recipient_email TEXT NOT NULL,
+    recipient_name TEXT,
+    recipient_email TEXT,
     program_name TEXT NOT NULL,
     completion_date DATE NOT NULL,
     certificate_type TEXT,
@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS public.certificates (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.certificates ADD COLUMN IF NOT EXISTS certificate_type TEXT;
+ALTER TABLE public.certificates ALTER COLUMN recipient_name DROP NOT NULL;
+ALTER TABLE public.certificates ALTER COLUMN recipient_email DROP NOT NULL;
 
 -- 2. Add columns to site_settings if they don't exist
 ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS president_name TEXT DEFAULT 'Ahmad Yasin';

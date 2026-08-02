@@ -518,8 +518,8 @@ ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS cert_id_size NUMERIC D
 -- Certificates Table
 CREATE TABLE IF NOT EXISTS public.certificates (
     id TEXT PRIMARY KEY, -- Certificate ID, e.g. 'IC-2026-XXXXX'
-    recipient_name TEXT NOT NULL,
-    recipient_email TEXT NOT NULL,
+    recipient_name TEXT,
+    recipient_email TEXT,
     program_name TEXT NOT NULL,
     completion_date DATE NOT NULL,
     status TEXT NOT NULL DEFAULT 'valid' CHECK (status IN ('valid', 'revoked')),
@@ -528,6 +528,8 @@ CREATE TABLE IF NOT EXISTS public.certificates (
     payment_status TEXT DEFAULT 'free',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.certificates ALTER COLUMN recipient_name DROP NOT NULL;
+ALTER TABLE public.certificates ALTER COLUMN recipient_email DROP NOT NULL;
 
 -- Analytics Events Table
 CREATE TABLE IF NOT EXISTS public.analytics_events (

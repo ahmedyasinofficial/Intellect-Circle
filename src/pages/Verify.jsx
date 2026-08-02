@@ -135,7 +135,7 @@ function Verify({ certId, navigateTo }) {
               <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', background: 'var(--white)' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '3px' }}>Recipient Name</label>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--primary-dark)' }}>{certificate.recipient_name}</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--primary-dark)' }}>{certificate.recipient_name || 'N/A'}</span>
                 </div>
                 {certificate.recipient_email && (
                   <div>
