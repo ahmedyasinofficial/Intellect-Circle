@@ -716,11 +716,74 @@ export default async function handler(req, res) {
     }
   }
 
-  // PATCH /api/certificates (Revoke or Validate/Reinstate)
+  // PATCH /api/certificates (Revoke/Reinstate OR Edit Certificate Details)
   if (req.method === 'PATCH') {
-    const { id, status } = req.body || {};
-    if (!id || !status || !['valid', 'revoked'].includes(status)) {
-      return res.status(400).json({ error: 'Missing required update parameters (id, status).' });
+    const { id, action, status, recipient_name, recipient_email, program_name, completion_date, certificate_type } = req.body || {};
+    if (!id) {
+      return res.status(400).json({ error: 'Missing certificate ID.' });
+    }
+
+    if (action === 'edit') {
+      if (!program_name || !completion_date || !certificate_type) {
+        return res.status(400).json({ error: 'Program name, completion date, and certificate type are required.' });
+      }
+
+      const cleanName = (typeof recipient_name === 'string' && recipient_name.trim()) ? recipient_name.trim() : null;
+      const cleanEmail = (typeof recipient_email === 'string' && recipient_email.trim()) ? recipient_email.trim() : null;
+
+      const updateFields = {
+        recipient_name: cleanName,
+        recipient_email: cleanEmail,
+        program_name,
+        completion_date,
+        certificate_type
+      };
+
+      if (!isSupabaseActive) {
+        const { readFileSync, writeFileSync } = await import('fs');
+        const { join, dirname } = await import('path');
+        const { fileURLToPath } = await import('url');
+        try {
+          const dataPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'data.json');
+          const defaultData = JSON.parse(readFileSync(dataPath, 'utf-8'));
+          let updatedCert = null;
+          if (defaultData.certificates) {
+            defaultData.certificates = defaultData.certificates.map(c => {
+              if (c.id === id) {
+                updatedCert = { ...c, ...updateFields };
+                return updatedCert;
+              }
+              return c;
+            });
+          }
+          writeFileSync(dataPath, JSON.stringify(defaultData, null, 2), 'utf-8');
+          await logActivity(adminUser.email, 'Edit Certificate', `Updated details for certificate ${id}`);
+          return res.status(200).json({ success: true, data: updatedCert, message: 'Certificate updated successfully.' });
+        } catch (e) {
+          return res.status(500).json({ error: e.message });
+        }
+      }
+
+      try {
+        const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+        const { data, error } = await supabase
+          .from('certificates')
+          .update(updateFields)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        await logActivity(adminUser.email, 'Edit Certificate', `Updated details for certificate ${id}`);
+        return res.status(200).json({ success: true, data, message: 'Certificate updated successfully.' });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
+
+    // Status update (Revoke / Reinstate)
+    if (!status || !['valid', 'revoked'].includes(status)) {
+      return res.status(400).json({ error: 'Missing required update parameters (status).' });
     }
 
     if (!isSupabaseActive) {

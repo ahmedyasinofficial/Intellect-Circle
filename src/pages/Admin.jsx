@@ -41,6 +41,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [certsLoading, setCertsLoading] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
   const [certForm, setCertForm] = useState({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '', certificate_type: '' });
+  const [editingCert, setEditingCert] = useState(null);
+  const [editCertForm, setEditCertForm] = useState({ recipient_name: '', recipient_email: '', program_name: '', completion_date: '', certificate_type: '' });
   const [showCertSettings, setShowCertSettings] = useState(false);
   const [certLayout, setCertLayout] = useState({
     cert_name_x: 1755, cert_name_y: 900, cert_name_size: 38,
@@ -973,6 +975,59 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         fetchCertificates();
       } else {
         triggerNotification(resJson.error || 'Failed to generate certificate.', 'error');
+      }
+    } catch (err) {
+      triggerNotification('API connection error.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCertStartEdit = (cert) => {
+    setEditingCert(cert);
+    setEditCertForm({
+      recipient_name: cert.recipient_name || '',
+      recipient_email: cert.recipient_email || '',
+      program_name: cert.program_name || '',
+      completion_date: cert.completion_date ? new Date(cert.completion_date).toISOString().split('T')[0] : '',
+      certificate_type: cert.certificate_type || 'Intellect Circle Certificate'
+    });
+  };
+
+  const handleCertSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingCert) return;
+    if (!editCertForm.program_name || !editCertForm.completion_date || !editCertForm.certificate_type) {
+      triggerNotification('Program name, completion date, and certificate type are required.', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      const cleanName = editCertForm.recipient_name.trim() || null;
+      const cleanEmail = editCertForm.recipient_email.trim() || null;
+      const res = await fetch('/api/certificates', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          action: 'edit',
+          id: editingCert.id,
+          recipient_name: cleanName,
+          recipient_email: cleanEmail,
+          program_name: editCertForm.program_name,
+          completion_date: editCertForm.completion_date,
+          certificate_type: editCertForm.certificate_type
+        })
+      });
+      const resJson = await res.json();
+      if (resJson.success) {
+        triggerNotification(`Certificate ${editingCert.id} details updated successfully.`);
+        setEditingCert(null);
+        fetchCertificates();
+      } else {
+        triggerNotification(resJson.error || 'Failed to update certificate.', 'error');
       }
     } catch (err) {
       triggerNotification('API connection error.', 'error');
@@ -2802,6 +2857,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <td>
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               <button
+                                type="button"
+                                className="btn btn-outline"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={() => handleCertStartEdit(cert)}
+                                title="Edit certificate details"
+                              >
+                                <EditIcon style={{ width: '12px', height: '12px' }} /> Edit
+                              </button>
+                              <button
                                 className="btn btn-outline"
                                 style={{ fontSize: '0.75rem', padding: '4px 10px' }}
                                 onClick={() => setPreviewCert({
@@ -2871,6 +2935,91 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
         </main>
       </div>
+
+      {/* EDIT CERTIFICATE MODAL */}
+      {editingCert && (
+        <div className="modal-overlay" onClick={() => setEditingCert(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>Edit Certificate ({editingCert.id})</h3>
+              <button className="modal-close" onClick={() => setEditingCert(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleCertSaveEdit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Certificate ID (Read Only)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editingCert.id}
+                    disabled
+                    style={{ opacity: 0.7, background: 'var(--bg-muted, #f8fafc)' }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Recipient Full Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editCertForm.recipient_name}
+                    onChange={(e) => setEditCertForm({ ...editCertForm, recipient_name: e.target.value })}
+                    placeholder="e.g. Muhammad Ali Khan (Optional)"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Recipient Email</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={editCertForm.recipient_email}
+                    onChange={(e) => setEditCertForm({ ...editCertForm, recipient_email: e.target.value })}
+                    placeholder="e.g. recipient@email.com (Optional)"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Program / Workshop Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editCertForm.program_name}
+                    onChange={(e) => setEditCertForm({ ...editCertForm, program_name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Certificate Type *</label>
+                  <select
+                    className="form-input"
+                    value={editCertForm.certificate_type}
+                    onChange={(e) => setEditCertForm({ ...editCertForm, certificate_type: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select Certificate Type --</option>
+                    <option value="Intellect Circle Certificate">Intellect Circle Certificate</option>
+                    <option value="Collaboration Certificate">Collaboration Certificate</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Completion Date *</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={editCertForm.completion_date}
+                    onChange={(e) => setEditCertForm({ ...editCertForm, completion_date: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer" style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-outline" onClick={() => setEditingCert(null)}>Cancel</button>
+                <button type="submit" className="btn btn-accent" disabled={loading}>
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* TEAM MEMBER MODAL EDIT */}
       {editingMember && (
