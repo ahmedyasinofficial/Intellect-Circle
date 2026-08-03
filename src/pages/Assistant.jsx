@@ -6,6 +6,98 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const MAX_HISTORY = 6;
 
+function renderMessageContent(text, navigateTo) {
+  if (!text) return null;
+
+  // Pattern for markdown links [Label](URL)
+  const mdRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+
+  const parts = [];
+  let searchIdx = 0;
+  let mdMatch;
+
+  while ((mdMatch = mdRegex.exec(text)) !== null) {
+    const [fullMatch, label, url] = mdMatch;
+    const matchStart = mdMatch.index;
+
+    if (matchStart > searchIdx) {
+      parts.push(text.slice(searchIdx, matchStart));
+    }
+
+    parts.push({ type: 'link', label, url });
+    searchIdx = matchStart + fullMatch.length;
+  }
+
+  if (searchIdx < text.length) {
+    parts.push(text.slice(searchIdx));
+  }
+
+  const finalElements = [];
+
+  parts.forEach((part, partIdx) => {
+    if (typeof part === 'object' && part.type === 'link') {
+      const isInternal = part.url.startsWith('/') || part.url.includes('intellectcircle');
+      const routePath = part.url.startsWith('/') ? part.url.slice(1) : '';
+
+      finalElements.push(
+        <a
+          key={`mdlink-${partIdx}`}
+          href={part.url}
+          target={isInternal ? '_self' : '_blank'}
+          rel={isInternal ? '' : 'noopener noreferrer'}
+          onClick={(e) => {
+            if (isInternal && navigateTo && routePath) {
+              const cleanRoute = routePath.split('?')[0];
+              if (['apply', 'contact', 'sessions', 'blog', 'verify', 'hierarchy', 'about', 'home'].includes(cleanRoute)) {
+                e.preventDefault();
+                navigateTo(cleanRoute);
+              }
+            }
+          }}
+          style={{
+            color: 'var(--accent-color)',
+            fontWeight: '600',
+            textDecoration: 'underline',
+            cursor: 'pointer'
+          }}
+        >
+          {part.label}
+        </a>
+      );
+    } else {
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const subTokens = part.split(urlRegex);
+
+      subTokens.forEach((token, tokIdx) => {
+        if (!token) return;
+
+        if (token.match(/^https?:\/\//)) {
+          finalElements.push(
+            <a
+              key={`url-${partIdx}-${tokIdx}`}
+              href={token}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: 'var(--accent-color)',
+                fontWeight: '600',
+                textDecoration: 'underline',
+                cursor: 'pointer'
+              }}
+            >
+              {token}
+            </a>
+          );
+        } else {
+          finalElements.push(token);
+        }
+      });
+    }
+  });
+
+  return finalElements;
+}
+
 export default function Assistant({ data, navigateTo }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -175,7 +267,7 @@ export default function Assistant({ data, navigateTo }) {
                 <div
                   className={`assistant-bubble ${msg.role} ${msg.isError ? 'error' : ''}`}
                 >
-                  {msg.text}
+                  {renderMessageContent(msg.text, navigateTo)}
                 </div>
               </div>
             ))
@@ -242,6 +334,7 @@ export default function Assistant({ data, navigateTo }) {
     </div>
   );
 }
+
 
 
 
