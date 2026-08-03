@@ -3066,8 +3066,23 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   {/* Primary Local File Input */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
                     {memberForm.photo && (
-                      <div style={{ width: '52px', height: '52px', borderRadius: 'var(--radius-full)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                        <img src={memberForm.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <div style={{ width: '52px', height: '52px', borderRadius: 'var(--radius-full)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                          <img src={memberForm.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <button
+                          type="button"
+                          title="Remove photo"
+                          onClick={() => setMemberForm(prev => ({ ...prev, photo: '' }))}
+                          style={{
+                            position: 'absolute', top: '-6px', right: '-6px',
+                            width: '20px', height: '20px', borderRadius: '50%',
+                            background: '#e53e3e', color: '#fff', border: 'none',
+                            fontSize: '12px', lineHeight: '1', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                          }}
+                        >×</button>
                       </div>
                     )}
                     <div style={{ flex: 1 }}>
