@@ -1565,7 +1565,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const totalSubsPages = Math.ceil(filteredSubs.length / itemsPerPage);
 
   return (
-    <div className="admin-control-room-wrapper" style={{ padding: '30px 0' }}>
+    <div className="admin-control-room-wrapper">
       
       {/* Toast Alert */}
       {notification && (
@@ -1575,23 +1575,20 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       )}
 
       {/* Header bar */}
-      <div className="admin-header-bar" style={{ marginBottom: '24px' }}>
+      <div className="admin-header-bar">
         <div>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ background: 'var(--accent-color, #c9a84c)', color: '#1b2838', fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#1b2838' }}></span>
-              IC Control Room
-            </span>
-            <span style={{ fontWeight: '700' }}>Intellect Circle Admin</span>
+          <h2>
+            <span className="ic-badge">IC</span>
+            Intellect Circle
           </h2>
-          <span className="user-email-badge">Role: Administrator ({userEmail || 'Local Dev Environment'})</span>
+          <span className="user-email-badge">{userEmail || 'Local Dev Environment'} &mdash; Administrator</span>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => navigateTo('home')} className="btn btn-outline-gold" style={{ padding: '8px 16px', fontSize: '0.86rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <ExternalLinkIcon style={{ width: '15px', height: '15px' }} /> Public Site
+          <button onClick={() => navigateTo('home')} className="admin-header-btn">
+            <ExternalLinkIcon style={{ width: '15px', height: '15px', color: '#c9a84c' }} /> Public Site
           </button>
-          <button onClick={handleLogoutClick} className="btn btn-outline" style={{ padding: '8px 18px', fontSize: '0.86rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <LogOutIcon style={{ width: '15px', height: '15px' }} /> Sign Out
+          <button onClick={handleLogoutClick} className="admin-header-btn">
+            <LogOutIcon style={{ width: '15px', height: '15px', color: '#ef4444' }} /> Sign Out
           </button>
         </div>
       </div>
@@ -1601,18 +1598,20 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         {/* Collapsible Left Sidebar */}
         <aside className={`admin-control-room-sidebar ${isSidebarCollapsed ? 'collapsed' : 'expanded'}`}>
           
-          {/* Sidebar Brand Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px 14px 8px', borderBottom: '1px solid #1e293b', marginBottom: '14px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--accent-color, #c9a84c)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.9rem', flexShrink: 0 }}>
-              IC
-            </div>
-            {!isSidebarCollapsed && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ color: '#ffffff', fontWeight: '700', fontSize: '0.95rem', lineHeight: 1.2 }}>Intellect Circle</span>
-                <span style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: '500' }}>Control Room</span>
+          {/* Sidebar Brand */}
+          {!isSidebarCollapsed ? (
+            <div className="sidebar-brand">
+              <div className="sidebar-brand-icon">IC</div>
+              <div className="sidebar-brand-text">
+                <strong>Intellect Circle</strong>
+                <span>Control Room</span>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '14px', borderBottom: '1px solid #252c3e', marginBottom: '12px' }}>
+              <div className="sidebar-brand-icon">IC</div>
+            </div>
+          )}
 
           <button 
             type="button" 
@@ -1620,7 +1619,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             onClick={toggleSidebar} 
             title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
-            {isSidebarCollapsed ? '❯' : '❮ Collapse Menu'}
+            {isSidebarCollapsed ? '→' : '← Collapse'}
           </button>
 
           {/* OVERVIEW CATEGORY */}
@@ -1756,6 +1755,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         {/* Main Control Room Content Panel */}
         <main className="admin-control-room-content">
 
+
           {/* TAB: OVERVIEW DASHBOARD */}
           {activeTab === 'overview' && (
             <div>
@@ -1838,21 +1838,22 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               </div>
 
               {/* Quick Actions Bar */}
-              <div style={{ background: 'var(--white, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Quick Shortcuts:</span>
-                <button onClick={() => setActiveTab('content_website')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <CopyIcon style={{ width: '14px', height: '14px' }} /> Edit Copy
+              <div className="admin-box" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginRight: '4px' }}>Quick Actions</span>
+                <button onClick={() => setActiveTab('content_website')} className="btn btn-outline" style={{ fontSize: '0.83rem', padding: '6px 13px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <CopyIcon style={{ width: '13px', height: '13px' }} /> Edit Copy
                 </button>
-                <button onClick={() => setActiveTab('sessions')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <CalendarIcon style={{ width: '14px', height: '14px' }} /> Schedule Session
+                <button onClick={() => setActiveTab('sessions')} className="btn btn-outline" style={{ fontSize: '0.83rem', padding: '6px 13px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <CalendarIcon style={{ width: '13px', height: '13px' }} /> Schedule Session
                 </button>
-                <button onClick={() => setActiveTab('certificates')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <CertificateIcon style={{ width: '14px', height: '14px' }} /> Issue Certificates
+                <button onClick={() => setActiveTab('certificates')} className="btn btn-outline" style={{ fontSize: '0.83rem', padding: '6px 13px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <CertificateIcon style={{ width: '13px', height: '13px' }} /> Issue Certificates
                 </button>
-                <button onClick={() => setActiveTab('media')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <MediaIcon style={{ width: '14px', height: '14px' }} /> Media Library
+                <button onClick={() => setActiveTab('media')} className="btn btn-outline" style={{ fontSize: '0.83rem', padding: '6px 13px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <MediaIcon style={{ width: '13px', height: '13px' }} /> Media Library
                 </button>
               </div>
+
 
             </div>
           )}
@@ -2475,7 +2476,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             </span>
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <button onClick={() => handleDeleteSession(s.id)} className="btn-table delete">Delete</button>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button onClick={() => startEditSession(s)} className="btn-table edit">Edit</button>
+                              <button onClick={() => handleDeleteSession(s.id)} className="btn-table delete">Delete</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2589,7 +2593,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <td><span className="log-action-badge">{b.category || 'Recap'}</span></td>
                           <td>{b.date}</td>
                           <td style={{ textAlign: 'right' }}>
-                            <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button onClick={() => startEditBlog(b)} className="btn-table edit">Edit</button>
+                              <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2691,7 +2698,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <td><span className="log-action-badge">{m.role}</span></td>
                           <td><span style={{ fontSize: '0.85rem', color: '#64748b' }}>{m.bio ? m.bio.slice(0, 60) + '...' : 'No bio'}</span></td>
                           <td style={{ textAlign: 'right' }}>
-                            <button onClick={() => handleDeleteMember(m.id)} className="btn-table delete">Delete</button>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button onClick={() => startEditMember(m)} className="btn-table edit">Edit</button>
+                              <button onClick={() => handleDeleteMember(m.id)} className="btn-table delete">Delete</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
