@@ -2155,12 +2155,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Applicant</th>
+                        <th>Applicant Name</th>
                         <th>Age</th>
                         <th>Location</th>
-                        <th>Occupation</th>
-                        <th>Date Submitted</th>
-                        <th>Actions</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2168,14 +2166,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         <tr key={app.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedSubmission({ ...app, _type: 'applications' })}>
                           <td>
                             <strong>{app.name}</strong>
-                            <br />
-                            <small style={{ color: 'var(--accent-color)' }}>{app.email || 'No email'}</small>
                           </td>
                           <td>{app.age || 'N/A'}</td>
-                          <td>{app.city || 'N/A'}</td>
-                          <td>{app.occupation || 'N/A'}</td>
-                          <td>{app.submittedAt ? new Date(app.submittedAt).toLocaleDateString() : 'N/A'}</td>
-                          <td onClick={(e) => e.stopPropagation()}>
+                          <td>{app.city || app.location || 'N/A'}</td>
+                          <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                             <button 
                               onClick={() => setSelectedSubmission({ ...app, _type: 'applications' })} 
                               className="btn-table edit" 
@@ -2194,7 +2188,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       ))}
                       {filteredSubs.length === 0 && (
                         <tr>
-                          <td colSpan="6" style={{ textAlign: 'center', color: '#718096', padding: '30px' }}>
+                          <td colSpan="4" style={{ textAlign: 'center', color: '#718096', padding: '30px' }}>
                             No membership applications match your search.
                           </td>
                         </tr>
@@ -2378,6 +2372,429 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB: SESSIONS MANAGER */}
+          {activeTab === 'sessions' && (
+            <div>
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Sessions & Workshops Manager</h2>
+                  <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
+                    Schedule, edit, and organize learning sessions and recorded workshops.
+                  </p>
+                </div>
+              </div>
+
+              {/* Add / Edit Session Form */}
+              <div className="admin-box" style={{ marginBottom: '24px' }}>
+                <div className="admin-box-title">Create or Edit Session</div>
+                <form onSubmit={handleSessionSubmit}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Session Title *</label>
+                      <input type="text" name="title" className="form-input" required placeholder="e.g. Critical Thinking in Youth Movements" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Presenter / Speaker *</label>
+                      <input type="text" name="presenter" className="form-input" required placeholder="e.g. Ahmad Yasin" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Date *</label>
+                      <input type="date" name="date" className="form-input" required />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Time</label>
+                      <input type="text" name="time" className="form-input" placeholder="e.g. 7:00 PM PKT" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Status *</label>
+                      <select name="status" className="form-input">
+                        <option value="upcoming">Upcoming Session</option>
+                        <option value="completed">Completed Session</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Cover Photo URL</label>
+                      <div className="media-input-group">
+                        <input type="text" id="session_photo_input" name="photoUrl" className="form-input" placeholder="https://..." />
+                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('session_photo_input').value = url; })} className="btn-select-media">Library</button>
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Description</label>
+                      <textarea name="description" className="form-input" rows="3" placeholder="Brief overview of the session scope..." />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
+                    Save Session
+                  </button>
+                </form>
+              </div>
+
+              {/* Sessions Table */}
+              <div className="admin-box">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+                  <div className="admin-box-title" style={{ margin: 0 }}>Existing Sessions ({sessions.length})</div>
+                  <div style={{ display: 'flex', gap: '10px', flex: 1, maxWidth: '400px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search sessions or presenters..." 
+                      className="form-input" 
+                      value={sessionSearch} 
+                      onChange={e => { setSessionSearch(e.target.value); setSessionPage(1); }} 
+                    />
+                    <select className="form-input" value={sessionFilter} onChange={e => { setSessionFilter(e.target.value); setSessionPage(1); }} style={{ width: '130px' }}>
+                      <option value="all">All</option>
+                      <option value="upcoming">Upcoming</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Presenter</th>
+                        <th>Date & Time</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedSessions.map(s => (
+                        <tr key={s.id}>
+                          <td><strong>{s.title}</strong></td>
+                          <td>{s.presenter}</td>
+                          <td>{s.date} {s.time ? `(${s.time})` : ''}</td>
+                          <td>
+                            <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 600, background: s.status === 'upcoming' ? '#FEF3C7' : '#E2E8F0', color: s.status === 'upcoming' ? '#D97706' : '#475569' }}>
+                              {s.status === 'upcoming' ? 'Upcoming' : 'Completed'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button onClick={() => handleDeleteSession(s.id)} className="btn-table delete">Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredSessions.length === 0 && (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>
+                            No sessions found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {totalSessionPages > 1 && (
+                  <div className="pagination" style={{ marginTop: '16px' }}>
+                    <button onClick={() => setSessionPage(p => Math.max(1, p - 1))} disabled={sessionPage === 1}>&larr; Prev</button>
+                    <span>Page {sessionPage} of {totalSessionPages}</span>
+                    <button onClick={() => setSessionPage(p => Math.min(totalSessionPages, p + 1))} disabled={sessionPage === totalSessionPages}>Next &rarr;</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: BLOG RECAPS MANAGER */}
+          {activeTab === 'blog' && (
+            <div>
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Blog & Session Recaps Manager</h2>
+                  <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
+                    Publish and manage session recaps, articles, and movement updates.
+                  </p>
+                </div>
+              </div>
+
+              {/* Add / Edit Blog Form */}
+              <div className="admin-box" style={{ marginBottom: '24px' }}>
+                <div className="admin-box-title">Publish New Recap / Article</div>
+                <form onSubmit={handleBlogSubmit}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Article Title *</label>
+                      <input type="text" name="title" className="form-input" required placeholder="e.g. Highlights from Session #4" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Author *</label>
+                      <input type="text" name="author" className="form-input" required defaultValue="Intellect Circle Editorial" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Date *</label>
+                      <input type="date" name="date" className="form-input" required defaultValue={new Date().toISOString().split('T')[0]} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Category</label>
+                      <input type="text" name="category" className="form-input" defaultValue="Session Recap" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Cover Image URL</label>
+                      <div className="media-input-group">
+                        <input type="text" id="blog_image_input" name="image" className="form-input" placeholder="https://..." />
+                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('blog_image_input').value = url; })} className="btn-select-media">Library</button>
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Short Excerpt *</label>
+                      <textarea name="excerpt" className="form-input" rows="2" required placeholder="Brief preview text for cards..." />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Full Article Content *</label>
+                      <textarea name="content" className="form-input" rows="6" required placeholder="Full markdown or plain text article..." />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
+                    Publish Recap
+                  </button>
+                </form>
+              </div>
+
+              {/* Blog Table */}
+              <div className="admin-box">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div className="admin-box-title" style={{ margin: 0 }}>Published Recaps ({blog.length})</div>
+                  <input 
+                    type="text" 
+                    placeholder="Search recaps or authors..." 
+                    className="form-input" 
+                    style={{ maxWidth: '280px' }}
+                    value={blogSearch} 
+                    onChange={e => { setBlogSearch(e.target.value); setBlogPage(1); }} 
+                  />
+                </div>
+
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Category</th>
+                        <th>Date</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedBlogs.map(b => (
+                        <tr key={b.id}>
+                          <td><strong>{b.title}</strong></td>
+                          <td>{b.author}</td>
+                          <td><span className="log-action-badge">{b.category || 'Recap'}</span></td>
+                          <td>{b.date}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredBlogs.length === 0 && (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>
+                            No recaps found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {totalBlogPages > 1 && (
+                  <div className="pagination" style={{ marginTop: '16px' }}>
+                    <button onClick={() => setBlogPage(p => Math.max(1, p - 1))} disabled={blogPage === 1}>&larr; Prev</button>
+                    <span>Page {blogPage} of {totalBlogPages}</span>
+                    <button onClick={() => setBlogPage(p => Math.min(totalBlogPages, p + 1))} disabled={blogPage === totalBlogPages}>Next &rarr;</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: HIERARCHY & TEAM MANAGER */}
+          {activeTab === 'team' && (
+            <div>
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Hierarchy & Team Manager</h2>
+                  <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
+                    Manage leadership team profiles, roles, and hierarchy order.
+                  </p>
+                </div>
+              </div>
+
+              {/* Add / Edit Team Member Form */}
+              <div className="admin-box" style={{ marginBottom: '24px' }}>
+                <div className="admin-box-title">Add Leadership Member</div>
+                <form onSubmit={handleMemberSubmit}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <div className="form-group">
+                      <label className="form-label">Full Name *</label>
+                      <input type="text" name="name" className="form-input" required placeholder="e.g. Ahmad Yasin" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Role / Title *</label>
+                      <input type="text" name="role" className="form-input" required placeholder="e.g. Founder & President" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Photo URL</label>
+                      <div className="media-input-group">
+                        <input type="text" id="member_photo_input" name="photoUrl" className="form-input" placeholder="https://..." />
+                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('member_photo_input').value = url; })} className="btn-select-media">Library</button>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Hierarchy Order</label>
+                      <input type="number" name="order" className="form-input" defaultValue={team.length + 1} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Bio / Profile Summary</label>
+                      <textarea name="bio" className="form-input" rows="3" placeholder="Brief background summary..." />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
+                    Add Team Member
+                  </button>
+                </form>
+              </div>
+
+              {/* Team Members List */}
+              <div className="admin-box">
+                <div className="admin-box-title">Current Leadership ({team.length})</div>
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Member</th>
+                        <th>Role</th>
+                        <th>Bio</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {team.map(m => (
+                        <tr key={m.id}>
+                          <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {m.photoUrl ? (
+                              <img src={m.photoUrl} alt={m.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                            ) : (
+                              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--accent-color)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                                {m.name ? m.name.charAt(0) : 'M'}
+                              </div>
+                            )}
+                            <strong>{m.name}</strong>
+                          </td>
+                          <td><span className="log-action-badge">{m.role}</span></td>
+                          <td><span style={{ fontSize: '0.85rem', color: '#64748b' }}>{m.bio ? m.bio.slice(0, 60) + '...' : 'No bio'}</span></td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button onClick={() => handleDeleteMember(m.id)} className="btn-table delete">Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {team.length === 0 && (
+                        <tr>
+                          <td colSpan="4" style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>
+                            No team members configured yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: STATS & VALUES MANAGER */}
+          {activeTab === 'stats' && (
+            <form onSubmit={handleStatsSave}>
+              <div className="admin-panel-header">
+                <h2>Stats & Core Movement Values</h2>
+                <button type="submit" className="btn btn-accent">Save Stats & Values</button>
+              </div>
+
+              <div className="admin-section-grid">
+                <div className="admin-box">
+                  <div className="admin-box-title">Movement Statistics</div>
+                  <div className="form-group">
+                    <label className="form-label">Youth Reached</label>
+                    <input type="text" name="stat_youth" className="form-input" defaultValue={data.stats?.youthReached || '5,000+'} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Sessions Conducted</label>
+                    <input type="text" name="stat_sessions" className="form-input" defaultValue={data.stats?.sessionsConducted || '50+'} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Active Cities / Chapters</label>
+                    <input type="text" name="stat_chapters" className="form-input" defaultValue={data.stats?.activeChapters || '12+'} />
+                  </div>
+                </div>
+
+                <div className="admin-box">
+                  <div className="admin-box-title">Core Principles & Values</div>
+                  <div className="form-group">
+                    <label className="form-label">Value 1: Intellect First</label>
+                    <input type="text" name="val_1" className="form-input" defaultValue={data.values?.[0] || 'Grassroots Intellectual Dialogue'} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Value 2: Peer Mentorship</label>
+                    <input type="text" name="val_2" className="form-input" defaultValue={data.values?.[1] || 'Peer-to-Peer Knowledge Sharing'} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Value 3: Open Access</label>
+                    <input type="text" name="val_3" className="form-input" defaultValue={data.values?.[2] || 'Inclusive Youth Leadership'} />
+                  </div>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {/* TAB: CONTACT & SOCIAL INFO */}
+          {activeTab === 'contact' && (
+            <form onSubmit={handleContactSave}>
+              <div className="admin-panel-header">
+                <h2>Contact & Social Media Information</h2>
+                <button type="submit" className="btn btn-accent">Save Contact Details</button>
+              </div>
+
+              <div className="admin-section-grid">
+                <div className="admin-box">
+                  <div className="admin-box-title">Direct Contact Channels</div>
+                  <div className="form-group">
+                    <label className="form-label">Official Email Address</label>
+                    <input type="email" name="email" className="form-input" defaultValue={contact.email || 'info@intellectcircle.org'} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Official Phone / WhatsApp</label>
+                    <input type="text" name="phone" className="form-input" defaultValue={contact.phone || '+92 300 1234567'} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Headquarters / Location</label>
+                    <input type="text" name="location" className="form-input" defaultValue={contact.location || 'Pakistan'} />
+                  </div>
+                </div>
+
+                <div className="admin-box">
+                  <div className="admin-box-title">Social Media Links</div>
+                  <div className="form-group">
+                    <label className="form-label">Instagram Profile URL</label>
+                    <input type="url" name="instagram" className="form-input" defaultValue={contact.instagram} placeholder="https://instagram.com/intellectcircle" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">LinkedIn Page URL</label>
+                    <input type="url" name="linkedin" className="form-input" defaultValue={contact.linkedin} placeholder="https://linkedin.com/company/intellectcircle" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Twitter / X Handle URL</label>
+                    <input type="url" name="twitter" className="form-input" defaultValue={contact.twitter} placeholder="https://x.com/intellectcircle" />
+                  </div>
+                </div>
+              </div>
+            </form>
           )}
 
           {/* TAB: SEO SETTINGS */}
