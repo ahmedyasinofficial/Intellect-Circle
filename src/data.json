@@ -162,6 +162,69 @@
         }
       ]
     },
+    "pillars": {
+      "title": "Pillars of Intellect Circle",
+      "items": [
+        {
+          "id": "pillar-1",
+          "name": "Knowledge Sessions",
+          "description": "Bi-weekly structured talks where members share expertise from their domain in a focused 60-minute format.",
+          "status": "Live"
+        },
+        {
+          "id": "pillar-2",
+          "name": "Skill Development",
+          "description": "Workshops and micro-sessions targeting public speaking, research writing, and critical reasoning.",
+          "status": "Live"
+        },
+        {
+          "id": "pillar-3",
+          "name": "Volunteer Projects",
+          "description": "Community-driven initiatives where members apply knowledge to create real-world impact.",
+          "status": "Coming Soon"
+        },
+        {
+          "id": "pillar-4",
+          "name": "Problem Solving Group",
+          "description": "Collaborative problem-solving sessions that tackle complex, multi-disciplinary challenges.",
+          "status": "Coming Soon"
+        },
+        {
+          "id": "pillar-5",
+          "name": "Physical Activities & Sports",
+          "description": "Promoting holistic development through team sports and outdoor activities alongside intellectual growth.",
+          "status": "Coming Soon"
+        },
+        {
+          "id": "pillar-6",
+          "name": "Voice of Youth",
+          "description": "A platform for members to advocate on societal issues, publish opinion pieces, and engage in public discourse.",
+          "status": "Coming Soon"
+        }
+      ]
+    },
+    "geographicModel": {
+      "title": "Geographic Model",
+      "description": "Intellect Circle is expanding its structured learning model city by city across Pakistan — starting in Lahore and growing outward.",
+      "levels": [
+        {
+          "label": "Lahore (Flagship)",
+          "active": true
+        },
+        {
+          "label": "Islamabad",
+          "active": false
+        },
+        {
+          "label": "Karachi",
+          "active": false
+        },
+        {
+          "label": "National Network",
+          "active": false
+        }
+      ]
+    },
     "ctaSection": {
       "headline": "Ready to expand your intellectual horizons?",
       "subheadline": "Applications are open for our upcoming cohort.",
@@ -409,6 +472,13 @@
     "address": "Pakistan"
   },
   "activity_logs": [
+    {
+      "id": "log-1786127966087",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-08-07T18:39:26.087Z"
+    },
     {
       "id": "log-1785701650545",
       "user_email": "admin@intellectcircle.com",

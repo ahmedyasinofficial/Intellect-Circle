@@ -107,6 +107,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '' });
   const [memberForm, setMemberForm] = useState({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
 
+  // Pillars & Geographic Model State
+  const [pillarItems, setPillarItems] = useState(() => (home.pillars?.items || []));
+  const [pillarTitle, setPillarTitle] = useState(() => (home.pillars?.title || 'Pillars of Intellect Circle'));
+  const [geoLevels, setGeoLevels] = useState(() => (home.geographicModel?.levels || []));
+  const [geoTitle, setGeoTitle] = useState(() => (home.geographicModel?.title || 'Geographic Model'));
+  const [geoDescription, setGeoDescription] = useState(() => (home.geographicModel?.description || ''));
+
   // Notifications / Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -336,6 +343,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           title: fd.get('aboutTeaserTitle'),
           subtitle: fd.get('aboutTeaserSubtitle'),
           columns: data.home.aboutTeaser?.columns || []
+        },
+        pillars: {
+          title: pillarTitle,
+          items: pillarItems
+        },
+        geographicModel: {
+          title: geoTitle,
+          description: geoDescription,
+          levels: geoLevels
         }
       }
     };
@@ -1712,10 +1728,101 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   <div className="form-group">
                     <label className="form-label">CTA Button Text</label>
                     <input type="text" name="ctaButtonLabel" className="form-input" defaultValue={home.ctaSection?.buttonLabel} />
-                  </div>
+                 </div>
+               </div>
+
+               {/* ── Pillars of Intellect Circle ── */}
+              <div className="admin-box" style={{ gridColumn: '1 / -1' }}>
+                <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Pillars of Intellect Circle</span>
+                  <button type="button" className="btn btn-accent" style={{ fontSize: '13px', padding: '6px 14px' }}
+                    onClick={() => {
+                      const newId = `pillar-${Date.now()}`;
+                      setPillarItems(prev => [...prev, { id: newId, name: 'New Pillar', description: '', status: 'Coming Soon' }]);
+                    }}>
+                    + Add Pillar
+                  </button>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Section Title</label>
+                  <input type="text" className="form-input" value={pillarTitle} onChange={e => setPillarTitle(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                  {pillarItems.map((pillar, idx) => (
+                    <div key={pillar.id} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
+                        <button type="button" title="Move Up" onClick={() => setPillarItems(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>▲</button>
+                        <button type="button" title="Move Down" onClick={() => setPillarItems(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>▼</button>
+                      </div>
+                      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label">Name</label>
+                          <input type="text" className="form-input" value={pillar.name}
+                            onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))} />
+                        </div>
+                        <div className="form-group" style={{ margin: 0 }}>
+                          <label className="form-label">Status</label>
+                          <select className="form-input" value={pillar.status}
+                            onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, status: e.target.value } : p))}>
+                            <option value="Live">Live</option>
+                            <option value="Coming Soon">Coming Soon</option>
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                          <label className="form-label">Description</label>
+                          <textarea className="form-input" rows={2} value={pillar.description}
+                            onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, description: e.target.value } : p))} />
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setPillarItems(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>✕</button>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </form>
+
+              {/* ── Geographic Model ── */}
+              <div className="admin-box" style={{ gridColumn: '1 / -1' }}>
+                <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Geographic Model</span>
+                  <button type="button" className="btn btn-accent" style={{ fontSize: '13px', padding: '6px 14px' }}
+                    onClick={() => setGeoLevels(prev => [...prev, { label: 'New City', active: false }])}>
+                    + Add Level
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Section Title</label>
+                    <input type="text" className="form-input" value={geoTitle} onChange={e => setGeoTitle(e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                    <label className="form-label">Section Description</label>
+                    <textarea className="form-input" rows={2} value={geoDescription} onChange={e => setGeoDescription(e.target.value)} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {geoLevels.map((level, idx) => (
+                    <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '12px 14px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <button type="button" title="Move Up" onClick={() => setGeoLevels(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>▲</button>
+                        <button type="button" title="Move Down" onClick={() => setGeoLevels(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>▼</button>
+                      </div>
+                      <input type="text" className="form-input" style={{ flex: 1 }} value={level.label}
+                        onChange={e => setGeoLevels(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={level.active}
+                          onChange={e => setGeoLevels(prev => prev.map((l, i) => i === idx ? { ...l, active: e.target.checked } : l))} />
+                        Active
+                      </label>
+                      <button type="button" onClick={() => setGeoLevels(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </form>
           )}
 
           {/* TAB: STATS & VALUES */}
