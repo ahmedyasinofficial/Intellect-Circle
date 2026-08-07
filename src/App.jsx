@@ -375,6 +375,7 @@ function App() {
             onLogin={handleAdminLogin}
             onLogout={handleAdminLogout}
             refreshData={refreshData}
+            navigateTo={navigateTo}
           />
         );
       case 'verify':

@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { exportToCSV } from '../utils/exportData';
+import { exportToCSV, exportToExcel } from '../utils/exportData';
 import MediaLibrary from '../components/MediaLibrary';
 import { 
   OverviewIcon, CopyIcon, StatsIcon, CalendarIcon, BlogIcon, 
   TeamIcon, SubsIcon, MediaIcon, SEOIcon, LogsIcon, 
   KeysIcon, TrashIcon, EditIcon, PlusIcon, ArrowUpIcon, 
   ArrowDownIcon, LogOutIcon, InfoIcon, DownloadIcon, UploadIcon,
-  CertificateIcon 
+  CertificateIcon, SparklesIcon, BookOpenIcon, MegaphoneIcon, 
+  LayersIcon, GlobeIcon, MapPinIcon, FileSpreadsheetIcon, MailIcon, ExternalLinkIcon
 } from '../components/Icons';
 
-function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLogout, refreshData }) {
+function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLogout, refreshData, navigateTo = () => (window.location.hash = '#/') }) {
   const admin = data.admin || {};
   const team = data.team || [];
   const sessions = data.sessions || [];
@@ -31,10 +32,34 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   // Live submissions state
   const [submissions, setSubmissions] = useState({ applications: [], contacts: [] });
   const [subsLoading, setSubsLoading] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [subStatusFilter, setSubStatusFilter] = useState('all');
+  const [subSort, setSubSort] = useState('newest');
 
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState({ pageViews: 0, uniqueVisitors: 0, chartData: [] });
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Control Room Navigation & Sidebar State
+  const [activeTab, setActiveTab] = useState('overview');
+  const [websiteSubTab, setWebsiteSubTab] = useState('hero'); // 'hero' | 'about' | 'cta' | 'pillars' | 'geographic'
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('ic_admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(prev => {
+      const nextState = !prev;
+      try {
+        localStorage.setItem('ic_admin_sidebar_collapsed', String(nextState));
+      } catch {}
+      return nextState;
+    });
+  };
 
   // Certificates state
   const [certificates, setCertificates] = useState([]);
@@ -54,9 +79,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     cert_id_x: 3120, cert_id_y: 2280, cert_id_size: 10,
   });
   const [certLayoutSaving, setCertLayoutSaving] = useState(false);
-
-  // Tab State
-  const [activeTab, setActiveTab] = useState('overview');
 
   // Database Schema Status state
   const [dbStatus, setDbStatus] = useState('loading');
@@ -1436,14 +1458,21 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     fetchSubmissionsAndLogs();
   };
 
-  // CSV Export trigger
-  const handleExportClick = () => {
-    if (subsTab === 'applications') {
-      exportToCSV(submissions.applications, 'Intellect_Circle_Membership_Applications');
-    } else {
-      exportToCSV(submissions.contacts, 'Intellect_Circle_Contact_Queries');
-    }
+  // CSV / Excel Export triggers
+  const handleExportCSVClick = () => {
+    const list = subsTab === 'applications' ? submissions.applications : submissions.contacts;
+    const filename = subsTab === 'applications' ? 'Intellect_Circle_Membership_Applications' : 'Intellect_Circle_Contact_Queries';
+    exportToCSV(list, filename, false);
   };
+
+  const handleExportExcelClick = () => {
+    const list = subsTab === 'applications' ? submissions.applications : submissions.contacts;
+    const filename = subsTab === 'applications' ? 'Intellect_Circle_Membership_Applications' : 'Intellect_Circle_Contact_Queries';
+    exportToExcel(list, filename);
+  };
+
+  // Legacy fallback
+  const handleExportClick = handleExportCSVClick;
 
   // Unauthenticated Login view
   if (!isLoggedIn) {
@@ -1512,16 +1541,31 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   // Filtered submissions
   const activeSubs = subsTab === 'applications' ? submissions.applications : submissions.contacts;
-  const filteredSubs = activeSubs.filter(sub => 
-    sub.name.toLowerCase().includes(subsSearch.toLowerCase()) || 
-    sub.email?.toLowerCase().includes(subsSearch.toLowerCase()) ||
-    (sub.message && sub.message.toLowerCase().includes(subsSearch.toLowerCase()))
-  );
+  let filteredSubs = activeSubs.filter(sub => {
+    const term = subsSearch.toLowerCase();
+    return !term || 
+      (sub.name && sub.name.toLowerCase().includes(term)) || 
+      (sub.email && sub.email.toLowerCase().includes(term)) ||
+      (sub.city && sub.city.toLowerCase().includes(term)) ||
+      (sub.occupation && sub.occupation.toLowerCase().includes(term)) ||
+      (sub.message && sub.message.toLowerCase().includes(term));
+  });
+
+  filteredSubs = [...filteredSubs].sort((a, b) => {
+    if (subSort === 'oldest') {
+      return new Date(a.submittedAt || 0) - new Date(b.submittedAt || 0);
+    } else if (subSort === 'name') {
+      return (a.name || '').localeCompare(b.name || '');
+    } else { // newest
+      return new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0);
+    }
+  });
+
   const paginatedSubs = filteredSubs.slice((subsPage - 1) * itemsPerPage, subsPage * itemsPerPage);
   const totalSubsPages = Math.ceil(filteredSubs.length / itemsPerPage);
 
   return (
-    <div className="container" style={{ padding: '40px 0' }}>
+    <div className="admin-control-room-wrapper" style={{ padding: '30px 0' }}>
       
       {/* Toast Alert */}
       {notification && (
@@ -1531,551 +1575,546 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       )}
 
       {/* Header bar */}
-      <div className="admin-header-bar">
+      <div className="admin-header-bar" style={{ marginBottom: '24px' }}>
         <div>
-          <h2>IC Control Room</h2>
-          <span className="user-email-badge">Role: Admin ({userEmail || 'Local Development'})</span>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ background: 'var(--accent-color, #c9a84c)', color: '#1b2838', fontSize: '0.78rem', padding: '4px 10px', borderRadius: '6px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#1b2838' }}></span>
+              IC Control Room
+            </span>
+            <span style={{ fontWeight: '700' }}>Intellect Circle Admin</span>
+          </h2>
+          <span className="user-email-badge">Role: Administrator ({userEmail || 'Local Dev Environment'})</span>
         </div>
-        <button onClick={handleLogoutClick} className="btn btn-outline" style={{ padding: '8px 20px' }}>
-          Sign Out
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={() => navigateTo('home')} className="btn btn-outline-gold" style={{ padding: '8px 16px', fontSize: '0.86rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <ExternalLinkIcon style={{ width: '15px', height: '15px' }} /> Public Site
+          </button>
+          <button onClick={handleLogoutClick} className="btn btn-outline" style={{ padding: '8px 18px', fontSize: '0.86rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <LogOutIcon style={{ width: '15px', height: '15px' }} /> Sign Out
+          </button>
+        </div>
       </div>
 
-      <div className="admin-layout">
+      <div className="admin-control-room-layout">
         
-        {/* Sidebar Menu */}
-        <aside className="admin-sidebar">
-          <button className={`admin-tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
-            <OverviewIcon /> Overview
+        {/* Collapsible Left Sidebar */}
+        <aside className={`admin-control-room-sidebar ${isSidebarCollapsed ? 'collapsed' : 'expanded'}`}>
+          
+          {/* Sidebar Brand Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px 14px 8px', borderBottom: '1px solid #1e293b', marginBottom: '14px' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--accent-color, #c9a84c)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.9rem', flexShrink: 0 }}>
+              IC
+            </div>
+            {!isSidebarCollapsed && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ color: '#ffffff', fontWeight: '700', fontSize: '0.95rem', lineHeight: 1.2 }}>Intellect Circle</span>
+                <span style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: '500' }}>Control Room</span>
+              </div>
+            )}
+          </div>
+
+          <button 
+            type="button" 
+            className="sidebar-toggle-btn" 
+            onClick={toggleSidebar} 
+            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isSidebarCollapsed ? '❯' : '❮ Collapse Menu'}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'text' ? 'active' : ''}`} onClick={() => setActiveTab('text')}>
-            <CopyIcon /> General Copy
+
+          {/* OVERVIEW CATEGORY */}
+          {!isSidebarCollapsed && <div className="sidebar-category-header">Overview</div>}
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'overview' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('overview')}
+            title="Dashboard Overview"
+          >
+            <OverviewIcon />
+            {!isSidebarCollapsed && <span>Dashboard</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>
-            <StatsIcon /> Stats & Values
+
+          {/* CONTENT CATEGORY */}
+          {!isSidebarCollapsed && <div className="sidebar-category-header">Content</div>}
+          <button 
+            className={`sidebar-item-btn ${(activeTab === 'content_website' || activeTab === 'text') ? 'active' : ''}`} 
+            onClick={() => setActiveTab('content_website')}
+            title="Website Content Manager"
+          >
+            <CopyIcon />
+            {!isSidebarCollapsed && <span>Website Content</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'contact' ? 'active' : ''}`} onClick={() => setActiveTab('contact')}>
-            <InfoIcon /> Contact & Socials
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'media' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('media')}
+            title="Media Library"
+          >
+            <MediaIcon />
+            {!isSidebarCollapsed && <span>Media Library</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'sessions' ? 'active' : ''}`} onClick={() => setActiveTab('sessions')}>
-            <CalendarIcon /> Sessions ({sessions.length})
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'seo' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('seo')}
+            title="SEO Settings"
+          >
+            <SEOIcon />
+            {!isSidebarCollapsed && <span>SEO Settings</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'blog' ? 'active' : ''}`} onClick={() => setActiveTab('blog')}>
-            <BlogIcon /> Recap Blogs ({blog.length})
+
+          {/* COMMUNITY CATEGORY */}
+          {!isSidebarCollapsed && <div className="sidebar-category-header">Community</div>}
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'subs' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('subs')}
+            title="Submissions Manager"
+          >
+            <SubsIcon />
+            {!isSidebarCollapsed && (
+              <>
+                <span>Submissions</span>
+                <span className="sidebar-badge">{submissions.applications.length + submissions.contacts.length}</span>
+              </>
+            )}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'team' ? 'active' : ''}`} onClick={() => setActiveTab('team')}>
-            <TeamIcon /> Hierarchy ({team.length})
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'sessions' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('sessions')}
+            title="Sessions"
+          >
+            <CalendarIcon />
+            {!isSidebarCollapsed && (
+              <>
+                <span>Sessions</span>
+                <span className="sidebar-badge">{sessions.length}</span>
+              </>
+            )}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'subs' ? 'active' : ''}`} onClick={() => setActiveTab('subs')}>
-            <SubsIcon /> Submissions ({submissions.applications.length + submissions.contacts.length})
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'blog' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('blog')}
+            title="Recap Blogs"
+          >
+            <BlogIcon />
+            {!isSidebarCollapsed && <span>Recaps ({blog.length})</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'media' ? 'active' : ''}`} onClick={() => setShowMediaLibrary(true)}>
-            <MediaIcon /> Media Library
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'team' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('team')}
+            title="Hierarchy / Team"
+          >
+            <TeamIcon />
+            {!isSidebarCollapsed && <span>Hierarchy ({team.length})</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'seo' ? 'active' : ''}`} onClick={() => setActiveTab('seo')}>
-            <SEOIcon /> SEO Settings
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'certificates' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('certificates')}
+            title="Certificates"
+          >
+            <CertificateIcon />
+            {!isSidebarCollapsed && <span>Certificates</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>
-            <LogsIcon /> Activity Logs
+
+          {/* ANALYTICS CATEGORY */}
+          {!isSidebarCollapsed && <div className="sidebar-category-header">Analytics</div>}
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'stats' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('stats')}
+            title="Stats & Values"
+          >
+            <StatsIcon />
+            {!isSidebarCollapsed && <span>Stats & Values</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => setActiveTab('certificates')}>
-            <CertificateIcon /> Certificates
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'logs' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('logs')}
+            title="Activity Logs"
+          >
+            <LogsIcon />
+            {!isSidebarCollapsed && <span>Activity Logs</span>}
           </button>
-          <button className={`admin-tab-btn ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>
-            <KeysIcon /> API Keys
+
+          {/* SETTINGS CATEGORY */}
+          {!isSidebarCollapsed && <div className="sidebar-category-header">Settings</div>}
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'contact' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('contact')}
+            title="Contact & Social"
+          >
+            <InfoIcon />
+            {!isSidebarCollapsed && <span>Contact & Social</span>}
+          </button>
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'system' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('system')}
+            title="API Keys / System"
+          >
+            <KeysIcon />
+            {!isSidebarCollapsed && <span>API Keys</span>}
           </button>
         </aside>
 
-        {/* Main Panel */}
-        <main className="admin-content-panel">
+        {/* Main Control Room Content Panel */}
+        <main className="admin-control-room-content">
 
-          {/* TAB: OVERVIEW */}
+          {/* TAB: OVERVIEW DASHBOARD */}
           {activeTab === 'overview' && (
             <div>
               <div className="admin-panel-header">
                 <h2>Operational Overview</h2>
+                <span style={{ fontSize: '0.88rem', color: '#718096' }}>Intellect Circle Live Monitoring</span>
               </div>
 
-              {/* Stat Cards Grid */}
-              <div className="overview-cards-grid">
-                <div className="overview-card">
-                  <div className="card-label">Total Applications</div>
-                  <div className="card-value">{submissions.applications.length}</div>
-                  <span className="card-trend">Registered in Supabase</span>
-                </div>
-                <div className="overview-card">
-                  <div className="card-label">Total Sessions</div>
-                  <div className="card-value">{sessions.length}</div>
-                  <span className="card-trend">
-                    {sessions.filter(s => s.status === 'upcoming').length} scheduled upcoming
-                  </span>
-                </div>
-                <div className="overview-card">
-                  <div className="card-label">Team Members</div>
-                  <div className="card-value">{team.length}</div>
-                  <span className="card-trend">Active members</span>
-                </div>
-                <div className="overview-card">
-                  <div className="card-label">Page Views</div>
-                  <div className="card-value">{analyticsLoading ? '...' : analyticsData.pageViews.toLocaleString()}</div>
-                  <span className="card-trend">Total recorded views</span>
-                </div>
-                <div className="overview-card">
-                  <div className="card-label">Unique Visitors</div>
-                  <div className="card-value">{analyticsLoading ? '...' : analyticsData.uniqueVisitors.toLocaleString()}</div>
-                  <span className="card-trend">Privacy-safe tracking</span>
-                </div>
-              </div>
-
-              {/* Overview visual layout splits */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '30px', marginTop: '40px' }}>
-                <div className="admin-box">
-                  <div className="admin-box-title">Visitor Analytics — Last 7 Days</div>
-                  <div className="analytics-chart-placeholder">
-                    <div className="chart-bars-wrap">
-                      {analyticsData.chartData.length > 0 ? (
-                        analyticsData.chartData.map((day, i) => {
-                          const maxViews = Math.max(...analyticsData.chartData.map(d => d.views), 1);
-                          const heightPct = Math.max((day.views / maxViews) * 100, 5);
-                          return <div key={i} className="chart-bar" style={{ height: `${heightPct}%` }} title={`${day.date}: ${day.views} views`}></div>;
-                        })
-                      ) : (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No analytics data yet.</p>
-                      )}
+              {/* Interactive Metric Cards Grid */}
+              <div className="overview-metric-grid">
+                <div className="overview-metric-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('subs')}>
+                  <div className="overview-metric-header">
+                    <span className="overview-metric-label">Total Applications</span>
+                    <div className="overview-metric-icon">
+                      <SubsIcon />
                     </div>
-                    <span className="chart-xaxis">
-                      {analyticsData.chartData.map(d => d.date).join(' · ')}
+                  </div>
+                  <div className="overview-metric-value">{submissions.applications.length}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span className="overview-metric-trend positive">↑ Active Cohort</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--accent-color)', fontWeight: '600' }}>Manage →</span>
+                  </div>
+                </div>
+
+                <div className="overview-metric-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('sessions')}>
+                  <div className="overview-metric-header">
+                    <span className="overview-metric-label">Sessions Held</span>
+                    <div className="overview-metric-icon">
+                      <CalendarIcon />
+                    </div>
+                  </div>
+                  <div className="overview-metric-value">{sessions.length}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span className="overview-metric-trend positive">
+                      {sessions.filter(s => s.status === 'upcoming').length} Upcoming
                     </span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--accent-color)', fontWeight: '600' }}>Schedule →</span>
                   </div>
                 </div>
 
-                <div className="admin-box">
-                  <div className="admin-box-title">Recent Activity Log</div>
-                  <div className="activity-timeline">
-                    {logsLoading ? (
-                      <p>Loading activities...</p>
-                    ) : activityLogs.slice(0, 5).map(log => (
-                      <div key={log.id} className="timeline-item">
-                        <span className="timeline-date">{new Date(log.created_at).toLocaleTimeString()}</span>
-                        <h5 className="timeline-action">{log.action}</h5>
-                        <p className="timeline-desc">{log.details}</p>
-                      </div>
-                    ))}
-                    {activityLogs.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No recent admin changes.</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: PAGES & TEXT COPY */}
-          {activeTab === 'text' && (
-            <form onSubmit={handleCopySave}>
-              <div className="admin-panel-header">
-                <h2>Pages & Copywriter</h2>
-                <button type="submit" className="btn btn-accent">Save Copy</button>
-              </div>
-
-              <div className="admin-section-grid">
-                <div className="admin-box">
-                  <div className="admin-box-title">Hero Section</div>
-                  <div className="form-group">
-                    <label className="form-label">Headline</label>
-                    <input type="text" name="homeHeadline" className="form-input" defaultValue={home.hero?.headline} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Tagline</label>
-                    <input type="text" name="homeTagline" className="form-input" defaultValue={home.hero?.tagline} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Description</label>
-                    <textarea name="homeDescription" className="form-input" style={{ minHeight: '80px' }} defaultValue={home.hero?.description} />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <div className="form-group">
-                      <label className="form-label">Apply CTA Label</label>
-                      <input type="text" name="ctaApplyLabel" className="form-input" defaultValue={home.hero?.ctaApplyLabel} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Learn CTA Label</label>
-                      <input type="text" name="ctaLearnLabel" className="form-input" defaultValue={home.hero?.ctaLearnLabel} />
+                <div className="overview-metric-card" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('team')}>
+                  <div className="overview-metric-header">
+                    <span className="overview-metric-label">Team Members</span>
+                    <div className="overview-metric-icon">
+                      <TeamIcon />
                     </div>
                   </div>
-                </div>
-
-                <div className="admin-box">
-                  <div className="admin-box-title">About Teaser Section</div>
-                  <div className="form-group">
-                    <label className="form-label">Teaser Title</label>
-                    <input type="text" name="aboutTeaserTitle" className="form-input" defaultValue={home.aboutTeaser?.title} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Teaser Subtitle</label>
-                    <textarea name="aboutTeaserSubtitle" className="form-input" style={{ minHeight: '80px' }} defaultValue={home.aboutTeaser?.subtitle} />
+                  <div className="overview-metric-value">{team.length}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span className="overview-metric-trend neutral">Hierarchy</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--accent-color)', fontWeight: '600' }}>View →</span>
                   </div>
                 </div>
 
-                <div className="admin-box">
-                  <div className="admin-box-title">CTA Callout Section</div>
-                  <div className="form-group">
-                    <label className="form-label">CTA Banner Headline</label>
-                    <input type="text" name="ctaHeadline" className="form-input" defaultValue={home.ctaSection?.headline} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">CTA Banner Subheadline</label>
-                    <input type="text" name="ctaSubheadline" className="form-input" defaultValue={home.ctaSection?.subheadline} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">CTA Button Text</label>
-                    <input type="text" name="ctaButtonLabel" className="form-input" defaultValue={home.ctaSection?.buttonLabel} />
-                 </div>
-               </div>
-
-               {/* ── Pillars of Intellect Circle ── */}
-              <div className="admin-box" style={{ gridColumn: '1 / -1' }}>
-                <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Pillars of Intellect Circle</span>
-                  <button type="button" className="btn btn-accent" style={{ fontSize: '13px', padding: '6px 14px' }}
-                    onClick={() => {
-                      const newId = `pillar-${Date.now()}`;
-                      setPillarItems(prev => [...prev, { id: newId, name: 'New Pillar', description: '', status: 'Coming Soon' }]);
-                    }}>
-                    + Add Pillar
-                  </button>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Section Title</label>
-                  <input type="text" className="form-input" value={pillarTitle} onChange={e => setPillarTitle(e.target.value)} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                  {pillarItems.map((pillar, idx) => (
-                    <div key={pillar.id} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
-                        <button type="button" title="Move Up" onClick={() => setPillarItems(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>▲</button>
-                        <button type="button" title="Move Down" onClick={() => setPillarItems(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>▼</button>
-                      </div>
-                      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                        <div className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label">Name</label>
-                          <input type="text" className="form-input" value={pillar.name}
-                            onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))} />
-                        </div>
-                        <div className="form-group" style={{ margin: 0 }}>
-                          <label className="form-label">Status</label>
-                          <select className="form-input" value={pillar.status}
-                            onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, status: e.target.value } : p))}>
-                            <option value="Live">Live</option>
-                            <option value="Coming Soon">Coming Soon</option>
-                          </select>
-                        </div>
-                        <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
-                          <label className="form-label">Description</label>
-                          <textarea className="form-input" rows={2} value={pillar.description}
-                            onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, description: e.target.value } : p))} />
-                        </div>
-                      </div>
-                      <button type="button" onClick={() => setPillarItems(prev => prev.filter((_, i) => i !== idx))}
-                        style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── Geographic Model ── */}
-              <div className="admin-box" style={{ gridColumn: '1 / -1' }}>
-                <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Geographic Model</span>
-                  <button type="button" className="btn btn-accent" style={{ fontSize: '13px', padding: '6px 14px' }}
-                    onClick={() => setGeoLevels(prev => [...prev, { label: 'New City', active: false }])}>
-                    + Add Level
-                  </button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Section Title</label>
-                    <input type="text" className="form-input" value={geoTitle} onChange={e => setGeoTitle(e.target.value)} />
-                  </div>
-                  <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
-                    <label className="form-label">Section Description</label>
-                    <textarea className="form-input" rows={2} value={geoDescription} onChange={e => setGeoDescription(e.target.value)} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {geoLevels.map((level, idx) => (
-                    <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '12px 14px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <button type="button" title="Move Up" onClick={() => setGeoLevels(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>▲</button>
-                        <button type="button" title="Move Down" onClick={() => setGeoLevels(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>▼</button>
-                      </div>
-                      <input type="text" className="form-input" style={{ flex: 1 }} value={level.label}
-                        onChange={e => setGeoLevels(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} />
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={level.active}
-                          onChange={e => setGeoLevels(prev => prev.map((l, i) => i === idx ? { ...l, active: e.target.checked } : l))} />
-                        Active
-                      </label>
-                      <button type="button" onClick={() => setGeoLevels(prev => prev.filter((_, i) => i !== idx))}
-                        style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px' }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </form>
-          )}
-
-          {/* TAB: STATS & VALUES */}
-          {activeTab === 'stats' && (
-            <form onSubmit={handleStatsSave}>
-              <div className="admin-panel-header">
-                <h2>Statistics & Core Numbers</h2>
-                <button type="submit" className="btn btn-accent">Save Stats</button>
-              </div>
-
-              <div className="admin-section-grid">
-                {home.stats?.map(stat => (
-                  <div className="admin-box" key={stat.id}>
-                    <div className="admin-box-title" style={{ textTransform: 'capitalize' }}>{stat.id} Counter</div>
-                    <div className="form-group">
-                      <label className="form-label">Metric Label</label>
-                      <input type="text" name={`stat${stat.id.charAt(0).toUpperCase() + stat.id.slice(1)}Label`} className="form-input" defaultValue={stat.label} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Numeric Value</label>
-                      <input type="text" name={`stat${stat.id.charAt(0).toUpperCase() + stat.id.slice(1)}Val`} className="form-input" defaultValue={stat.value} />
+                <div className="overview-metric-card">
+                  <div className="overview-metric-header">
+                    <span className="overview-metric-label">Page Views</span>
+                    <div className="overview-metric-icon">
+                      <StatsIcon />
                     </div>
                   </div>
-                ))}
-              </div>
-            </form>
-          )}
-          
-          {/* TAB: CONTACT & SOCIALS */}
-          {activeTab === 'contact' && (
-            <form onSubmit={handleContactSave}>
-              <div className="admin-panel-header">
-                <h2>Contact Info & Social Networks</h2>
-                <button type="submit" className="btn btn-accent">Save Info</button>
-              </div>
-
-              <div className="admin-section-grid">
-                <div className="admin-box">
-                  <div className="admin-box-title">Contact Channels</div>
-                  <div className="form-group">
-                    <label className="form-label">Email Address</label>
-                    <input type="email" name="contactEmail" className="form-input" defaultValue={contact.email} required />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">WhatsApp Number</label>
-                    <input type="text" name="contactWhatsApp" className="form-input" defaultValue={contact.whatsapp} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Office Address</label>
-                    <input type="text" name="contactAddress" className="form-input" defaultValue={contact.address} />
+                  <div className="overview-metric-value">{analyticsLoading ? '...' : analyticsData.pageViews.toLocaleString()}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span className="overview-metric-trend positive">Recorded</span>
                   </div>
                 </div>
 
-                <div className="admin-box">
-                  <div className="admin-box-title">Social Links</div>
-                  <div className="form-group">
-                    <label className="form-label">LinkedIn URL</label>
-                    <input type="url" name="socialLinkedIn" className="form-input" defaultValue={contact.linkedin} placeholder="https://linkedin.com/..." />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Instagram URL</label>
-                    <input type="url" name="socialInstagram" className="form-input" defaultValue={contact.instagram} placeholder="https://instagram.com/..." />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Facebook URL</label>
-                    <input type="url" name="socialFacebook" className="form-input" defaultValue={contact.facebook} placeholder="https://facebook.com/..." />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Twitter / X URL</label>
-                    <input type="url" name="socialTwitter" className="form-input" defaultValue={contact.twitter} placeholder="https://twitter.com/..." />
-                  </div>
-                </div>
-              </div>
-            </form>
-          )}
-
-
-          {/* TAB: SESSIONS */}
-          {activeTab === 'sessions' && (
-            <div>
-              <div className="admin-panel-header">
-                <h2>Sessions Manager</h2>
-                <button onClick={startAddSession} className="btn btn-accent">+ Create Session</button>
-              </div>
-
-              <div className="filter-controls-row">
-                <input
-                  type="text"
-                  placeholder="Search by topic or presenter..."
-                  value={sessionSearch}
-                  onChange={(e) => { setSessionSearch(e.target.value); setSessionPage(1); }}
-                  className="form-input"
-                  style={{ maxWidth: '300px' }}
-                />
-                <select 
-                  value={sessionFilter} 
-                  onChange={(e) => { setSessionFilter(e.target.value); setSessionPage(1); }} 
-                  className="form-input" 
-                  style={{ maxWidth: '180px' }}
-                >
-                  <option value="all">All Sessions</option>
-                  <option value="upcoming">Upcoming Only</option>
-                  <option value="completed">Completed Only</option>
-                  <option value="cancelled">Cancelled Only</option>
-                </select>
-              </div>
-
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Presenter</th>
-                    <th>Date / Time</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedSessions.map(s => (
-                    <tr key={s.id}>
-                      <td><strong>{s.title}</strong></td>
-                      <td>{s.presenter}</td>
-                      <td>{s.date} at {s.time}</td>
-                      <td>
-                        <span className={`status-badge ${s.status}`}>
-                          {s.status}
-                        </span>
-                      </td>
-                      <td>
-                        <button onClick={() => startEditSession(s)} className="btn-table edit">Edit</button>
-                        <button onClick={() => handleDeleteSession(s.id)} className="btn-table delete">Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredSessions.length === 0 && (
-                    <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No sessions found.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              {totalSessionPages > 1 && (
-                <div className="pagination">
-                  <button onClick={() => setSessionPage(p => Math.max(1, p - 1))} disabled={sessionPage === 1}>&larr; Prev</button>
-                  <span>Page {sessionPage} of {totalSessionPages}</span>
-                  <button onClick={() => setSessionPage(p => Math.min(totalSessionPages, p + 1))} disabled={sessionPage === totalSessionPages}>Next &rarr;</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB: BLOG RECAPS */}
-          {activeTab === 'blog' && (
-            <div>
-              <div className="admin-panel-header">
-                <h2>Session Recaps Manager</h2>
-                <button onClick={startAddBlog} className="btn btn-accent">+ Publish Recap</button>
-              </div>
-
-              <div className="filter-controls-row">
-                <input
-                  type="text"
-                  placeholder="Search by article title..."
-                  value={blogSearch}
-                  onChange={(e) => { setBlogSearch(e.target.value); setBlogPage(1); }}
-                  className="form-input"
-                  style={{ maxWidth: '300px' }}
-                />
-              </div>
-
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Author</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedBlogs.map(b => (
-                    <tr key={b.id}>
-                      <td><strong>{b.title}</strong></td>
-                      <td>{b.author}</td>
-                      <td>{b.date}</td>
-                      <td>
-                        <button onClick={() => startEditBlog(b)} className="btn-table edit">Edit</button>
-                        <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredBlogs.length === 0 && (
-                    <tr>
-                      <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No blog articles found.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              {totalBlogPages > 1 && (
-                <div className="pagination">
-                  <button onClick={() => setBlogPage(p => Math.max(1, p - 1))} disabled={blogPage === 1}>&larr; Prev</button>
-                  <span>Page {blogPage} of {totalBlogPages}</span>
-                  <button onClick={() => setBlogPage(p => Math.min(totalBlogPages, p + 1))} disabled={blogPage === totalBlogPages}>Next &rarr;</button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB: TEAM MEMBERS */}
-          {activeTab === 'team' && (
-            <div>
-              <div className="admin-panel-header">
-                <h2>Hierarchy</h2>
-                <button onClick={startAddMember} className="btn btn-accent">+ Add Member</button>
-              </div>
-
-              <div className="team-reorder-list">
-                {team.map((m, index) => (
-                  <div key={m.id} className="team-reorder-card">
-                    <div className="team-reorder-avatar">
-                      {m.photo ? <img src={m.photo} alt={m.name} /> : <span>{m.name.charAt(0)}</span>}
-                    </div>
-                    <div className="team-reorder-info">
-                      <h4>{m.name}</h4>
-                      <p>{m.role}</p>
-                    </div>
-                    <div className="team-reorder-actions">
-                      <button onClick={() => moveMemberOrder(index, -1)} disabled={index === 0} title="Move Up">&uarr;</button>
-                      <button onClick={() => moveMemberOrder(index, 1)} disabled={index === team.length - 1} title="Move Down">&darr;</button>
-                      <button onClick={() => startEditMember(m)} className="edit">Edit</button>
-                      <button onClick={() => handleDeleteMember(m.id)} className="delete">Remove</button>
+                <div className="overview-metric-card">
+                  <div className="overview-metric-header">
+                    <span className="overview-metric-label">Unique Visitors</span>
+                    <div className="overview-metric-icon">
+                      <OverviewIcon />
                     </div>
                   </div>
-                ))}
+                  <div className="overview-metric-value">{analyticsLoading ? '...' : analyticsData.uniqueVisitors.toLocaleString()}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span className="overview-metric-trend neutral">Privacy-Safe</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* TAB: SUBMISSIONS */}
-          {activeTab === 'subs' && (
-            <div>
-              <div className="admin-panel-header">
-                <h2>Submissions Manager</h2>
-                <button onClick={handleExportClick} className="btn btn-outline-gold">
-                  ⬇️ Export to CSV ({filteredSubs.length})
+              {/* Quick Actions Bar */}
+              <div style={{ background: 'var(--white, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>Quick Shortcuts:</span>
+                <button onClick={() => setActiveTab('content_website')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <CopyIcon style={{ width: '14px', height: '14px' }} /> Edit Copy
+                </button>
+                <button onClick={() => setActiveTab('sessions')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <CalendarIcon style={{ width: '14px', height: '14px' }} /> Schedule Session
+                </button>
+                <button onClick={() => setActiveTab('certificates')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <CertificateIcon style={{ width: '14px', height: '14px' }} /> Issue Certificates
+                </button>
+                <button onClick={() => setActiveTab('media')} className="btn btn-outline" style={{ fontSize: '0.85rem', padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <MediaIcon style={{ width: '14px', height: '14px' }} /> Media Library
                 </button>
               </div>
 
-              <div className="filter-controls-row">
+            </div>
+          )}
+
+          {/* TAB: WEBSITE CONTENT MANAGER */}
+          {(activeTab === 'content_website' || activeTab === 'text') && (
+            <div className="website-content-manager-panel">
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Website Content Manager</h2>
+                  <p style={{ color: '#718096', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
+                    Manage and update copy for public website pages independently.
+                  </p>
+                </div>
+                <button 
+                  onClick={(e) => {
+                    const form = document.getElementById('website-content-form');
+                    if (form) form.requestSubmit();
+                  }} 
+                  className="btn btn-accent"
+                >
+                  Save Copy Settings
+                </button>
+              </div>
+
+              {/* Sub-Tabs Navigation Bar */}
+              <div className="website-subtab-bar">
+                <button 
+                  type="button"
+                  className={`website-subtab-btn ${websiteSubTab === 'hero' ? 'active' : ''}`}
+                  onClick={() => setWebsiteSubTab('hero')}
+                >
+                  <SparklesIcon style={{ width: '15px', height: '15px' }} /> Hero Sections
+                </button>
+                <button 
+                  type="button"
+                  className={`website-subtab-btn ${websiteSubTab === 'about' ? 'active' : ''}`}
+                  onClick={() => setWebsiteSubTab('about')}
+                >
+                  <BookOpenIcon style={{ width: '15px', height: '15px' }} /> About Sections
+                </button>
+                <button 
+                  type="button"
+                  className={`website-subtab-btn ${websiteSubTab === 'cta' ? 'active' : ''}`}
+                  onClick={() => setWebsiteSubTab('cta')}
+                >
+                  <MegaphoneIcon style={{ width: '15px', height: '15px' }} /> CTA Sections
+                </button>
+                <button 
+                  type="button"
+                  className={`website-subtab-btn ${websiteSubTab === 'pillars' ? 'active' : ''}`}
+                  onClick={() => setWebsiteSubTab('pillars')}
+                >
+                  <LayersIcon style={{ width: '15px', height: '15px' }} /> Pillars of IC
+                </button>
+                <button 
+                  type="button"
+                  className={`website-subtab-btn ${websiteSubTab === 'geographic' ? 'active' : ''}`}
+                  onClick={() => setWebsiteSubTab('geographic')}
+                >
+                  <GlobeIcon style={{ width: '15px', height: '15px' }} /> Geographic Model
+                </button>
+              </div>
+
+              <form id="website-content-form" onSubmit={handleCopySave}>
+                
+                {/* Sub-Tab 1: Hero Sections */}
+                {websiteSubTab === 'hero' && (
+                  <div className="admin-box">
+                    <div className="admin-box-title">Homepage Hero Section</div>
+                    <div className="form-group">
+                      <label className="form-label">Headline</label>
+                      <input type="text" name="homeHeadline" className="form-input" defaultValue={home.hero?.headline} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Tagline</label>
+                      <input type="text" name="homeTagline" className="form-input" defaultValue={home.hero?.tagline} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Description</label>
+                      <textarea name="homeDescription" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.hero?.description} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Apply CTA Button Label</label>
+                        <input type="text" name="ctaApplyLabel" className="form-input" defaultValue={home.hero?.ctaApplyLabel} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Learn CTA Button Label</label>
+                        <input type="text" name="ctaLearnLabel" className="form-input" defaultValue={home.hero?.ctaLearnLabel} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-Tab 2: About Sections */}
+                {websiteSubTab === 'about' && (
+                  <div className="admin-box">
+                    <div className="admin-box-title">About Teaser Section</div>
+                    <div className="form-group">
+                      <label className="form-label">Teaser Title</label>
+                      <input type="text" name="aboutTeaserTitle" className="form-input" defaultValue={home.aboutTeaser?.title} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Teaser Subtitle</label>
+                      <textarea name="aboutTeaserSubtitle" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser?.subtitle} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-Tab 3: CTA Sections */}
+                {websiteSubTab === 'cta' && (
+                  <div className="admin-box">
+                    <div className="admin-box-title">CTA Callout Banner</div>
+                    <div className="form-group">
+                      <label className="form-label">CTA Banner Headline</label>
+                      <input type="text" name="ctaHeadline" className="form-input" defaultValue={home.ctaSection?.headline} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">CTA Banner Subheadline</label>
+                      <input type="text" name="ctaSubheadline" className="form-input" defaultValue={home.ctaSection?.subheadline} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">CTA Button Text</label>
+                      <input type="text" name="ctaButtonLabel" className="form-input" defaultValue={home.ctaSection?.buttonLabel} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-Tab 4: Pillars of Intellect Circle */}
+                {websiteSubTab === 'pillars' && (
+                  <div className="admin-box">
+                    <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Pillars of Intellect Circle</span>
+                      <button 
+                        type="button" 
+                        className="btn btn-accent" 
+                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                        onClick={() => {
+                          const newId = `pillar-${Date.now()}`;
+                          setPillarItems(prev => [...prev, { id: newId, name: 'New Pillar', description: '', status: 'Coming Soon' }]);
+                        }}
+                      >
+                        + Add Pillar Card
+                      </button>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Section Title</label>
+                      <input type="text" className="form-input" value={pillarTitle} onChange={e => setPillarTitle(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px' }}>
+                      {pillarItems.map((pillar, idx) => (
+                        <div key={pillar.id} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
+                            <button type="button" title="Move Up" onClick={() => setPillarItems(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>▲</button>
+                            <button type="button" title="Move Down" onClick={() => setPillarItems(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>▼</button>
+                          </div>
+                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">Pillar Name</label>
+                              <input type="text" className="form-input" value={pillar.name}
+                                onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))} />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">Status Badge</label>
+                              <select className="form-input" value={pillar.status}
+                                onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, status: e.target.value } : p))}>
+                                <option value="Live">Live</option>
+                                <option value="Coming Soon">Coming Soon</option>
+                              </select>
+                            </div>
+                            <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                              <label className="form-label">Description</label>
+                              <textarea className="form-input" rows={2} value={pillar.description}
+                                onChange={e => setPillarItems(prev => prev.map((p, i) => i === idx ? { ...p, description: e.target.value } : p))} />
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setPillarItems(prev => prev.filter((_, i) => i !== idx))}
+                            style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-Tab 5: Geographical Model */}
+                {websiteSubTab === 'geographic' && (
+                  <div className="admin-box">
+                    <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Geographical Expansion Model</span>
+                      <button 
+                        type="button" 
+                        className="btn btn-accent" 
+                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                        onClick={() => setGeoLevels(prev => [...prev, { label: 'New City', active: false }])}
+                      >
+                        + Add City Level
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label className="form-label">Section Title</label>
+                        <input type="text" className="form-input" value={geoTitle} onChange={e => setGeoTitle(e.target.value)} />
+                      </div>
+                      <div className="form-group" style={{ margin: 0, gridColumn: '1 / -1' }}>
+                        <label className="form-label">Section Description</label>
+                        <textarea className="form-input" rows={2} value={geoDescription} onChange={e => setGeoDescription(e.target.value)} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {geoLevels.map((level, idx) => (
+                        <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '12px 14px', display: 'flex', gap: '12px', alignItems: 'center', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <button type="button" title="Move Up" onClick={() => setGeoLevels(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>▲</button>
+                            <button type="button" title="Move Down" onClick={() => setGeoLevels(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>▼</button>
+                          </div>
+                          <input type="text" className="form-input" style={{ flex: 1 }} value={level.label}
+                            onChange={e => setGeoLevels(prev => prev.map((l, i) => i === idx ? { ...l, label: e.target.value } : l))} />
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                            <input type="checkbox" checked={level.active}
+                              onChange={e => setGeoLevels(prev => prev.map((l, i) => i === idx ? { ...l, active: e.target.checked } : l))} />
+                            Active Flagship
+                          </label>
+                          <button type="button" onClick={() => setGeoLevels(prev => prev.filter((_, i) => i !== idx))}
+                            style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </form>
+            </div>
+          )}
+
+          {/* TAB: MEDIA LIBRARY */}
+          {activeTab === 'media' && (
+            <MediaLibrary isEmbedded={true} token={token} />
+          )}
+
+          {/* TAB: SUBMISSIONS MANAGER */}
+          {activeTab === 'subs' && (
+            <div>
+              <div className="admin-panel-header">
+                <div>
+                  <h2>Submissions Manager</h2>
+                  <p style={{ color: '#718096', margin: '4px 0 0 0', fontSize: '0.9rem' }}>
+                    View, filter, search, inspect profiles, and export cohort membership applications and contact inquiries.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button onClick={handleExportCSVClick} className="btn btn-outline-gold" style={{ fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <DownloadIcon style={{ width: '15px', height: '15px' }} /> Export CSV ({filteredSubs.length})
+                  </button>
+                  <button onClick={handleExportExcelClick} className="btn btn-accent" style={{ fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <FileSpreadsheetIcon style={{ width: '15px', height: '15px' }} /> Export Excel (.xlsx)
+                  </button>
+                </div>
+              </div>
+
+              {/* Submissions Control Bar */}
+              <div className="filter-controls-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div className="segmented-tabs">
                   <button className={subsTab === 'applications' ? 'active' : ''} onClick={() => { setSubsTab('applications'); setSubsPage(1); }}>
                     Applications ({submissions.applications.length})
@@ -2085,110 +2124,257 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   </button>
                 </div>
 
-                <input
-                  type="text"
-                  placeholder="Search by name, email, query..."
-                  value={subsSearch}
-                  onChange={(e) => { setSubsSearch(e.target.value); setSubsPage(1); }}
-                  className="form-input"
-                  style={{ maxWidth: '300px' }}
-                />
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
+                  <input
+                    type="text"
+                    placeholder="Search applicants, emails, cities..."
+                    value={subsSearch}
+                    onChange={(e) => { setSubsSearch(e.target.value); setSubsPage(1); }}
+                    className="form-input"
+                    style={{ minWidth: '220px', maxWidth: '320px' }}
+                  />
+
+                  <select 
+                    className="form-input" 
+                    value={subSort} 
+                    onChange={(e) => setSubSort(e.target.value)}
+                    style={{ width: '135px' }}
+                  >
+                    <option value="newest">Sort: Newest</option>
+                    <option value="oldest">Sort: Oldest</option>
+                    <option value="name">Sort: Name</option>
+                  </select>
+                </div>
               </div>
 
+              {/* Submissions Table View */}
               {subsLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px' }}>Loading dynamic entries...</div>
+                <div style={{ textAlign: 'center', padding: '40px' }}>Loading entries...</div>
               ) : subsTab === 'applications' ? (
-                <div>
-                  <div className="subs-list">
-                    {paginatedSubs.map(app => (
-                      <div className="sub-card" key={app.id}>
-                        <div className="sub-card-header">
-                          <div>
-                            <h4>{app.name} (Age {app.age})</h4>
-                            <p className="sub-date">
-                              <strong>Email:</strong>{' '}
-                              <a href={`mailto:${app.email}`} style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>
-                                {app.email || 'No email provided'}
-                              </a>
-                            </p>
-                            <p className="sub-date">Submitted: {new Date(app.submittedAt).toLocaleString()}</p>
-                          </div>
-                          <button onClick={() => handleDeleteSubmission('applications', app.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
-                            🗑
-                          </button>
-                        </div>
-                        <div className="sub-detail-grid">
-                          <div className="sub-field">
-                            <span className="label">Location</span>
-                            <span className="val">{app.city}</span>
-                          </div>
-                          <div className="sub-field">
-                            <span className="label">Mobile Number</span>
-                            <span className="val">
-                              {app.mobileNumber ? (
-                                <a href={`tel:${app.mobileNumber}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                                  {app.mobileNumber}
-                                </a>
-                              ) : (
-                                'Not provided'
-                              )}
-                            </span>
-                          </div>
-                          <div className="sub-field">
-                            <span className="label">Study/Occupation</span>
-                            <span className="val">{app.occupation}</span>
-                          </div>
-                          <div className="sub-field">
-                            <span className="label">How heard</span>
-                            <span className="val">{app.heardAbout || 'Not specified'}</span>
-                          </div>
-                        </div>
-                        <div className="sub-long-field">
-                          <span className="label">Motivation to Join:</span>
-                          <p>{app.whyJoin}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredSubs.length === 0 && <p className="empty-msg">No applications received yet.</p>}
-                  </div>
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Applicant</th>
+                        <th>Age</th>
+                        <th>Location</th>
+                        <th>Occupation</th>
+                        <th>Date Submitted</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedSubs.map(app => (
+                        <tr key={app.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedSubmission({ ...app, _type: 'applications' })}>
+                          <td>
+                            <strong>{app.name}</strong>
+                            <br />
+                            <small style={{ color: 'var(--accent-color)' }}>{app.email || 'No email'}</small>
+                          </td>
+                          <td>{app.age || 'N/A'}</td>
+                          <td>{app.city || 'N/A'}</td>
+                          <td>{app.occupation || 'N/A'}</td>
+                          <td>{app.submittedAt ? new Date(app.submittedAt).toLocaleDateString() : 'N/A'}</td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={() => setSelectedSubmission({ ...app, _type: 'applications' })} 
+                              className="btn-table edit" 
+                              style={{ marginRight: '6px' }}
+                            >
+                              View Profile
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteSubmission('applications', app.id)} 
+                              className="btn-table delete"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredSubs.length === 0 && (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: 'center', color: '#718096', padding: '30px' }}>
+                            No membership applications match your search.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                <div>
-                  <div className="subs-list">
-                    {paginatedSubs.map(c => (
-                      <div className="sub-card" key={c.id}>
-                        <div className="sub-card-header">
-                          <div>
-                            <h4>{c.name}</h4>
-                            <p className="sub-date">
-                              <strong>Email:</strong>{' '}
-                              <a href={`mailto:${c.email}`} style={{ color: 'var(--accent-color)', textDecoration: 'underline' }}>
-                                {c.email}
-                              </a>
-                            </p>
-                            <p className="sub-date">Submitted: {new Date(c.submittedAt).toLocaleString()}</p>
-                          </div>
-                          <button onClick={() => handleDeleteSubmission('contacts', c.id)} className="btn-icon delete sub-delete-btn" title="Delete Record">
-                            🗑
-                          </button>
-                        </div>
-                        <div className="sub-long-field">
-                          <span className="label">Inquiry Details:</span>
-                          <p style={{ whiteSpace: 'pre-wrap' }}>{c.message}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredSubs.length === 0 && <p className="empty-msg">No contact messages received.</p>}
-                  </div>
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Sender</th>
+                        <th>Email</th>
+                        <th>Message Preview</th>
+                        <th>Date Received</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedSubs.map(c => (
+                        <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedSubmission({ ...c, _type: 'contacts' })}>
+                          <td><strong>{c.name}</strong></td>
+                          <td>{c.email}</td>
+                          <td><span style={{ fontSize: '0.86rem', color: '#4a5568' }}>{c.message ? c.message.slice(0, 55) + '...' : 'No message'}</span></td>
+                          <td>{c.submittedAt ? new Date(c.submittedAt).toLocaleDateString() : 'N/A'}</td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <button 
+                              onClick={() => setSelectedSubmission({ ...c, _type: 'contacts' })} 
+                              className="btn-table edit"
+                              style={{ marginRight: '6px' }}
+                            >
+                              View Details
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteSubmission('contacts', c.id)} 
+                              className="btn-table delete"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredSubs.length === 0 && (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', color: '#718096', padding: '30px' }}>
+                            No contact queries match your search.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
               {/* Pagination */}
               {totalSubsPages > 1 && (
-                <div className="pagination">
+                <div className="pagination" style={{ marginTop: '20px' }}>
                   <button onClick={() => setSubsPage(p => Math.max(1, p - 1))} disabled={subsPage === 1}>&larr; Prev</button>
                   <span>Page {subsPage} of {totalSubsPages}</span>
                   <button onClick={() => setSubsPage(p => Math.min(totalSubsPages, p + 1))} disabled={subsPage === totalSubsPages}>Next &rarr;</button>
+                </div>
+              )}
+
+              {/* Submission Profile View Side Drawer Overlay */}
+              {selectedSubmission && (
+                <div className="submission-profile-drawer-overlay" onClick={() => setSelectedSubmission(null)}>
+                  <div className="submission-profile-drawer" onClick={(e) => e.stopPropagation()}>
+                    <div className="drawer-header">
+                      <div>
+                        <h3>{selectedSubmission._type === 'applications' ? 'Applicant Profile' : 'Contact Query Details'}</h3>
+                        <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>ID: {selectedSubmission.id}</span>
+                      </div>
+                      <button className="drawer-close-btn" onClick={() => setSelectedSubmission(null)}>&times;</button>
+                    </div>
+
+                    <div className="drawer-body">
+                      <div className="drawer-info-grid">
+                        <div className="drawer-info-item">
+                          <label>Full Name</label>
+                          <p>{selectedSubmission.name}</p>
+                        </div>
+                        {selectedSubmission.age && (
+                          <div className="drawer-info-item">
+                            <label>Age</label>
+                            <p>{selectedSubmission.age} years old</p>
+                          </div>
+                        )}
+                        <div className="drawer-info-item">
+                          <label>Email Address</label>
+                          <p>
+                            <a href={`mailto:${selectedSubmission.email}`} style={{ color: 'var(--accent-color)' }}>
+                              {selectedSubmission.email || 'N/A'}
+                            </a>
+                          </p>
+                        </div>
+                        {selectedSubmission.mobileNumber && (
+                          <div className="drawer-info-item">
+                            <label>Phone Number</label>
+                            <p>
+                              <a href={`tel:${selectedSubmission.mobileNumber}`} style={{ color: 'inherit' }}>
+                                {selectedSubmission.mobileNumber}
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                        {selectedSubmission.city && (
+                          <div className="drawer-info-item">
+                            <label>City / Location</label>
+                            <p>{selectedSubmission.city}</p>
+                          </div>
+                        )}
+                        {selectedSubmission.occupation && (
+                          <div className="drawer-info-item">
+                            <label>Study / Occupation</label>
+                            <p>{selectedSubmission.occupation}</p>
+                          </div>
+                        )}
+                        <div className="drawer-info-item" style={{ gridColumn: '1 / -1' }}>
+                          <label>Submitted At</label>
+                          <p>{selectedSubmission.submittedAt ? new Date(selectedSubmission.submittedAt).toLocaleString() : 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      {selectedSubmission.whyJoin && (
+                        <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '10px' }}>
+                          <label style={{ fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: '700', color: '#718096' }}>
+                            Motivation to Join Intellect Circle
+                          </label>
+                          <p style={{ marginTop: '8px', color: '#2d3748', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                            {selectedSubmission.whyJoin}
+                          </p>
+                        </div>
+                      )}
+
+                      {selectedSubmission.heardAbout && (
+                        <div style={{ background: '#f8f9fa', padding: '12px 16px', borderRadius: '10px' }}>
+                          <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '700', color: '#718096' }}>
+                            How They Heard About Intellect Circle
+                          </label>
+                          <p style={{ marginTop: '4px', color: '#2d3748', fontWeight: '500' }}>
+                            {selectedSubmission.heardAbout}
+                          </p>
+                        </div>
+                      )}
+
+                      {selectedSubmission.message && (
+                        <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '10px' }}>
+                          <label style={{ fontSize: '0.78rem', textTransform: 'uppercase', fontWeight: '700', color: '#718096' }}>
+                            Message Body
+                          </label>
+                          <p style={{ marginTop: '8px', color: '#2d3748', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                            {selectedSubmission.message}
+                          </p>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
+                        {selectedSubmission.email && (
+                          <a 
+                            href={`mailto:${selectedSubmission.email}`} 
+                            className="btn btn-accent" 
+                            style={{ flex: 1, textAlign: 'center', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                          >
+                            <MailIcon style={{ width: '16px', height: '16px' }} /> Email Applicant
+                          </a>
+                        )}
+                        <button 
+                          onClick={() => {
+                            handleDeleteSubmission(selectedSubmission._type, selectedSubmission.id);
+                            setSelectedSubmission(null);
+                          }}
+                          className="btn btn-outline"
+                          style={{ color: '#e74c3c', borderColor: '#e74c3c', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <TrashIcon style={{ width: '14px', height: '14px' }} /> Delete Record
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
