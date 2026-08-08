@@ -192,6 +192,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [geoTitle, setGeoTitle] = useState(() => (home.geographicModel?.title || 'Geographic Model'));
   const [geoDescription, setGeoDescription] = useState(() => (home.geographicModel?.description || ''));
 
+  // What Is Intellect Circle? Columns State
+  const [teaserColumns, setTeaserColumns] = useState(() => (home.aboutTeaser?.columns || [
+    { title: 'What We Do', description: '' },
+    { title: 'How We Meet', description: '' },
+    { title: 'Why It Matters', description: '' }
+  ]));
+
+  // How It Works Steps State
+  const [howStepsItems, setHowStepsItems] = useState(() => (home.howItWorks?.steps || []));
+
   // Notifications / Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -471,10 +481,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         aboutTeaser: {
           title:    get('aboutTeaserTitle',    existingAbout.title    || ''),
           subtitle: get('aboutTeaserSubtitle', existingAbout.subtitle || ''),
-          columns:  existingAbout.columns || data.home?.aboutTeaser?.columns || []
+          columns:  teaserColumns
+        },
+        howItWorks: {
+          title: 'How It Works',
+          steps: howStepsItems
         },
         // Pass through existing values — these are managed by their own dedicated save handlers
-        howItWorks:       data.home?.howItWorks      || { title: 'How It Works', steps: [] },
         pillars:          data.home?.pillars          || { title: 'Pillars of Intellect Circle', items: [] },
         geographicModel:  data.home?.geographicModel  || { title: 'Geographic Model', description: '', levels: [] },
         collaborations:   data.home?.collaborations   || { title: 'Collaborations & Networks', partners: [] }
@@ -2296,6 +2309,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </button>
                 <button 
                   type="button"
+                  className={`website-subtab-btn ${websiteSubTab === 'howitworks' ? 'active' : ''}`}
+                  onClick={() => setWebsiteSubTab('howitworks')}
+                >
+                  <InfoIcon style={{ width: '15px', height: '15px' }} /> How It Works
+                </button>
+                <button 
+                  type="button"
                   className={`website-subtab-btn ${websiteSubTab === 'geographic' ? 'active' : ''}`}
                   onClick={() => setWebsiteSubTab('geographic')}
                 >
@@ -2346,6 +2366,43 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       <label className="form-label">Teaser Subtitle</label>
                       <textarea name="aboutTeaserSubtitle" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser?.subtitle} />
                     </div>
+
+                    {/* What Is Intellect Circle? — Column Cards */}
+                    <div className="admin-box-title" style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>"What Is Intellect Circle?" — Column Cards</span>
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                        onClick={() => setTeaserColumns(prev => [...prev, { title: 'New Column', description: '' }])}
+                      >
+                        + Add Column
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
+                      {teaserColumns.map((col, idx) => (
+                        <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
+                            <button type="button" title="Move Up" onClick={() => setTeaserColumns(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9650;</button>
+                            <button type="button" title="Move Down" onClick={() => setTeaserColumns(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9660;</button>
+                          </div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">Column Title</label>
+                              <input type="text" className="form-input" value={col.title}
+                                onChange={e => setTeaserColumns(prev => prev.map((c, i) => i === idx ? { ...c, title: e.target.value } : c))} />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">Column Description</label>
+                              <textarea className="form-input" rows={3} value={col.description}
+                                onChange={e => setTeaserColumns(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))} />
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setTeaserColumns(prev => prev.filter((_, i) => i !== idx))}
+                            style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>&#x2715;</button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -2369,6 +2426,47 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 )}
 
                 {/* Sub-Tab 4: Pillars of Intellect Circle */}
+                {/* Sub-Tab: How It Works */}
+                {websiteSubTab === 'howitworks' && (
+                  <div className="admin-box">
+                    <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>How It Works — Steps</span>
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        style={{ fontSize: '13px', padding: '6px 14px' }}
+                        onClick={() => setHowStepsItems(prev => [...prev, { number: String(prev.length + 1).padStart(2, '0'), text: '' }])}
+                      >
+                        + Add Step
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px' }}>
+                      {howStepsItems.map((step, idx) => (
+                        <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
+                            <button type="button" title="Move Up" onClick={() => setHowStepsItems(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9650;</button>
+                            <button type="button" title="Move Down" onClick={() => setHowStepsItems(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9660;</button>
+                          </div>
+                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px', alignItems: 'start' }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">Step No.</label>
+                              <input type="text" className="form-input" value={step.number}
+                                onChange={e => setHowStepsItems(prev => prev.map((s, i) => i === idx ? { ...s, number: e.target.value } : s))} />
+                            </div>
+                            <div className="form-group" style={{ margin: 0 }}>
+                              <label className="form-label">Step Description</label>
+                              <textarea className="form-input" rows={2} value={step.text}
+                                onChange={e => setHowStepsItems(prev => prev.map((s, i) => i === idx ? { ...s, text: e.target.value } : s))} />
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setHowStepsItems(prev => prev.filter((_, i) => i !== idx))}
+                            style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>&#x2715;</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {websiteSubTab === 'pillars' && (
                   <div className="admin-box">
                     <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
