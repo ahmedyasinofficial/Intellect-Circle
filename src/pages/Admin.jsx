@@ -473,15 +473,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           subtitle: get('aboutTeaserSubtitle', existingAbout.subtitle || ''),
           columns:  existingAbout.columns || data.home?.aboutTeaser?.columns || []
         },
-        pillars: {
-          title: pillarTitle,
-          items: pillarItems
-        },
-        geographicModel: {
-          title: geoTitle,
-          description: geoDescription,
-          levels: geoLevels
-        }
+        // Pass through existing values — these are managed by their own dedicated save handlers
+        howItWorks:       data.home?.howItWorks      || { title: 'How It Works', steps: [] },
+        pillars:          data.home?.pillars          || { title: 'Pillars of Intellect Circle', items: [] },
+        geographicModel:  data.home?.geographicModel  || { title: 'Geographic Model', description: '', levels: [] },
+        collaborations:   data.home?.collaborations   || { title: 'Collaborations & Networks', partners: [] }
       }
     };
 
