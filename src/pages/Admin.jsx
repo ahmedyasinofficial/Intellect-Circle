@@ -441,26 +441,37 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const handleCopySave = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
+
+    // Helper: return form value only if the field was actually rendered in the DOM
+    const get = (name, fallback) => {
+      const val = fd.get(name);
+      return val !== null ? val : fallback;
+    };
+
+    const existingHero = data.home?.hero || {};
+    const existingCta = data.home?.ctaSection || {};
+    const existingAbout = data.home?.aboutTeaser || {};
+
     const updated = {
       ...data,
       home: {
         ...data.home,
         hero: {
-          headline: fd.get('homeHeadline'),
-          tagline: fd.get('homeTagline'),
-          description: fd.get('homeDescription'),
-          ctaApplyLabel: fd.get('ctaApplyLabel'),
-          ctaLearnLabel: fd.get('ctaLearnLabel')
+          headline:     get('homeHeadline',  existingHero.headline    || 'Intellect Circle'),
+          tagline:      get('homeTagline',   existingHero.tagline     || 'A structured learning community for young intellects.'),
+          description:  get('homeDescription', existingHero.description || 'Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.'),
+          ctaApplyLabel: get('ctaApplyLabel', existingHero.ctaApplyLabel || 'Apply to Join'),
+          ctaLearnLabel: get('ctaLearnLabel', existingHero.ctaLearnLabel || 'Learn More')
         },
         ctaSection: {
-          headline: fd.get('ctaHeadline'),
-          subheadline: fd.get('ctaSubheadline'),
-          buttonLabel: fd.get('ctaButtonLabel')
+          headline:    get('ctaHeadline',    existingCta.headline    || 'Ready to expand your intellectual horizons?'),
+          subheadline: get('ctaSubheadline', existingCta.subheadline || 'Applications are open for our upcoming cohort.'),
+          buttonLabel: get('ctaButtonLabel', existingCta.buttonLabel || 'Apply for Membership')
         },
         aboutTeaser: {
-          title: fd.get('aboutTeaserTitle'),
-          subtitle: fd.get('aboutTeaserSubtitle'),
-          columns: data.home.aboutTeaser?.columns || []
+          title:    get('aboutTeaserTitle',    existingAbout.title    || ''),
+          subtitle: get('aboutTeaserSubtitle', existingAbout.subtitle || ''),
+          columns:  existingAbout.columns || data.home?.aboutTeaser?.columns || []
         },
         pillars: {
           title: pillarTitle,
@@ -486,7 +497,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
       if (response.ok) {
         saveDatabase(updated);
-        triggerNotification('Page copywriting saved successfully.');
+        triggerNotification('Page content saved successfully.');
       } else {
         triggerNotification('Failed to save settings.', 'error');
       }

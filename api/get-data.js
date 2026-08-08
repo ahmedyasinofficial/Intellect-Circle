@@ -118,8 +118,8 @@ export default async function handler(req, res) {
       },
       stats: (statsRes.data || []).map(s => ({ id: s.key, label: s.label, value: s.value })),
       aboutTeaser: {
-        title: homeContentRes.data?.about_teaser_title || '',
-        subtitle: homeContentRes.data?.about_teaser_subtitle || '',
+        title: homeContentRes.data?.about_teaser_title || 'What Is Intellect Circle?',
+        subtitle: homeContentRes.data?.about_teaser_subtitle || 'A curated community dedicated to rigorous intellectual exchange and personal mastery.',
         columns: (teaserColsRes.data || []).map(col => ({ title: col.title, description: col.description }))
       },
       howItWorks: {
@@ -140,9 +140,9 @@ export default async function handler(req, res) {
         partners: (partnersRes.data || []).map(p => ({ id: p.id, name: p.name, logoUrl: p.logo_url, description: p.description }))
       },
       ctaSection: {
-        headline: homeContentRes.data?.cta_headline || '',
-        subheadline: homeContentRes.data?.cta_subheadline || '',
-        buttonLabel: homeContentRes.data?.cta_button_label || ''
+        headline: homeContentRes.data?.cta_headline || 'Ready to expand your intellectual horizons?',
+        subheadline: homeContentRes.data?.cta_subheadline || 'Applications are open for our upcoming cohort.',
+        buttonLabel: homeContentRes.data?.cta_button_label || 'Apply for Membership'
       },
       featuredSessionId: ''
     };
