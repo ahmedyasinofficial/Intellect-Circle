@@ -17,9 +17,11 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 function App() {
   // 1. Data State (CMS Database)
+  const DATA_VERSION = 'v2'; // Increment this to bust stale/corrupt localStorage cache
   const [data, setData] = useState(() => {
     const local = localStorage.getItem('ic_website_data');
-    if (local) {
+    const cachedVersion = localStorage.getItem('ic_data_version');
+    if (local && cachedVersion === DATA_VERSION) {
       try {
         const parsed = JSON.parse(local);
         // Don't load submissions from localStorage - always fetch fresh from API
@@ -29,6 +31,9 @@ function App() {
         console.error('Failed to parse cached local data, resetting to defaults.', e);
       }
     }
+    // Clear stale/corrupt cache and reset to clean defaults
+    localStorage.removeItem('ic_website_data');
+    localStorage.setItem('ic_data_version', DATA_VERSION);
     return defaultData;
   });
 
@@ -193,6 +198,7 @@ function App() {
     const toCache = { ...updatedData };
     delete toCache.submissions;
     localStorage.setItem('ic_website_data', JSON.stringify(toCache));
+    localStorage.setItem('ic_data_version', DATA_VERSION);
 
     try {
       const response = await fetch('/api/settings', {
