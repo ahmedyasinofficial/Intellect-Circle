@@ -473,6 +473,13 @@
   },
   "activity_logs": [
     {
+      "id": "log-1786203616714",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in (Local Dev Mode) as intellectcircle.official4@gmail.com",
+      "created_at": "2026-08-08T15:40:16.714Z"
+    },
+    {
       "id": "log-1786127966087",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",

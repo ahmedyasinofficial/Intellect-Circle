@@ -444,13 +444,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     const updated = {
       ...data,
       contact: {
-        email: fd.get('contactEmail'),
-        whatsapp: fd.get('contactWhatsApp'),
-        address: fd.get('contactAddress'),
-        instagram: fd.get('socialInstagram'),
-        linkedin: fd.get('socialLinkedIn'),
-        facebook: fd.get('socialFacebook'),
-        twitter: fd.get('socialTwitter')
+        email: fd.get('email'),
+        whatsapp: fd.get('whatsapp'),
+        address: fd.get('address'),
+        instagram: fd.get('instagram'),
+        linkedin: fd.get('linkedin'),
+        facebook: fd.get('facebook'),
+        twitter: fd.get('twitter')
       }
     };
 
@@ -2776,15 +2776,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   <div className="admin-box-title">Direct Contact Channels</div>
                   <div className="form-group">
                     <label className="form-label">Official Email Address</label>
-                    <input type="email" name="email" className="form-input" defaultValue={contact.email || 'info@intellectcircle.org'} />
+                    <input type="email" name="email" className="form-input" defaultValue={contact.email || ''} placeholder="info@intellectcircle.org" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Official Phone / WhatsApp</label>
-                    <input type="text" name="phone" className="form-input" defaultValue={contact.phone || '+92 300 1234567'} />
+                    <input type="text" name="whatsapp" className="form-input" defaultValue={contact.whatsapp || contact.phone || ''} placeholder="+92 300 1234567" />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Headquarters / Location</label>
-                    <input type="text" name="location" className="form-input" defaultValue={contact.location || 'Pakistan'} />
+                    <label className="form-label">Headquarters / Location / Address</label>
+                    <input type="text" name="address" className="form-input" defaultValue={contact.address || contact.location || ''} placeholder="Pakistan" />
                   </div>
                 </div>
 
@@ -2792,15 +2792,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   <div className="admin-box-title">Social Media Links</div>
                   <div className="form-group">
                     <label className="form-label">Instagram Profile URL</label>
-                    <input type="url" name="instagram" className="form-input" defaultValue={contact.instagram} placeholder="https://instagram.com/intellectcircle" />
+                    <input type="url" name="instagram" className="form-input" defaultValue={contact.instagram || ''} placeholder="https://instagram.com/intellectcircle" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">LinkedIn Page URL</label>
-                    <input type="url" name="linkedin" className="form-input" defaultValue={contact.linkedin} placeholder="https://linkedin.com/company/intellectcircle" />
+                    <input type="url" name="linkedin" className="form-input" defaultValue={contact.linkedin || ''} placeholder="https://linkedin.com/company/intellectcircle" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Facebook Page URL</label>
+                    <input type="url" name="facebook" className="form-input" defaultValue={contact.facebook || ''} placeholder="https://facebook.com/intellectcircle" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Twitter / X Handle URL</label>
-                    <input type="url" name="twitter" className="form-input" defaultValue={contact.twitter} placeholder="https://x.com/intellectcircle" />
+                    <input type="url" name="twitter" className="form-input" defaultValue={contact.twitter || ''} placeholder="https://x.com/intellectcircle" />
                   </div>
                 </div>
               </div>
