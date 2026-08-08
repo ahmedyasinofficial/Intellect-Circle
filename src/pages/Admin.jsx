@@ -2304,24 +2304,24 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     <div className="admin-box-title">Homepage Hero Section</div>
                     <div className="form-group">
                       <label className="form-label">Headline</label>
-                      <input type="text" name="homeHeadline" className="form-input" defaultValue={home.hero?.headline} />
+                      <input type="text" name="homeHeadline" className="form-input" defaultValue={home.hero?.headline || 'Intellect Circle'} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Tagline</label>
-                      <input type="text" name="homeTagline" className="form-input" defaultValue={home.hero?.tagline} />
+                      <input type="text" name="homeTagline" className="form-input" defaultValue={home.hero?.tagline || 'A structured learning community for young intellects.'} />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Description</label>
-                      <textarea name="homeDescription" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.hero?.description} />
+                      <textarea name="homeDescription" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.hero?.description || 'Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.'} />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                       <div className="form-group">
                         <label className="form-label">Apply CTA Button Label</label>
-                        <input type="text" name="ctaApplyLabel" className="form-input" defaultValue={home.hero?.ctaApplyLabel} />
+                        <input type="text" name="ctaApplyLabel" className="form-input" defaultValue={home.hero?.ctaApplyLabel || 'Apply to Join'} />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Learn CTA Button Label</label>
-                        <input type="text" name="ctaLearnLabel" className="form-input" defaultValue={home.hero?.ctaLearnLabel} />
+                        <input type="text" name="ctaLearnLabel" className="form-input" defaultValue={home.hero?.ctaLearnLabel || 'Learn More'} />
                       </div>
                     </div>
                   </div>

@@ -110,9 +110,9 @@ export default async function handler(req, res) {
     // Format home content
     const home = {
       hero: {
-        headline: homeContentRes.data?.hero_headline || '',
-        tagline: homeContentRes.data?.hero_tagline || '',
-        description: homeContentRes.data?.hero_description || '',
+        headline: homeContentRes.data?.hero_headline || 'Intellect Circle',
+        tagline: homeContentRes.data?.hero_tagline || 'A structured learning community for young intellects.',
+        description: homeContentRes.data?.hero_description || 'Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.',
         ctaApplyLabel: homeContentRes.data?.hero_cta_apply_label || 'Apply to Join',
         ctaLearnLabel: homeContentRes.data?.hero_cta_learn_label || 'Learn More'
       },

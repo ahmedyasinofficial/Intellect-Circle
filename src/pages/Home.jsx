@@ -249,15 +249,15 @@ function Home({ data, navigateTo }) {
         <div className="container hero-grid" style={{ position: 'relative', zIndex: 2 }}>
           <div className="hero-content">
             <span className="hero-badge">Grassroots Youth Movement</span>
-            <h1>{hero.headline}</h1>
-            <p className="hero-tagline">{hero.tagline}</p>
-            {hero.description && <p>{hero.description}</p>}
+            <h1>{hero.headline || 'Intellect Circle'}</h1>
+            <p className="hero-tagline">{hero.tagline || 'A structured learning community for young intellects.'}</p>
+            <p>{hero.description || 'Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.'}</p>
             <div className="hero-ctas">
               <button onClick={() => navigateTo('apply')} className="btn btn-accent">
-                {hero.ctaApplyLabel}
+                {hero.ctaApplyLabel || 'Apply to Join'}
               </button>
               <button onClick={() => navigateTo('about')} className="btn btn-outline">
-                {hero.ctaLearnLabel}
+                {hero.ctaLearnLabel || 'Learn More'}
               </button>
             </div>
           </div>
