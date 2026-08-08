@@ -266,5 +266,20 @@ export const ExternalLinkIcon = (props) => (
   </svg>
 );
 
+export const SearchIcon = (props) => (
+  <svg {...commonProps} {...props}>
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+export const LockIcon = (props) => (
+  <svg {...commonProps} {...props}>
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+
 
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import logoImage from '../assets/logo.png';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { exportToCSV, exportToExcel } from '../utils/exportData';
 import MediaLibrary from '../components/MediaLibrary';
@@ -8,7 +9,8 @@ import {
   KeysIcon, TrashIcon, EditIcon, PlusIcon, ArrowUpIcon, 
   ArrowDownIcon, LogOutIcon, InfoIcon, DownloadIcon, UploadIcon,
   CertificateIcon, SparklesIcon, BookOpenIcon, MegaphoneIcon, 
-  LayersIcon, GlobeIcon, MapPinIcon, FileSpreadsheetIcon, MailIcon, ExternalLinkIcon
+  LayersIcon, GlobeIcon, MapPinIcon, FileSpreadsheetIcon, MailIcon, ExternalLinkIcon,
+  SearchIcon, LockIcon
 } from '../components/Icons';
 
 function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLogout, refreshData, navigateTo = () => (window.location.hash = '#/') }) {
@@ -43,6 +45,59 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   // Control Room Navigation & Sidebar State
   const [activeTab, setActiveTab] = useState('overview');
   const [websiteSubTab, setWebsiteSubTab] = useState('hero'); // 'hero' | 'about' | 'cta' | 'pillars' | 'geographic'
+  const [blogSubTab, setBlogSubTab] = useState('list'); // 'list' | 'create'
+  const [sessionSubTab, setSessionSubTab] = useState('list'); // 'list' | 'create'
+  const [teamSubTab, setTeamSubTab] = useState('list'); // 'list' | 'create'
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [userAccessRole, setUserAccessRole] = useState('full');
+
+  // Custom User Credentials & Granular Page Access Rights
+  const [customUsers, setCustomUsers] = useState(() => {
+    try {
+      const stored = localStorage.getItem('ic_admin_custom_users');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [
+      {
+        id: 'usr-default-editor',
+        email: 'editor@intellectcircle.org',
+        password: 'editor123',
+        name: 'Blog & Content Editor',
+        allowedPages: ['blog', 'overview', 'sessions']
+      }
+    ];
+  });
+
+  const [activeUserPermissions, setActiveUserPermissions] = useState(() => {
+    try {
+      const stored = localStorage.getItem('ic_admin_active_user_perms');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return { isMaster: true, allowedPages: ['*'] };
+  });
+
+  const [newUserForm, setNewUserForm] = useState({
+    email: '',
+    password: '',
+    name: '',
+    allowedPages: ['blog']
+  });
+  const [editingUser, setEditingUser] = useState(null);
+
+  const saveCustomUsers = (users) => {
+    setCustomUsers(users);
+    try {
+      localStorage.setItem('ic_admin_custom_users', JSON.stringify(users));
+    } catch {}
+  };
+
+  const isPageAllowed = useCallback((pageKey) => {
+    if (!activeUserPermissions) return true;
+    if (activeUserPermissions.isMaster) return true;
+    if (pageKey === 'overview' || pageKey === 'access') return true;
+    return activeUserPermissions.allowedPages && (activeUserPermissions.allowedPages.includes(pageKey) || activeUserPermissions.allowedPages.includes('*'));
+  }, [activeUserPermissions]);
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('ic_admin_sidebar_collapsed') === 'true';
@@ -242,14 +297,44 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     setLoginError('');
     setLoading(true);
 
-    if (!loginEmail || !loginPassword) {
+    const inputEmail = loginEmail.trim().toLowerCase();
+    const inputPass = loginPassword.trim();
+
+    if (!inputEmail || !inputPass) {
       setLoginError('Please enter both email and password.');
       setLoading(false);
       return;
     }
 
+    // 1. Check custom user credentials created by Admin
+    const matchedCustomUser = customUsers.find(u => 
+      u.email.toLowerCase().trim() === inputEmail && 
+      u.password.trim() === inputPass
+    );
+
+    if (matchedCustomUser) {
+      const perms = {
+        isMaster: false,
+        allowedPages: matchedCustomUser.allowedPages || [],
+        userEmail: matchedCustomUser.email,
+        name: matchedCustomUser.name
+      };
+      setToken('custom-token-' + matchedCustomUser.id);
+      setUserEmail(matchedCustomUser.email);
+      setActiveUserPermissions(perms);
+      try {
+        localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(perms));
+      } catch {}
+      onLogin();
+      const firstAllowed = (matchedCustomUser.allowedPages || []).find(p => p !== 'overview') || 'blog';
+      setActiveTab(firstAllowed);
+      triggerNotification(`Signed in as ${matchedCustomUser.name || matchedCustomUser.email} (Restricted Access).`, 'success');
+      setLoading(false);
+      return;
+    }
+
+    // 2. Production Mode: Auth with Supabase
     if (isSupabaseConfigured()) {
-      // Production Mode: Auth with Supabase
       try {
         const { data: authData, error } = await supabase.auth.signInWithPassword({
           email: loginEmail,
@@ -259,11 +344,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         if (error) {
           setLoginError(error.message);
         } else {
+          const perms = { isMaster: true, allowedPages: ['*'] };
+          setActiveUserPermissions(perms);
+          try {
+            localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(perms));
+          } catch {}
           setToken(authData.session.access_token);
           setUserEmail(authData.user.email);
           onLogin();
           triggerNotification('Logged in successfully through Supabase Auth.', 'success');
-          // Log the login action asynchronously
           fetch('/api/activity-log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
@@ -276,7 +365,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         setLoading(false);
       }
     } else {
-      // Fallback: Use JSON-based Authentication (Vercel Serverless Function / Vite proxy)
+      // 3. Fallback Development Login
       try {
         const res = await fetch('/api/login', {
           method: 'POST',
@@ -286,27 +375,33 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
         if (res.ok) {
           const result = await res.json();
+          const perms = { isMaster: true, allowedPages: ['*'] };
+          setActiveUserPermissions(perms);
+          try {
+            localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(perms));
+          } catch {}
           setToken(result.session.access_token);
           setUserEmail(result.user.email);
           onLogin();
-          triggerNotification('Logged in locally (Development Mode).', 'success');
-          // Log the local login action
+          triggerNotification('Logged in as Master Administrator.', 'success');
           fetch('/api/activity-log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${result.session.access_token}` },
-            body: JSON.stringify({ action: 'Admin Login', details: `Signed in (Local Dev Mode) as ${result.user.email}` })
+            body: JSON.stringify({ action: 'Admin Login', details: `Signed in as Master Admin ${result.user.email}` })
           }).catch(() => {});
         } else {
           const errData = await res.json();
-          setLoginError(errData.error || 'Invalid credentials.');
+          setLoginError(errData.error || 'Invalid email or password.');
         }
       } catch (err) {
-        setLoginError('Local API error.');
+        setLoginError('Local development authentication error.');
       } finally {
         setLoading(false);
       }
     }
   };
+
+
 
   // Sign out
   const handleLogoutClick = async () => {
@@ -1511,6 +1606,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           <p style={{ marginTop: '20px', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
             Grassroots Youth Movement Database
           </p>
+          <div style={{ marginTop: '16px', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => navigateTo('home')}
+              style={{ background: 'none', border: 'none', color: '#c9a84c', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
+            >
+              &larr; Return to Public Site
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1540,11 +1644,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const totalBlogPages = Math.ceil(filteredBlogs.length / itemsPerPage);
 
   // Filtered submissions
-  const activeSubs = subsTab === 'applications' ? submissions.applications : submissions.contacts;
-  let filteredSubs = activeSubs.filter(sub => {
-    const term = subsSearch.toLowerCase();
+  const activeSubs = subsTab === 'applications' ? (submissions?.applications || []) : (submissions?.contacts || []);
+  let filteredSubs = (activeSubs || []).filter(sub => {
+    const term = (subsSearch || '').toLowerCase();
     return !term || 
       (sub.name && sub.name.toLowerCase().includes(term)) || 
+      (sub.full_name && sub.full_name.toLowerCase().includes(term)) || 
       (sub.email && sub.email.toLowerCase().includes(term)) ||
       (sub.city && sub.city.toLowerCase().includes(term)) ||
       (sub.occupation && sub.occupation.toLowerCase().includes(term)) ||
@@ -1553,16 +1658,139 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   filteredSubs = [...filteredSubs].sort((a, b) => {
     if (subSort === 'oldest') {
-      return new Date(a.submittedAt || 0) - new Date(b.submittedAt || 0);
+      return new Date(a.submittedAt || a.created_at || 0) - new Date(b.submittedAt || b.created_at || 0);
     } else if (subSort === 'name') {
-      return (a.name || '').localeCompare(b.name || '');
+      return (a.name || a.full_name || '').localeCompare(b.name || b.full_name || '');
     } else { // newest
-      return new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0);
+      return new Date(b.submittedAt || b.created_at || 0) - new Date(a.submittedAt || a.created_at || 0);
     }
   });
 
   const paginatedSubs = filteredSubs.slice((subsPage - 1) * itemsPerPage, subsPage * itemsPerPage);
-  const totalSubsPages = Math.ceil(filteredSubs.length / itemsPerPage);
+  const totalSubsPages = Math.ceil((filteredSubs.length || 1) / itemsPerPage);
+
+  // Global search filtering across sessions, blog posts, applications, contacts, team members, certificates
+  const getGlobalSearchResults = () => {
+    const q = globalSearch.trim().toLowerCase();
+    if (!q) return [];
+    
+    const results = [];
+
+    // Search admin pages (navigation targets)
+    const pages = [
+      { key: 'overview',         label: 'Overview Dashboard',        keywords: ['overview', 'dashboard', 'stats', 'home', 'summary', 'monitor'] },
+      { key: 'content_website',  label: 'Website Content Editor',    keywords: ['website', 'content', 'hero', 'about', 'cta', 'homepage', 'text', 'edit'] },
+      { key: 'media',            label: 'Media Library',             keywords: ['media', 'image', 'photo', 'upload', 'library', 'file'] },
+      { key: 'subs',             label: 'Submissions & Applications',keywords: ['submissions', 'applications', 'applicant', 'contact', 'inquiries', 'forms'] },
+      { key: 'sessions',         label: 'Sessions Manager',          keywords: ['sessions', 'workshop', 'event', 'schedule', 'presenter'] },
+      { key: 'blog',             label: 'Blogs & Articles Manager',  keywords: ['blog', 'article', 'post', 'publish', 'recaps', 'write'] },
+      { key: 'team',             label: 'Hierarchy & Team Manager',  keywords: ['team', 'hierarchy', 'member', 'leadership', 'staff', 'role', 'president'] },
+      { key: 'certificates',     label: 'Certificate System',        keywords: ['certificate', 'cert', 'verify', 'award', 'credential', 'generate'] },
+      { key: 'stats',            label: 'Analytics & Statistics',    keywords: ['analytics', 'stats', 'statistics', 'traffic', 'visitors', 'views'] },
+      { key: 'contact',          label: 'Contact Information',       keywords: ['contact', 'phone', 'address', 'location', 'social', 'instagram', 'linkedin'] },
+      { key: 'seo',              label: 'SEO Settings',              keywords: ['seo', 'meta', 'title', 'description', 'keywords', 'search engine', 'og', 'open graph'] },
+      { key: 'logs',             label: 'Activity Logs',             keywords: ['logs', 'activity', 'audit', 'history', 'actions', 'log'] },
+      { key: 'system',           label: 'System Configurations',     keywords: ['system', 'config', 'keys', 'web3forms', 'signature', 'settings', 'configurations'] },
+      { key: 'access',           label: 'Access Control & Users',    keywords: ['access', 'users', 'permissions', 'credentials', 'lock', 'restrict', 'login', 'password'] },
+    ];
+    pages.forEach(p => {
+      if (p.keywords.some(kw => kw.includes(q) || p.label.toLowerCase().includes(q))) {
+        results.push({
+          id: `page-${p.key}`,
+          type: 'Admin Page',
+          title: p.label,
+          subtitle: `Navigate to the ${p.label} section`,
+          action: () => { setActiveTab(p.key); setGlobalSearch(''); }
+        });
+      }
+    });
+    
+    // Search sessions
+    sessions.forEach(s => {
+      if ((s.title && s.title.toLowerCase().includes(q)) || 
+          (s.presenter && s.presenter.toLowerCase().includes(q)) || 
+          (s.summary && s.summary.toLowerCase().includes(q)) ||
+          (s.description && s.description.toLowerCase().includes(q))) {
+        results.push({
+          id: `session-${s.id}`,
+          type: 'Session',
+          title: s.title || 'Untitled Session',
+          subtitle: s.presenter ? `Presenter: ${s.presenter}` : 'Session Workshop',
+          action: () => { setActiveTab('sessions'); setSessionSubTab('list'); setSessionSearch(q); setGlobalSearch(''); }
+        });
+      }
+    });
+
+    // Search blog posts
+    blog.forEach(b => {
+      if ((b.title && b.title.toLowerCase().includes(q)) || 
+          (b.author && b.author.toLowerCase().includes(q)) || 
+          (b.excerpt && b.excerpt.toLowerCase().includes(q)) ||
+          (b.content && b.content.toLowerCase().includes(q))) {
+        results.push({
+          id: `blog-${b.id}`,
+          type: 'Blog / Article',
+          title: b.title || 'Untitled Article',
+          subtitle: b.author ? `Author: ${b.author}` : 'Blog Article',
+          action: () => { setActiveTab('blog'); setBlogSubTab('list'); setBlogSearch(q); setGlobalSearch(''); }
+        });
+      }
+    });
+
+    // Search submissions
+    (submissions.applications || []).forEach(a => {
+      if ((a.full_name && a.full_name.toLowerCase().includes(q)) || (a.email && a.email.toLowerCase().includes(q))) {
+        results.push({
+          id: `app-${a.id}`,
+          type: 'Application',
+          title: a.full_name || 'Applicant',
+          subtitle: a.email,
+          action: () => { setActiveTab('subs'); setSubsTab('applications'); setSubsSearch(q); setGlobalSearch(''); }
+        });
+      }
+    });
+
+    (submissions.contacts || []).forEach(c => {
+      if ((c.name && c.name.toLowerCase().includes(q)) || (c.email && c.email.toLowerCase().includes(q))) {
+        results.push({
+          id: `contact-${c.id}`,
+          type: 'Contact Inquiry',
+          title: c.name || 'Contact Sender',
+          subtitle: c.email,
+          action: () => { setActiveTab('subs'); setSubsTab('contacts'); setSubsSearch(q); setGlobalSearch(''); }
+        });
+      }
+    });
+
+    // Search team
+    team.forEach(m => {
+      if ((m.name && m.name.toLowerCase().includes(q)) || (m.role && m.role.toLowerCase().includes(q))) {
+        results.push({
+          id: `team-${m.id}`,
+          type: 'Team Member',
+          title: m.name || 'Team Member',
+          subtitle: m.role || 'Role',
+          action: () => { setActiveTab('team'); setTeamSubTab('list'); setGlobalSearch(''); }
+        });
+      }
+    });
+
+    // Search certificates
+    certificates.forEach(cert => {
+      if ((cert.recipient_name && cert.recipient_name.toLowerCase().includes(q)) || (cert.recipient_email && cert.recipient_email.toLowerCase().includes(q)) || (cert.program_name && cert.program_name.toLowerCase().includes(q))) {
+        results.push({
+          id: `cert-${cert.id}`,
+          type: 'Certificate',
+          title: cert.recipient_name || 'Certificate Recipient',
+          subtitle: cert.program_name,
+          action: () => { setActiveTab('certificates'); setCertSearch(q); setGlobalSearch(''); }
+        });
+      }
+    });
+
+    return results.slice(0, 12);
+  };
+
 
   return (
     <div className="admin-control-room-wrapper">
@@ -1576,22 +1804,86 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
       {/* Header bar */}
       <div className="admin-header-bar">
-        <div>
-          <h2>
-            <span className="ic-badge">IC</span>
-            Intellect Circle
-          </h2>
-          <span className="user-email-badge">{userEmail || 'Local Dev Environment'} &mdash; Administrator</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <img
+            src={logoImage}
+            alt="Intellect Circle"
+            style={{ height: '28px', width: 'auto', objectFit: 'contain', flexShrink: 0 }}
+          />
+          <span className="user-email-badge" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {activeUserPermissions && !activeUserPermissions.isMaster
+              ? (activeUserPermissions.name || activeUserPermissions.userEmail)
+              : (userEmail || 'Administrator')}
+            {' — '}
+            {activeUserPermissions && !activeUserPermissions.isMaster ? 'Restricted Access' : 'Master Administrator'}
+          </span>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+
+        {/* Global Search Bar */}
+        <div style={{ position: 'relative', flex: '1', maxWidth: '360px', margin: '0 14px' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <SearchIcon style={{ width: '13px', height: '13px', color: '#94a3b8', position: 'absolute', left: '9px', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              placeholder="Search pages, blogs, sessions, settings..."
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: '6px',
+                padding: '5px 26px 5px 28px',
+                color: '#ffffff',
+                fontSize: '0.77rem',
+                outline: 'none'
+              }}
+            />
+            {globalSearch && (
+              <button
+                onClick={() => setGlobalSearch('')}
+                style={{ position: 'absolute', right: '7px', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.75rem', lineHeight: 1 }}
+              >&times;</button>
+            )}
+          </div>
+
+          {globalSearch.trim() !== '' && (
+            <div className="admin-search-dropdown">
+              <div style={{ padding: '7px 12px', fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                Results ({getGlobalSearchResults().length})
+              </div>
+              {getGlobalSearchResults().length > 0 ? (
+                getGlobalSearchResults().map(res => (
+                  <div
+                    key={res.id}
+                    onClick={res.action}
+                    className="admin-search-result-item"
+                    style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '2px' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{res.title}</strong>
+                      <span style={{ fontSize: '0.64rem', padding: '2px 6px', borderRadius: '4px', background: '#e2e8f0', color: '#334155', fontWeight: '600', flexShrink: 0, marginLeft: '8px' }}>{res.type}</span>
+                    </div>
+                    {res.subtitle && <span style={{ fontSize: '0.73rem', color: '#64748b' }}>{res.subtitle}</span>}
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: '14px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>No matching results found.</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
           <button onClick={() => navigateTo('home')} className="admin-header-btn">
-            <ExternalLinkIcon style={{ width: '15px', height: '15px', color: '#c9a84c' }} /> Public Site
+            <ExternalLinkIcon style={{ width: '13px', height: '13px' }} /> Public Site
           </button>
-          <button onClick={handleLogoutClick} className="admin-header-btn">
-            <LogOutIcon style={{ width: '15px', height: '15px', color: '#ef4444' }} /> Sign Out
+          <button onClick={handleLogoutClick} className="admin-header-btn" style={{ color: '#fca5a5' }}>
+            <LogOutIcon style={{ width: '13px', height: '13px' }} /> Sign Out
           </button>
         </div>
       </div>
+
 
       <div className="admin-control-room-layout">
         
@@ -1641,7 +1933,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Website Content Manager"
           >
             <CopyIcon />
-            {!isSidebarCollapsed && <span>Website Content</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Website Content</span>
+                {userAccessRole === 'blog_only' && <span style={{ marginLeft: 'auto', fontSize: '0.7rem' }}>🔒</span>}
+              </>
+            )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'media' ? 'active' : ''}`} 
@@ -1649,7 +1946,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Media Library"
           >
             <MediaIcon />
-            {!isSidebarCollapsed && <span>Media Library</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Media Library</span>
+                {!isPageAllowed('media') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'seo' ? 'active' : ''}`} 
@@ -1657,7 +1959,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="SEO Settings"
           >
             <SEOIcon />
-            {!isSidebarCollapsed && <span>SEO Settings</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>SEO Settings</span>
+                {!isPageAllowed('seo') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
 
           {/* COMMUNITY CATEGORY */}
@@ -1671,7 +1978,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             {!isSidebarCollapsed && (
               <>
                 <span>Submissions</span>
-                <span className="sidebar-badge">{submissions.applications.length + submissions.contacts.length}</span>
+                {!isPageAllowed('subs') ? (
+                  <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />
+                ) : (
+                  <span className="sidebar-badge">{submissions.applications.length + submissions.contacts.length}</span>
+                )}
               </>
             )}
           </button>
@@ -1684,17 +1995,30 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             {!isSidebarCollapsed && (
               <>
                 <span>Sessions</span>
-                <span className="sidebar-badge">{sessions.length}</span>
+                {!isPageAllowed('sessions') ? (
+                  <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />
+                ) : (
+                  <span className="sidebar-badge">{sessions.length}</span>
+                )}
               </>
             )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'blog' ? 'active' : ''}`} 
             onClick={() => setActiveTab('blog')}
-            title="Recap Blogs"
+            title="Blogs & Articles"
           >
             <BlogIcon />
-            {!isSidebarCollapsed && <span>Recaps ({blog.length})</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Blogs</span>
+                {!isPageAllowed('blog') ? (
+                  <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />
+                ) : (
+                  <span className="sidebar-badge">{blog.length}</span>
+                )}
+              </>
+            )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'team' ? 'active' : ''}`} 
@@ -1702,7 +2026,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Hierarchy / Team"
           >
             <TeamIcon />
-            {!isSidebarCollapsed && <span>Hierarchy ({team.length})</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Hierarchy</span>
+                {!isPageAllowed('team') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'certificates' ? 'active' : ''}`} 
@@ -1710,7 +2039,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Certificates"
           >
             <CertificateIcon />
-            {!isSidebarCollapsed && <span>Certificates</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Certificates</span>
+                {!isPageAllowed('certificates') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
 
           {/* ANALYTICS CATEGORY */}
@@ -1721,7 +2055,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Stats & Values"
           >
             <StatsIcon />
-            {!isSidebarCollapsed && <span>Stats & Values</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Stats & Values</span>
+                {!isPageAllowed('stats') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'logs' ? 'active' : ''}`} 
@@ -1729,7 +2068,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Activity Logs"
           >
             <LogsIcon />
-            {!isSidebarCollapsed && <span>Activity Logs</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Activity Logs</span>
+                {!isPageAllowed('logs') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
 
           {/* SETTINGS CATEGORY */}
@@ -1740,7 +2084,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Contact & Social"
           >
             <InfoIcon />
-            {!isSidebarCollapsed && <span>Contact & Social</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Contact & Social</span>
+                {!isPageAllowed('contact') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'system' ? 'active' : ''}`} 
@@ -1748,14 +2097,42 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="API Keys / System"
           >
             <KeysIcon />
-            {!isSidebarCollapsed && <span>API Keys</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>System Config</span>
+                {!isPageAllowed('system') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
+          </button>
+          <button 
+            className={`sidebar-item-btn ${activeTab === 'access' ? 'active' : ''}`} 
+            onClick={() => setActiveTab('access')}
+            title="Access Control"
+          >
+            <LockIcon style={{ width: '16px', height: '16px' }} />
+            {!isSidebarCollapsed && <span>Access Control</span>}
           </button>
         </aside>
 
         {/* Main Control Room Content Panel */}
         <main className="admin-control-room-content">
 
-
+          {/* Access Restricted View for non-master users on locked pages */}
+          {!isPageAllowed(activeTab) ? (
+            <div className="admin-box" style={{ textAlign: 'center', padding: '60px 24px', margin: '40px auto', maxWidth: '520px', borderRadius: '12px' }}>
+              <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                <LockIcon style={{ width: '28px', height: '28px' }} />
+              </div>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '1.25rem', color: '#0f172a' }}>Access Restricted</h3>
+              <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.5, margin: '0 0 24px 0' }}>
+                You do not have permission to access this section. Contact your administrator to request access.
+              </p>
+              <button onClick={() => setActiveTab('overview')} className="btn btn-accent">
+                Return to Overview
+              </button>
+            </div>
+          ) : (
+            <React.Fragment>
           {/* TAB: OVERVIEW DASHBOARD */}
           {activeTab === 'overview' && (
             <div>
@@ -2378,65 +2755,111 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {/* TAB: SESSIONS MANAGER */}
           {activeTab === 'sessions' && (
             <div>
-              <div className="admin-panel-header">
+              <div className="admin-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h2>Sessions & Workshops Manager</h2>
                   <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
                     Schedule, edit, and organize learning sessions and recorded workshops.
                   </p>
                 </div>
+                <button
+                  onClick={() => setSessionSubTab(sessionSubTab === 'create' ? 'list' : 'create')}
+                  className="btn btn-accent"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {sessionSubTab === 'create' ? 'View All Sessions' : '+ Create New Session'}
+                </button>
+              </div>
+
+              {/* Sub-Tabs Navigation */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setSessionSubTab('list')}
+                  style={{
+                    background: sessionSubTab === 'list' ? '#0f172a' : '#e2e8f0',
+                    color: sessionSubTab === 'list' ? '#ffffff' : '#334155',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  📅 All Sessions ({sessions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSessionSubTab('create')}
+                  style={{
+                    background: sessionSubTab === 'create' ? '#c9a84c' : '#e2e8f0',
+                    color: sessionSubTab === 'create' ? '#0f172a' : '#334155',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ➕ Create New Session
+                </button>
               </div>
 
               {/* Add / Edit Session Form */}
-              <div className="admin-box" style={{ marginBottom: '24px' }}>
-                <div className="admin-box-title">Create or Edit Session</div>
-                <form onSubmit={handleSessionSubmit}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                    <div className="form-group">
-                      <label className="form-label">Session Title *</label>
-                      <input type="text" name="title" className="form-input" required placeholder="e.g. Critical Thinking in Youth Movements" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Presenter / Speaker *</label>
-                      <input type="text" name="presenter" className="form-input" required placeholder="e.g. Ahmad Yasin" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Date *</label>
-                      <input type="date" name="date" className="form-input" required />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Time</label>
-                      <input type="text" name="time" className="form-input" placeholder="e.g. 7:00 PM PKT" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Status *</label>
-                      <select name="status" className="form-input">
-                        <option value="upcoming">Upcoming Session</option>
-                        <option value="completed">Completed Session</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Cover Photo URL</label>
-                      <div className="media-input-group">
-                        <input type="text" id="session_photo_input" name="photoUrl" className="form-input" placeholder="https://..." />
-                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('session_photo_input').value = url; })} className="btn-select-media">Library</button>
+              {(sessionSubTab === 'create' || editingSession) && (
+                <div className="admin-box" style={{ marginBottom: '24px' }}>
+                  <div className="admin-box-title">{editingSession ? 'Edit Session' : 'Create New Session'}</div>
+                  <form onSubmit={handleSessionSubmit}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Session Title *</label>
+                        <input type="text" name="title" className="form-input" required placeholder="e.g. Critical Thinking in Youth Movements" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Presenter / Speaker *</label>
+                        <input type="text" name="presenter" className="form-input" required placeholder="e.g. Ahmad Yasin" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Date *</label>
+                        <input type="date" name="date" className="form-input" required />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Time</label>
+                        <input type="text" name="time" className="form-input" placeholder="e.g. 7:00 PM PKT" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Status *</label>
+                        <select name="status" className="form-input">
+                          <option value="upcoming">Upcoming Session</option>
+                          <option value="completed">Completed Session</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Cover Photo URL</label>
+                        <div className="media-input-group">
+                          <input type="text" id="session_photo_input" name="photoUrl" className="form-input" placeholder="https://..." />
+                          <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('session_photo_input').value = url; })} className="btn-select-media">Library</button>
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Description</label>
+                        <textarea name="description" className="form-input" rows="3" placeholder="Brief overview of the session scope..." />
                       </div>
                     </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Description</label>
-                      <textarea name="description" className="form-input" rows="3" placeholder="Brief overview of the session scope..." />
-                    </div>
-                  </div>
-                  <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                    Save Session
-                  </button>
-                </form>
-              </div>
+                    <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
+                      Save Session
+                    </button>
+                  </form>
+                </div>
+              )}
 
               {/* Sessions Table */}
-              <div className="admin-box">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
-                  <div className="admin-box-title" style={{ margin: 0 }}>Existing Sessions ({sessions.length})</div>
+              {(sessionSubTab === 'list' && !editingSession) && (
+                <div className="admin-box">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+                    <div className="admin-box-title" style={{ margin: 0 }}>Existing Sessions ({sessions.length})</div>
                   <div style={{ display: 'flex', gap: '10px', flex: 1, maxWidth: '400px' }}>
                     <input 
                       type="text" 
@@ -2501,261 +2924,511 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     <button onClick={() => setSessionPage(p => Math.min(totalSessionPages, p + 1))} disabled={sessionPage === totalSessionPages}>Next &rarr;</button>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB: BLOG RECAPS MANAGER */}
+          {/* TAB: BLOGS & ARTICLES MANAGER */}
           {activeTab === 'blog' && (
             <div>
-              <div className="admin-panel-header">
+              <div className="admin-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2>Blog & Session Recaps Manager</h2>
+                  <h2>Blogs & Articles Manager</h2>
                   <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
-                    Publish and manage session recaps, articles, and movement updates.
+                    Publish, manage, and edit blog articles, session highlights, and movement posts.
                   </p>
                 </div>
+                <button
+                  onClick={() => setBlogSubTab(blogSubTab === 'create' ? 'list' : 'create')}
+                  className="btn btn-accent"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  {blogSubTab === 'create' ? 'View All Blogs' : '+ Publish New Article / Blog'}
+                </button>
+              </div>
+
+              {/* Sub-Tabs Navigation */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setBlogSubTab('list')}
+                  style={{
+                    background: blogSubTab === 'list' ? '#0f172a' : '#e2e8f0',
+                    color: blogSubTab === 'list' ? '#ffffff' : '#334155',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  📝 Published Articles & Blogs ({blog.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBlogSubTab('create')}
+                  style={{
+                    background: blogSubTab === 'create' ? '#c9a84c' : '#e2e8f0',
+                    color: blogSubTab === 'create' ? '#0f172a' : '#334155',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ➕ Publish New Article / Blog
+                </button>
               </div>
 
               {/* Add / Edit Blog Form */}
-              <div className="admin-box" style={{ marginBottom: '24px' }}>
-                <div className="admin-box-title">Publish New Recap / Article</div>
-                <form onSubmit={handleBlogSubmit}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Article Title *</label>
-                      <input type="text" name="title" className="form-input" required placeholder="e.g. Highlights from Session #4" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Author *</label>
-                      <input type="text" name="author" className="form-input" required defaultValue="Intellect Circle Editorial" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Date *</label>
-                      <input type="date" name="date" className="form-input" required defaultValue={new Date().toISOString().split('T')[0]} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Category</label>
-                      <input type="text" name="category" className="form-input" defaultValue="Session Recap" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Cover Image URL</label>
-                      <div className="media-input-group">
-                        <input type="text" id="blog_image_input" name="image" className="form-input" placeholder="https://..." />
-                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('blog_image_input').value = url; })} className="btn-select-media">Library</button>
+              {(blogSubTab === 'create' || editingBlog) && (
+                <div className="admin-box" style={{ marginBottom: '24px' }}>
+                  <div className="admin-box-title">{editingBlog ? 'Edit Blog Article' : 'Publish New Blog / Article'}</div>
+                  <form onSubmit={handleBlogSubmit}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Article Title *</label>
+                        <input type="text" name="title" className="form-input" required placeholder="e.g. Highlights from Session #4" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Author *</label>
+                        <input type="text" name="author" className="form-input" required defaultValue="Intellect Circle Editorial" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Date *</label>
+                        <input type="date" name="date" className="form-input" required defaultValue={new Date().toISOString().split('T')[0]} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Category</label>
+                        <input type="text" name="category" className="form-input" defaultValue="Blog Post" />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Cover Image URL</label>
+                        <div className="media-input-group">
+                          <input type="text" id="blog_image_input" name="image" className="form-input" placeholder="https://..." />
+                          <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('blog_image_input').value = url; })} className="btn-select-media">Library</button>
+                        </div>
+                      </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Short Excerpt *</label>
+                        <textarea name="excerpt" className="form-input" rows="2" required placeholder="Brief preview text for cards..." />
+                      </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Full Article Content *</label>
+                        <textarea name="content" className="form-input" rows="6" required placeholder="Full markdown or plain text article..." />
                       </div>
                     </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Short Excerpt *</label>
-                      <textarea name="excerpt" className="form-input" rows="2" required placeholder="Brief preview text for cards..." />
-                    </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Full Article Content *</label>
-                      <textarea name="content" className="form-input" rows="6" required placeholder="Full markdown or plain text article..." />
-                    </div>
-                  </div>
-                  <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                    Publish Recap
-                  </button>
-                </form>
-              </div>
+                    <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
+                      {editingBlog ? 'Update Article' : 'Publish Article'}
+                    </button>
+                  </form>
+                </div>
+              )}
 
               {/* Blog Table */}
-              <div className="admin-box">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div className="admin-box-title" style={{ margin: 0 }}>Published Recaps ({blog.length})</div>
-                  <input 
-                    type="text" 
-                    placeholder="Search recaps or authors..." 
-                    className="form-input" 
-                    style={{ maxWidth: '280px' }}
-                    value={blogSearch} 
-                    onChange={e => { setBlogSearch(e.target.value); setBlogPage(1); }} 
-                  />
-                </div>
-
-                <div className="table-responsive">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Author</th>
-                        <th>Category</th>
-                        <th>Date</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedBlogs.map(b => (
-                        <tr key={b.id}>
-                          <td><strong>{b.title}</strong></td>
-                          <td>{b.author}</td>
-                          <td><span className="log-action-badge">{b.category || 'Recap'}</span></td>
-                          <td>{b.date}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                              <button onClick={() => startEditBlog(b)} className="btn-table edit">Edit</button>
-                              <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {filteredBlogs.length === 0 && (
-                        <tr>
-                          <td colSpan="5" style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>
-                            No recaps found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {totalBlogPages > 1 && (
-                  <div className="pagination" style={{ marginTop: '16px' }}>
-                    <button onClick={() => setBlogPage(p => Math.max(1, p - 1))} disabled={blogPage === 1}>&larr; Prev</button>
-                    <span>Page {blogPage} of {totalBlogPages}</span>
-                    <button onClick={() => setBlogPage(p => Math.min(totalBlogPages, p + 1))} disabled={blogPage === totalBlogPages}>Next &rarr;</button>
+              {(blogSubTab === 'list' && !editingBlog) && (
+                <div className="admin-box">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div className="admin-box-title" style={{ margin: 0 }}>Published Articles & Blogs ({blog.length})</div>
+                    <input 
+                      type="text" 
+                      placeholder="Search blogs or authors..." 
+                      className="form-input" 
+                      style={{ maxWidth: '280px' }}
+                      value={blogSearch} 
+                      onChange={e => { setBlogSearch(e.target.value); setBlogPage(1); }} 
+                    />
                   </div>
-                )}
-              </div>
+
+                  <div className="table-responsive">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Title</th>
+                          <th>Author</th>
+                          <th>Category</th>
+                          <th>Date</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedBlogs.map(b => (
+                          <tr key={b.id}>
+                            <td><strong>{b.title}</strong></td>
+                            <td>{b.author}</td>
+                            <td><span className="log-action-badge">{b.category || 'Blog'}</span></td>
+                            <td>{b.date}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                <button onClick={() => startEditBlog(b)} className="btn-table edit">Edit</button>
+                                <button onClick={() => handleDeleteBlog(b.id)} className="btn-table delete">Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {filteredBlogs.length === 0 && (
+                          <tr>
+                            <td colSpan="5" style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>
+                              No blog articles found.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalBlogPages > 1 && (
+                    <div className="pagination" style={{ marginTop: '16px' }}>
+                      <button onClick={() => setBlogPage(p => Math.max(1, p - 1))} disabled={blogPage === 1}>&larr; Prev</button>
+                      <span>Page {blogPage} of {totalBlogPages}</span>
+                      <button onClick={() => setBlogPage(p => Math.min(totalBlogPages, p + 1))} disabled={blogPage === totalBlogPages}>Next &rarr;</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {/* TAB: HIERARCHY & TEAM MANAGER */}
           {activeTab === 'team' && (
             <div>
-              <div className="admin-panel-header">
+              <div className="admin-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <h2>Hierarchy & Team Manager</h2>
+                  <h2>Hierarchy &amp; Team Manager</h2>
                   <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
                     Manage leadership team profiles, roles, and hierarchy order.
                   </p>
                 </div>
+                <button
+                  onClick={() => setTeamSubTab(teamSubTab === 'create' ? 'list' : 'create')}
+                  className="btn btn-accent"
+                >
+                  {teamSubTab === 'create' ? '← Back to Team List' : '+ Add New Member'}
+                </button>
               </div>
 
-              {/* Add / Edit Team Member Form */}
-              <div className="admin-box" style={{ marginBottom: '24px' }}>
-                <div className="admin-box-title">Add Leadership Member</div>
-                <form onSubmit={handleMemberSubmit}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                    <div className="form-group">
-                      <label className="form-label">Full Name *</label>
-                      <input type="text" name="name" className="form-input" required placeholder="e.g. Ahmad Yasin" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Role / Title *</label>
-                      <input type="text" name="role" className="form-input" required placeholder="e.g. Founder & President" />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Photo URL</label>
-                      <div className="media-input-group">
-                        <input type="text" id="member_photo_input" name="photoUrl" className="form-input" placeholder="https://..." />
-                        <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('member_photo_input').value = url; })} className="btn-select-media">Library</button>
+              {/* Sub-tabs */}
+              <div style={{ display: 'flex', gap: '0', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
+                <button
+                  onClick={() => setTeamSubTab('list')}
+                  style={{
+                    padding: '9px 20px', fontSize: '0.85rem', fontWeight: '600', border: 'none', background: 'none', cursor: 'pointer',
+                    borderBottom: teamSubTab === 'list' ? '2px solid var(--accent-color)' : '2px solid transparent',
+                    color: teamSubTab === 'list' ? 'var(--accent-color)' : '#64748b', marginBottom: '-2px'
+                  }}
+                >
+                  Current Members ({team.length})
+                </button>
+                <button
+                  onClick={() => setTeamSubTab('create')}
+                  style={{
+                    padding: '9px 20px', fontSize: '0.85rem', fontWeight: '600', border: 'none', background: 'none', cursor: 'pointer',
+                    borderBottom: teamSubTab === 'create' ? '2px solid var(--accent-color)' : '2px solid transparent',
+                    color: teamSubTab === 'create' ? 'var(--accent-color)' : '#64748b', marginBottom: '-2px'
+                  }}
+                >
+                  Add New Member
+                </button>
+              </div>
+
+              {/* ADD MEMBER FORM */}
+              {teamSubTab === 'create' && (
+                <div className="admin-box" style={{ maxWidth: '720px' }}>
+                  <div className="admin-box-title" style={{ marginBottom: '18px' }}>Add New Leadership Member</div>
+                  <form onSubmit={(e) => { handleMemberSubmit(e); setTeamSubTab('list'); }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="form-group">
+                        <label className="form-label">Full Name *</label>
+                        <input type="text" name="name" className="form-input" required placeholder="Ahmad Yasin" />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Designation / Role *</label>
+                        <input type="text" name="role" className="form-input" required placeholder="Founder & President, Intellect Circles" />
+                      </div>
+
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Short Biography</label>
+                        <textarea
+                          name="bio"
+                          className="form-input"
+                          rows="3"
+                          placeholder="A student of knowledge and a builder at heart, driven by continuous self-learning. My focus is entirely on turning deep insights into practical solutions and spaces for community growth."
+                        />
+                      </div>
+
+                      {/* Profile Photo Upload & Preview Card */}
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Profile Photo</label>
+                        <div style={{ padding: '16px', border: '1px dashed #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
+                          {/* Image Preview Box */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '14px' }}>
+                            <div style={{ position: 'relative', width: '64px', height: '64px' }}>
+                              {memberPhotoPreview ? (
+                                <img src={memberPhotoPreview} alt="Preview" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #c9a84c' }} />
+                              ) : (
+                                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#e2e8f0', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
+                                  Preview
+                                </div>
+                              )}
+                              {memberPhotoPreview && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setMemberPhotoPreview(''); const el = document.getElementById('member_photo_input'); if (el) el.value = ''; }}
+                                  style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
+                                  title="Clear Photo"
+                                >
+                                  &times;
+                                </button>
+                              )}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>Upload File or Paste Image Link</div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="form-input"
+                                style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setMemberPhotoPreview(reader.result);
+                                      const el = document.getElementById('member_photo_input');
+                                      if (el) el.value = reader.result;
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              id="member_photo_input"
+                              name="photoUrl"
+                              className="form-input"
+                              placeholder="Or select from Media Library / paste URL"
+                              onChange={(e) => setMemberPhotoPreview(e.target.value)}
+                              style={{ flex: 1 }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => triggerMediaPicker(url => { setMemberPhotoPreview(url); const el = document.getElementById('member_photo_input'); if (el) el.value = url; })}
+                              className="btn-select-media"
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
+                              Media Library
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Skills &amp; Expertises (comma-separated)</label>
+                        <input
+                          type="text"
+                          name="skills"
+                          className="form-input"
+                          placeholder="e.g. Leadership, Web Development, Community Building"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Hierarchy Order</label>
+                        <input type="number" name="order" className="form-input" defaultValue={team.length + 1} />
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">Hierarchy Order</label>
-                      <input type="number" name="order" className="form-input" defaultValue={team.length + 1} />
-                    </div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label className="form-label">Bio / Profile Summary</label>
-                      <textarea name="bio" className="form-input" rows="3" placeholder="Brief background summary..." />
-                    </div>
-                  </div>
-                  <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                    Add Team Member
-                  </button>
-                </form>
-              </div>
 
-              {/* Team Members List */}
-              <div className="admin-box">
-                <div className="admin-box-title">Current Leadership ({team.length})</div>
-                <div className="table-responsive">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Member</th>
-                        <th>Role</th>
-                        <th>Bio</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {team.map(m => (
-                        <tr key={m.id}>
-                          <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            {m.photoUrl ? (
-                              <img src={m.photoUrl} alt={m.name} style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
-                            ) : (
-                              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--accent-color)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                                {m.name ? m.name.charAt(0) : 'M'}
-                              </div>
-                            )}
-                            <strong>{m.name}</strong>
-                          </td>
-                          <td><span className="log-action-badge">{m.role}</span></td>
-                          <td><span style={{ fontSize: '0.85rem', color: '#64748b' }}>{m.bio ? m.bio.slice(0, 60) + '...' : 'No bio'}</span></td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                              <button onClick={() => startEditMember(m)} className="btn-table edit">Edit</button>
-                              <button onClick={() => handleDeleteMember(m.id)} className="btn-table delete">Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {team.length === 0 && (
-                        <tr>
-                          <td colSpan="4" style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>
-                            No team members configured yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                      <button type="submit" className="btn btn-accent">Add Member</button>
+                      <button type="button" className="btn btn-outline" onClick={() => setTeamSubTab('list')}>Cancel</button>
+                    </div>
+                  </form>
                 </div>
-              </div>
+              )}
+
+              {/* TEAM MEMBERS LIST — name, role, photo only */}
+              {teamSubTab === 'list' && (
+                <div>
+                  {team.length === 0 ? (
+                    <div className="admin-box" style={{ textAlign: 'center', padding: '60px 20px' }}>
+                      <TeamIcon style={{ width: '48px', height: '48px', color: 'var(--accent-color)', marginBottom: '14px' }} />
+                      <h3 style={{ color: 'var(--primary-dark)', marginBottom: '8px' }}>No Team Members Yet</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Click &quot;Add New Member&quot; to get started.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                      {[...team].sort((a, b) => (a.order || 0) - (b.order || 0)).map(m => (
+                        <div key={m.id} className="admin-box" style={{ padding: '20px', textAlign: 'center', position: 'relative' }}>
+                          {m.photoUrl ? (
+                            <img src={m.photoUrl} alt={m.name} style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', margin: '0 auto 12px auto', display: 'block', border: '3px solid #e2e8f0' }} />
+                          ) : (
+                            <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'var(--accent-color)', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.4rem', margin: '0 auto 12px auto', border: '3px solid #e2e8f0' }}>
+                              {m.name ? m.name.charAt(0).toUpperCase() : 'M'}
+                            </div>
+                          )}
+                          <div style={{ fontWeight: '700', fontSize: '0.95rem', color: '#0f172a', marginBottom: '4px' }}>{m.name}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b', background: '#f1f5f9', borderRadius: '20px', padding: '3px 10px', display: 'inline-block', marginBottom: '14px' }}>{m.role}</div>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                            <button onClick={() => startEditMember(m)} className="btn-table edit" style={{ flex: 1 }}>Edit</button>
+                            <button onClick={() => handleDeleteMember(m.id)} className="btn-table delete" style={{ flex: 1 }}>Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+
 
           {/* TAB: STATS & VALUES MANAGER */}
           {activeTab === 'stats' && (
             <form onSubmit={handleStatsSave}>
-              <div className="admin-panel-header">
-                <h2>Stats & Core Movement Values</h2>
-                <button type="submit" className="btn btn-accent">Save Stats & Values</button>
+              <div className="admin-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>Stats &amp; Core Movement Values</h2>
+                  <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
+                    Configure the key impact metrics and core values displayed across the platform.
+                  </p>
+                </div>
+                <button type="submit" className="btn btn-accent">Save Stats &amp; Values</button>
               </div>
 
-              <div className="admin-section-grid">
-                <div className="admin-box">
-                  <div className="admin-box-title">Movement Statistics</div>
-                  <div className="form-group">
-                    <label className="form-label">Youth Reached</label>
-                    <input type="text" name="stat_youth" className="form-input" defaultValue={data.stats?.youthReached || '5,000+'} />
+              {/* 4 Cards Grid for Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                {/* CARD 1: Members */}
+                <div className="admin-box" style={{ padding: '20px' }}>
+                  <div className="admin-box-title" style={{ color: '#c9a84c', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <StatsIcon style={{ width: '18px', height: '18px' }} /> Members
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Sessions Conducted</label>
-                    <input type="text" name="stat_sessions" className="form-input" defaultValue={data.stats?.sessionsConducted || '50+'} />
+                  <div className="form-group" style={{ marginBottom: '10px' }}>
+                    <label className="form-label">Display Label</label>
+                    <input
+                      type="text"
+                      name="statMembersLabel"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'members')?.label || 'Active Members'}
+                      placeholder="e.g. Active Members"
+                    />
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Active Cities / Chapters</label>
-                    <input type="text" name="stat_chapters" className="form-input" defaultValue={data.stats?.activeChapters || '12+'} />
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Count / Value</label>
+                    <input
+                      type="text"
+                      name="statMembersVal"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'members')?.value || '5,000+'}
+                      placeholder="e.g. 5,000+"
+                    />
                   </div>
                 </div>
 
-                <div className="admin-box">
-                  <div className="admin-box-title">Core Principles & Values</div>
+                {/* CARD 2: Sessions Held */}
+                <div className="admin-box" style={{ padding: '20px' }}>
+                  <div className="admin-box-title" style={{ color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <CalendarIcon style={{ width: '18px', height: '18px' }} /> Sessions Held
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '10px' }}>
+                    <label className="form-label">Display Label</label>
+                    <input
+                      type="text"
+                      name="statSessionsLabel"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'sessions')?.label || 'Sessions Held'}
+                      placeholder="e.g. Sessions Held"
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Count / Value</label>
+                    <input
+                      type="text"
+                      name="statSessionsVal"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'sessions')?.value || '50+'}
+                      placeholder="e.g. 50+"
+                    />
+                  </div>
+                </div>
+
+                {/* CARD 3: Topics Covered */}
+                <div className="admin-box" style={{ padding: '20px' }}>
+                  <div className="admin-box-title" style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <BookOpenIcon style={{ width: '18px', height: '18px' }} /> Topics Covered
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '10px' }}>
+                    <label className="form-label">Display Label</label>
+                    <input
+                      type="text"
+                      name="statTopicsLabel"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'topics')?.label || 'Topics Covered'}
+                      placeholder="e.g. Topics Covered"
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Count / Value</label>
+                    <input
+                      type="text"
+                      name="statTopicsVal"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'topics')?.value || '100+'}
+                      placeholder="e.g. 100+"
+                    />
+                  </div>
+                </div>
+
+                {/* CARD 4: Cities Reached */}
+                <div className="admin-box" style={{ padding: '20px' }}>
+                  <div className="admin-box-title" style={{ color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <MapPinIcon style={{ width: '18px', height: '18px' }} /> Cities Reached
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '10px' }}>
+                    <label className="form-label">Display Label</label>
+                    <input
+                      type="text"
+                      name="statCitiesLabel"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'cities')?.label || 'Cities Reached'}
+                      placeholder="e.g. Cities Reached"
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Count / Value</label>
+                    <input
+                      type="text"
+                      name="statCitiesVal"
+                      className="form-input"
+                      defaultValue={data.home?.stats?.find(s => s.id === 'cities')?.value || '12+'}
+                      placeholder="e.g. 12+"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Core Principles & Values */}
+              <div className="admin-box">
+                <div className="admin-box-title">Core Principles &amp; Values</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
                   <div className="form-group">
-                    <label className="form-label">Value 1: Intellect First</label>
+                    <label className="form-label">Principle 1: Intellect First</label>
                     <input type="text" name="val_1" className="form-input" defaultValue={data.values?.[0] || 'Grassroots Intellectual Dialogue'} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Value 2: Peer Mentorship</label>
+                    <label className="form-label">Principle 2: Peer Mentorship</label>
                     <input type="text" name="val_2" className="form-input" defaultValue={data.values?.[1] || 'Peer-to-Peer Knowledge Sharing'} />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Value 3: Open Access</label>
+                    <label className="form-label">Principle 3: Open Access</label>
                     <input type="text" name="val_3" className="form-input" defaultValue={data.values?.[2] || 'Inclusive Youth Leadership'} />
                   </div>
                 </div>
@@ -3652,12 +4325,112 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       ))}
                     </tbody>
                   </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+          {/* TAB: ACCESS CONTROL */}
+          {activeTab === 'access' && (
+            <div>
+              <div className="admin-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>Access Control &amp; User Management</h2>
+                  <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '0.88rem' }}>
+                    Create restricted accounts with custom credentials and page-level access permissions.
+                  </p>
                 </div>
-              )}
+                <button className="btn btn-accent" onClick={() => setEditingUser({ isNew: true, email: '', password: '', name: '', allowedPages: ['blog'] })}>
+                  + Add Restricted User
+                </button>
+              </div>
+
+              {/* Existing Custom Users */}
+              <div className="admin-box" style={{ marginBottom: '24px' }}>
+                <div className="admin-box-title">Restricted User Accounts ({customUsers.length})</div>
+                {customUsers.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: '#64748b' }}>
+                    <LockIcon style={{ width: '40px', height: '40px', margin: '0 auto 12px auto', display: 'block', opacity: 0.3 }} />
+                    <p>No restricted users created yet. Click &quot;Add Restricted User&quot; to create one.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {customUsers.map(u => (
+                      <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '14px 16px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#0f172a', color: '#c9a84c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1rem', flexShrink: 0 }}>
+                          {(u.name || u.email).charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: '600', color: '#0f172a', fontSize: '0.9rem' }}>{u.name || 'Unnamed User'}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{u.email}</div>
+                          <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {(u.allowedPages || []).map(pg => (
+                              <span key={pg} style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '12px', background: '#dbeafe', color: '#1d4ed8', fontWeight: '600' }}>{pg}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                          <button
+                            className="btn btn-outline"
+                            style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+                            onClick={() => setEditingUser({ ...u, isNew: false })}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn"
+                            style={{ fontSize: '0.78rem', padding: '5px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}
+                            onClick={() => {
+                              if (window.confirm(`Remove user ${u.email}?`)) {
+                                saveCustomUsers(customUsers.filter(c => c.id !== u.id));
+                                triggerNotification('User removed successfully.', 'success');
+                              }
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Page Lock Reference Guide */}
+              <div className="admin-box">
+                <div className="admin-box-title">Available Pages &amp; Their Keys</div>
+                <p style={{ fontSize: '0.84rem', color: '#64748b', marginBottom: '14px' }}>
+                  These are the page keys you can grant access to when creating a restricted user. The user will only see pages listed in their allowed pages.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                  {[
+                    ['overview', 'Overview Dashboard'],
+                    ['content_website', 'Website Content Editor'],
+                    ['media', 'Media Library'],
+                    ['subs', 'Submissions & Applications'],
+                    ['sessions', 'Sessions Manager'],
+                    ['blog', 'Blogs & Articles'],
+                    ['team', 'Hierarchy & Team'],
+                    ['certificates', 'Certificate System'],
+                    ['stats', 'Analytics & Statistics'],
+                    ['contact', 'Contact Information'],
+                    ['seo', 'SEO Settings'],
+                    ['logs', 'Activity Logs'],
+                    ['system', 'System Config'],
+                  ].map(([key, label]) => (
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
+                      <code style={{ fontSize: '0.72rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#0f172a', fontFamily: 'monospace', flexShrink: 0 }}>{key}</code>
+                      <span style={{ fontSize: '0.78rem', color: '#64748b' }}>{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
-        </main>
+          </React.Fragment>
+        )}
+      </main>
       </div>
 
       {/* EDIT CERTIFICATE MODAL */}
@@ -3745,8 +4518,129 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         </div>
       )}
 
+      {/* EDIT / ADD RESTRICTED USER MODAL */}
+      {editingUser && (
+        <div className="modal-overlay" onClick={() => setEditingUser(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <div className="modal-header">
+              <h3>{editingUser.isNew ? 'Add Restricted User' : 'Edit Restricted User'}</h3>
+              <button className="modal-close" onClick={() => setEditingUser(null)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Display Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editingUser.name || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                  placeholder="e.g. Blog Editor, Content Team"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Login Email *</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={editingUser.email || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  required
+                  placeholder="e.g. editor@example.com"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Login Password *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editingUser.password || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                  required
+                  placeholder="Set a strong password"
+                />
+                <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px' }}>
+                  This user will enter this email and password on the admin login page to access only their assigned sections.
+                </p>
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ marginBottom: '10px', display: 'block' }}>Page Access Permissions</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    ['overview', 'Overview Dashboard'],
+                    ['content_website', 'Website Content'],
+                    ['media', 'Media Library'],
+                    ['subs', 'Submissions'],
+                    ['sessions', 'Sessions'],
+                    ['blog', 'Blogs & Articles'],
+                    ['team', 'Hierarchy & Team'],
+                    ['certificates', 'Certificates'],
+                    ['stats', 'Analytics'],
+                    ['contact', 'Contact Info'],
+                    ['seo', 'SEO Settings'],
+                    ['logs', 'Activity Logs'],
+                    ['system', 'System Config'],
+                  ].map(([key, label]) => {
+                    const isChecked = (editingUser.allowedPages || []).includes(key);
+                    return (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '7px 10px', border: `1px solid ${isChecked ? '#3b82f6' : '#e2e8f0'}`, borderRadius: '6px', background: isChecked ? '#eff6ff' : '#fff', fontSize: '0.82rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const cur = editingUser.allowedPages || [];
+                            setEditingUser({
+                              ...editingUser,
+                              allowedPages: isChecked ? cur.filter(p => p !== key) : [...cur, key]
+                            });
+                          }}
+                          style={{ width: '14px', height: '14px' }}
+                        />
+                        {label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" onClick={() => setEditingUser(null)}>Cancel</button>
+              <button
+                className="btn btn-accent"
+                onClick={() => {
+                  if (!editingUser.email || !editingUser.password) {
+                    triggerNotification('Email and password are required.', 'error');
+                    return;
+                  }
+                  if (editingUser.isNew) {
+                    const newUser = {
+                      id: `usr-${Date.now()}`,
+                      email: editingUser.email.trim(),
+                      password: editingUser.password.trim(),
+                      name: editingUser.name || '',
+                      allowedPages: editingUser.allowedPages || []
+                    };
+                    saveCustomUsers([...customUsers, newUser]);
+                    triggerNotification(`Restricted user "${newUser.name || newUser.email}" created.`, 'success');
+                  } else {
+                    saveCustomUsers(customUsers.map(u => u.id === editingUser.id
+                      ? { ...u, email: editingUser.email.trim(), password: editingUser.password.trim(), name: editingUser.name || '', allowedPages: editingUser.allowedPages || [] }
+                      : u
+                    ));
+                    triggerNotification('User updated successfully.', 'success');
+                  }
+                  setEditingUser(null);
+                }}
+              >
+                {editingUser.isNew ? 'Create User' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TEAM MEMBER MODAL EDIT */}
       {editingMember && (
+
         <div className="modal-overlay" onClick={() => setEditingMember(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">

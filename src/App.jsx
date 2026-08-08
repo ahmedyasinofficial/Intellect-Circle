@@ -390,11 +390,11 @@ function App() {
 
   return (
     <div className="app-layout">
-      <Header currentPage={currentPage} navigateTo={navigateTo} />
-      <main className="main-content-area" style={{ paddingTop: 'var(--header-height)' }}>
+      {currentPage !== 'admin' && <Header currentPage={currentPage} navigateTo={navigateTo} />}
+      <main className="main-content-area" style={{ paddingTop: currentPage === 'admin' ? 0 : 'var(--header-height)' }}>
         {renderPage()}
       </main>
-      <Footer data={data} navigateTo={navigateTo} />
+      {currentPage !== 'admin' && <Footer data={data} navigateTo={navigateTo} />}
       {currentPage !== 'admin' && <WebsiteChatbot />}
     </div>
   )
