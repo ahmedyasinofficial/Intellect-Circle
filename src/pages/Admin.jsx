@@ -48,6 +48,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [blogSubTab, setBlogSubTab] = useState('list'); // 'list' | 'create'
   const [sessionSubTab, setSessionSubTab] = useState('list'); // 'list' | 'create'
   const [teamSubTab, setTeamSubTab] = useState('list'); // 'list' | 'create'
+  const [memberPhotoPreview, setMemberPhotoPreview] = useState('');
   const [globalSearch, setGlobalSearch] = useState('');
   const [userAccessRole, setUserAccessRole] = useState('full');
 
