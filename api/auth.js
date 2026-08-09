@@ -65,24 +65,25 @@ async function getFromSupabase(supabase) {
 }
 
 async function saveToSupabase(supabase, users) {
-  const currentIds = users.map(u => u.id);
+  if (!users || !Array.isArray(users)) return;
 
-  if (users.length > 0) {
-    const emailMap = new Map();
-    users.forEach(u => {
-      if (u.email) {
-        const lowerEmail = u.email.trim().toLowerCase();
-        emailMap.set(lowerEmail, {
-          id: u.id,
-          email: u.email.trim(),
-          password: u.password,
-          name: u.name || '',
-          allowed_pages: u.allowedPages || []
-        });
-      }
-    });
-    const rows = Array.from(emailMap.values());
+  const emailMap = new Map();
+  users.forEach(u => {
+    if (u && u.email) {
+      const lowerEmail = u.email.trim().toLowerCase();
+      emailMap.set(lowerEmail, {
+        id: u.id || `usr-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        email: u.email.trim(),
+        password: (u.password || '').trim(),
+        name: u.name || '',
+        allowed_pages: u.allowedPages || []
+      });
+    }
+  });
+  const rows = Array.from(emailMap.values());
+  const currentIds = rows.map(r => r.id);
 
+  if (rows.length > 0) {
     const { error: upsertError } = await supabase.from('restricted_users').upsert(rows, { onConflict: 'email' });
     if (upsertError) {
       console.error('[restricted-users] Upsert error:', upsertError.message || upsertError);

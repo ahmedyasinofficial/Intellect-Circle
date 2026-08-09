@@ -356,29 +356,41 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       return;
     }
 
-    // 1. Check custom user credentials created by Admin
-    let allCustomUsers = customUsers;
+    // 1. Gather all custom/restricted users from all sources
+    let allCustomUsers = [];
+
+    // Local state & localStorage
+    try {
+      if (Array.isArray(customUsers)) allCustomUsers.push(...customUsers);
+      const stored = localStorage.getItem('ic_admin_custom_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) allCustomUsers.push(...parsed);
+      }
+    } catch {}
+
+    // API fetch
     try {
       const resp = await fetch('/api/restricted-users');
       if (resp.ok) {
         const json = await resp.json();
         if (Array.isArray(json.users) && json.users.length > 0) {
-          allCustomUsers = json.users;
-          setCustomUsers(allCustomUsers);
+          allCustomUsers.push(...json.users);
+          setCustomUsers(json.users);
           try {
-            localStorage.setItem('ic_admin_custom_users', JSON.stringify(allCustomUsers));
+            localStorage.setItem('ic_admin_custom_users', JSON.stringify(json.users));
           } catch {}
         }
       }
     } catch (fetchErr) {
-      console.warn('[Login] Could not fetch server-side users, falling back to local/supabase:', fetchErr.message);
+      console.warn('[Login] Could not fetch server-side users:', fetchErr.message);
     }
 
-    // Direct Supabase fallback check if client Supabase is available
+    // Direct Supabase query fallback
     if (isSupabaseConfigured()) {
       try {
         const { data: supaUsers } = await supabase.from('restricted_users').select('*');
-        if (supaUsers && supaUsers.length > 0) {
+        if (supaUsers && Array.isArray(supaUsers) && supaUsers.length > 0) {
           const mapped = supaUsers.map(r => ({
             id: r.id,
             email: r.email,
@@ -386,39 +398,52 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             name: r.name,
             allowedPages: r.allowed_pages || []
           }));
-          const userMap = new Map();
-          [...allCustomUsers, ...mapped].forEach(u => userMap.set(u.email.toLowerCase().trim(), u));
-          allCustomUsers = Array.from(userMap.values());
+          allCustomUsers.push(...mapped);
         }
       } catch (sbErr) {
         console.warn('[Login] Supabase direct check failed:', sbErr);
       }
     }
 
-    const matchedCustomUser = allCustomUsers.find(u =>
-      u.email.toLowerCase().trim() === inputEmail &&
-      u.password.trim() === inputPass
+    // Deduplicate by email case-insensitively
+    const userMap = new Map();
+    allCustomUsers.forEach(u => {
+      if (u && u.email) {
+        userMap.set(u.email.trim().toLowerCase(), u);
+      }
+    });
+    const uniqueUsers = Array.from(userMap.values());
+
+    // Check if input email belongs to a restricted user
+    const existingRestrictedUser = uniqueUsers.find(u =>
+      u.email?.trim().toLowerCase() === inputEmail
     );
 
-    if (matchedCustomUser) {
-      const perms = {
-        isMaster: false,
-        allowedPages: matchedCustomUser.allowedPages || [],
-        userEmail: matchedCustomUser.email,
-        name: matchedCustomUser.name
-      };
-      setToken('custom-token-' + matchedCustomUser.id);
-      setUserEmail(matchedCustomUser.email);
-      setActiveUserPermissions(perms);
-      try {
-        localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(perms));
-      } catch {}
-      onLogin();
-      const firstAllowed = (matchedCustomUser.allowedPages || []).find(p => p !== 'overview') || 'blog';
-      setActiveTab(firstAllowed);
-      triggerNotification(`Signed in as ${matchedCustomUser.name || matchedCustomUser.email} (Restricted Access).`, 'success');
-      setLoading(false);
-      return;
+    if (existingRestrictedUser) {
+      if (existingRestrictedUser.password?.trim() === inputPass) {
+        const perms = {
+          isMaster: false,
+          allowedPages: existingRestrictedUser.allowedPages || [],
+          userEmail: existingRestrictedUser.email,
+          name: existingRestrictedUser.name
+        };
+        setToken('custom-token-' + existingRestrictedUser.id);
+        setUserEmail(existingRestrictedUser.email);
+        setActiveUserPermissions(perms);
+        try {
+          localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(perms));
+        } catch {}
+        onLogin();
+        const firstAllowed = (existingRestrictedUser.allowedPages || []).find(p => p !== 'overview') || 'blog';
+        setActiveTab(firstAllowed);
+        triggerNotification(`Signed in as ${existingRestrictedUser.name || existingRestrictedUser.email} (Restricted Access).`, 'success');
+        setLoading(false);
+        return;
+      } else {
+        setLoginError('Invalid email or password.');
+        setLoading(false);
+        return;
+      }
     }
 
     // 2. Production Mode: Auth with Supabase
