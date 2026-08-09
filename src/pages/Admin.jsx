@@ -277,6 +277,18 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   // How It Works Steps State
   const [howStepsItems, setHowStepsItems] = useState(() => (home.howItWorks?.steps || []));
 
+  // About Page — Founder Story State
+  const [founderStoryTitle, setFounderStoryTitle] = useState(() => (about.founderStory?.title || 'How it Started'));
+  const [founderStoryText, setFounderStoryText] = useState(() => (about.founderStory?.text || ''));
+
+  // About Page — What Makes Us Different State
+  const [differencesItems, setDifferencesItems] = useState(() => (about.differences || [
+    { title: 'Strict Time Limits', description: '60 minutes, zero filler. Every second of our sessions is optimized for learning.' },
+    { title: 'Diverse Domains', description: '' },
+    { title: 'Selective Peer Network', description: '' },
+    { title: 'No Passive Listeners', description: '' }
+  ]));
+
   // Notifications / Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -662,6 +674,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     const existingHero = data.home?.hero || {};
     const existingCta = data.home?.ctaSection || {};
     const existingAbout = data.home?.aboutTeaser || {};
+    const existingAboutPage = data.about || {};
 
     const updated = {
       ...data,
@@ -692,6 +705,14 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         pillars:          data.home?.pillars          || { title: 'Pillars of Intellect Circle', items: [] },
         geographicModel:  data.home?.geographicModel  || { title: 'Geographic Model', description: '', levels: [] },
         collaborations:   data.home?.collaborations   || { title: 'Collaborations & Networks', partners: [] }
+      },
+      about: {
+        ...existingAboutPage,
+        founderStory: {
+          title: founderStoryTitle,
+          text:  founderStoryText
+        },
+        differences: differencesItems
       }
     };
 
@@ -2564,54 +2585,134 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
                 {/* Sub-Tab 2: About Sections */}
                 {websiteSubTab === 'about' && (
-                  <div className="admin-box">
-                    <div className="admin-box-title">About Teaser Section</div>
-                    <div className="form-group">
-                      <label className="form-label">Teaser Title</label>
-                      <input type="text" name="aboutTeaserTitle" className="form-input" defaultValue={home.aboutTeaser?.title} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Teaser Subtitle</label>
-                      <textarea name="aboutTeaserSubtitle" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser?.subtitle} />
+                  <>
+                    <div className="admin-box">
+                      <div className="admin-box-title">About Teaser Section (Home Page)</div>
+                      <div className="form-group">
+                        <label className="form-label">Teaser Title</label>
+                        <input type="text" name="aboutTeaserTitle" className="form-input" defaultValue={home.aboutTeaser?.title} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Teaser Subtitle</label>
+                        <textarea name="aboutTeaserSubtitle" className="form-input" style={{ minHeight: '100px' }} defaultValue={home.aboutTeaser?.subtitle} />
+                      </div>
+
+                      {/* What Is Intellect Circle? — Column Cards */}
+                      <div className="admin-box-title" style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>"What Is Intellect Circle?" — Column Cards</span>
+                        <button
+                          type="button"
+                          className="btn btn-accent"
+                          style={{ fontSize: '13px', padding: '6px 14px' }}
+                          onClick={() => setTeaserColumns(prev => [...prev, { title: 'New Column', description: '' }])}
+                        >
+                          + Add Column
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
+                        {teaserColumns.map((col, idx) => (
+                          <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
+                              <button type="button" title="Move Up" onClick={() => setTeaserColumns(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9650;</button>
+                              <button type="button" title="Move Down" onClick={() => setTeaserColumns(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9660;</button>
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">Column Title</label>
+                                <input type="text" className="form-input" value={col.title}
+                                  onChange={e => setTeaserColumns(prev => prev.map((c, i) => i === idx ? { ...c, title: e.target.value } : c))} />
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">Column Description</label>
+                                <textarea className="form-input" rows={3} value={col.description}
+                                  onChange={e => setTeaserColumns(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))} />
+                              </div>
+                            </div>
+                            <button type="button" onClick={() => setTeaserColumns(prev => prev.filter((_, i) => i !== idx))}
+                              style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>&#x2715;</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
-                    {/* What Is Intellect Circle? — Column Cards */}
-                    <div className="admin-box-title" style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>"What Is Intellect Circle?" — Column Cards</span>
-                      <button
-                        type="button"
-                        className="btn btn-accent"
-                        style={{ fontSize: '13px', padding: '6px 14px' }}
-                        onClick={() => setTeaserColumns(prev => [...prev, { title: 'New Column', description: '' }])}
-                      >
-                        + Add Column
-                      </button>
+                    {/* ── About PAGE: Founder Story ── */}
+                    <div className="admin-box" style={{ marginTop: '18px' }}>
+                      <div className="admin-box-title">About Page — Founder Story</div>
+                      <div className="form-group">
+                        <label className="form-label">Section Title</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={founderStoryTitle}
+                          onChange={e => setFounderStoryTitle(e.target.value)}
+                          placeholder="How it Started"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Founder Story Text</label>
+                        <textarea
+                          className="form-input"
+                          style={{ minHeight: '130px' }}
+                          value={founderStoryText}
+                          onChange={e => setFounderStoryText(e.target.value)}
+                          placeholder="Tell the origin story of Intellect Circle..."
+                        />
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
-                      {teaserColumns.map((col, idx) => (
-                        <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid var(--border-color, #e2e8f0)' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
-                            <button type="button" title="Move Up" onClick={() => setTeaserColumns(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9650;</button>
-                            <button type="button" title="Move Down" onClick={() => setTeaserColumns(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9660;</button>
-                          </div>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label">Column Title</label>
-                              <input type="text" className="form-input" value={col.title}
-                                onChange={e => setTeaserColumns(prev => prev.map((c, i) => i === idx ? { ...c, title: e.target.value } : c))} />
+
+                    {/* ── About PAGE: What Makes Us Different ── */}
+                    <div className="admin-box" style={{ marginTop: '18px' }}>
+                      <div className="admin-box-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>About Page — "What Makes Us Different"</span>
+                        <button
+                          type="button"
+                          className="btn btn-accent"
+                          style={{ fontSize: '13px', padding: '6px 14px' }}
+                          onClick={() => setDifferencesItems(prev => [...prev, { title: 'New Point', description: '' }])}
+                        >
+                          + Add Item
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+                        {differencesItems.map((diff, idx) => (
+                          <div key={idx} style={{ background: 'var(--bg-secondary, #f8f7f5)', borderRadius: '10px', padding: '14px 16px', display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px' }}>
+                              <button type="button" title="Move Up" onClick={() => setDifferencesItems(prev => { const a = [...prev]; if (idx > 0) { [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9650;</button>
+                              <button type="button" title="Move Down" onClick={() => setDifferencesItems(prev => { const a = [...prev]; if (idx < a.length - 1) { [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; } return a; })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '2px 4px' }}>&#9660;</button>
                             </div>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label className="form-label">Column Description</label>
-                              <textarea className="form-input" rows={3} value={col.description}
-                                onChange={e => setTeaserColumns(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))} />
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">Point Title</label>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={diff.title}
+                                  onChange={e => setDifferencesItems(prev => prev.map((d, i) => i === idx ? { ...d, title: e.target.value } : d))}
+                                />
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label className="form-label">Description</label>
+                                <textarea
+                                  className="form-input"
+                                  rows={3}
+                                  value={diff.description}
+                                  onChange={e => setDifferencesItems(prev => prev.map((d, i) => i === idx ? { ...d, description: e.target.value } : d))}
+                                />
+                              </div>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => setDifferencesItems(prev => prev.filter((_, i) => i !== idx))}
+                              style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}
+                            >&#x2715;</button>
                           </div>
-                          <button type="button" onClick={() => setTeaserColumns(prev => prev.filter((_, i) => i !== idx))}
-                            style={{ background: 'var(--danger-color, #e74c3c)', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, marginTop: '4px' }}>&#x2715;</button>
-                        </div>
-                      ))}
+                        ))}
+                        {differencesItems.length === 0 && (
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '20px' }}>No items yet. Click "+ Add Item" to get started.</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
 
                 {/* Sub-Tab 3: CTA Sections */}

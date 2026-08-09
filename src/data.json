@@ -473,6 +473,13 @@
   },
   "activity_logs": [
     {
+      "id": "log-1786305238860",
+      "user_email": "admin@intellectcircle.com",
+      "action": "Admin Login",
+      "details": "Signed in as Master Admin intellectcircle.official4@gmail.com",
+      "created_at": "2026-08-09T19:53:58.860Z"
+    },
+    {
       "id": "log-1786216793037",
       "user_email": "admin@intellectcircle.com",
       "action": "Admin Login",
