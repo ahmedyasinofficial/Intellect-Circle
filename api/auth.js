@@ -76,7 +76,7 @@ async function saveToSupabase(supabase, users) {
       allowed_pages: u.allowedPages || []
     }));
 
-    const { error: upsertError } = await supabase.from('restricted_users').upsert(rows, { onConflict: 'id' });
+    const { error: upsertError } = await supabase.from('restricted_users').upsert(rows, { onConflict: 'email' });
     if (upsertError) {
       console.error('[restricted-users] Upsert error:', upsertError.message || upsertError);
       throw upsertError;
