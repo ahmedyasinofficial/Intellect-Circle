@@ -124,6 +124,36 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         triggerNotification(errData.error || 'Failed to sync users with database.', 'error');
         return false;
       }
+
+      // Re-fetch fresh user list from server after save
+      const freshRes = await fetch('/api/restricted-users');
+      if (freshRes.ok) {
+        const freshData = await freshRes.json();
+        if (Array.isArray(freshData.users)) {
+          setCustomUsers(freshData.users);
+          try {
+            localStorage.setItem('ic_admin_custom_users', JSON.stringify(freshData.users));
+          } catch {}
+
+          // If active user is a restricted user, sync activeUserPermissions immediately
+          if (activeUserPermissions && !activeUserPermissions.isMaster && userEmail) {
+            const currentEmail = userEmail.toLowerCase().trim();
+            const updatedSelf = freshData.users.find(u => u.email?.toLowerCase().trim() === currentEmail);
+            if (updatedSelf) {
+              const newPerms = {
+                isMaster: false,
+                allowedPages: updatedSelf.allowedPages || [],
+                userEmail: updatedSelf.email,
+                name: updatedSelf.name
+              };
+              setActiveUserPermissions(newPerms);
+              try {
+                localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(newPerms));
+              } catch {}
+            }
+          }
+        }
+      }
       return true;
     } catch (err) {
       console.warn('[saveCustomUsers] Server sync error:', err.message);
@@ -132,10 +162,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   };
 
   const isPageAllowed = useCallback((pageKey) => {
-    if (!activeUserPermissions) return true;
+    if (!activeUserPermissions) return false;
+    // Master Admin has full access to all pages
     if (activeUserPermissions.isMaster) return true;
-    if (pageKey === 'overview' || pageKey === 'access') return true;
-    return activeUserPermissions.allowedPages && (activeUserPermissions.allowedPages.includes(pageKey) || activeUserPermissions.allowedPages.includes('*'));
+
+    // Access Control & User Management ('access') is NEVER allowed for restricted users
+    if (pageKey === 'access') return false;
+
+    // All other pages (including 'overview') require permission in allowedPages array
+    const allowed = activeUserPermissions.allowedPages || [];
+    return allowed.includes(pageKey) || allowed.includes('*');
   }, [activeUserPermissions]);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -287,7 +323,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     checkSession();
   }, [isLoggedIn, activeUserPermissions]);
 
-  // Fetch restricted users on mount
+  // Fetch restricted users on mount & keep active user permissions fresh
   useEffect(() => {
     const fetchRestrictedUsers = async () => {
       try {
@@ -299,6 +335,27 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             try {
               localStorage.setItem('ic_admin_custom_users', JSON.stringify(data.users));
             } catch {}
+
+            // Keep activeUserPermissions in sync if logged in as a restricted user
+            const storedPerms = localStorage.getItem('ic_admin_active_user_perms');
+            if (storedPerms) {
+              try {
+                const parsedPerms = JSON.parse(storedPerms);
+                if (parsedPerms && !parsedPerms.isMaster && parsedPerms.userEmail) {
+                  const match = data.users.find(u => u.email?.toLowerCase().trim() === parsedPerms.userEmail.toLowerCase().trim());
+                  if (match) {
+                    const freshPerms = {
+                      isMaster: false,
+                      allowedPages: match.allowedPages || [],
+                      userEmail: match.email,
+                      name: match.name
+                    };
+                    setActiveUserPermissions(freshPerms);
+                    localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(freshPerms));
+                  }
+                }
+              } catch {}
+            }
           }
         }
       } catch (err) {
@@ -307,6 +364,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     };
     fetchRestrictedUsers();
   }, []);
+
+  // Auto switch tab if current activeTab becomes disallowed for a restricted user
+  useEffect(() => {
+    if (!activeUserPermissions || activeUserPermissions.isMaster) return;
+    if (!isPageAllowed(activeTab)) {
+      const allowed = activeUserPermissions.allowedPages || [];
+      const firstValid = allowed.find(p => p !== 'access' && p !== '*') || 'blog';
+      setActiveTab(firstValid);
+    }
+  }, [activeUserPermissions, activeTab, isPageAllowed]);
 
   // Fetch live submissions & logs on login/tab switch
   const fetchSubmissionsAndLogs = async () => {
@@ -459,7 +526,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           localStorage.setItem('ic_admin_active_user_perms', JSON.stringify(perms));
         } catch {}
         onLogin();
-        const firstAllowed = (existingRestrictedUser.allowedPages || []).find(p => p !== 'overview') || 'blog';
+        const allowedList = existingRestrictedUser.allowedPages || [];
+        const firstAllowed = allowedList.includes('overview') 
+          ? 'overview' 
+          : (allowedList.find(p => p !== 'access') || 'blog');
         setActiveTab(firstAllowed);
         triggerNotification(`Signed in as ${existingRestrictedUser.name || existingRestrictedUser.email} (Restricted Access).`, 'success');
         setLoading(false);
@@ -2074,7 +2144,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             title="Dashboard Overview"
           >
             <OverviewIcon />
-            {!isSidebarCollapsed && <span>Dashboard</span>}
+            {!isSidebarCollapsed && (
+              <>
+                <span>Dashboard</span>
+                {!isPageAllowed('overview') && <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />}
+              </>
+            )}
           </button>
 
           {/* CONTENT CATEGORY */}
@@ -2256,14 +2331,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               </>
             )}
           </button>
-          <button 
-            className={`sidebar-item-btn ${activeTab === 'access' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('access')}
-            title="Access Control"
-          >
-            <LockIcon style={{ width: '16px', height: '16px' }} />
-            {!isSidebarCollapsed && <span>Access Control</span>}
-          </button>
+          {activeUserPermissions?.isMaster && (
+            <button 
+              className={`sidebar-item-btn ${activeTab === 'access' ? 'active' : ''}`} 
+              onClick={() => setActiveTab('access')}
+              title="Access Control"
+            >
+              <LockIcon style={{ width: '16px', height: '16px' }} />
+              {!isSidebarCollapsed && <span>Access Control</span>}
+            </button>
+          )}
         </aside>
 
         {/* Main Control Room Content Panel */}
