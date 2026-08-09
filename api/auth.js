@@ -68,13 +68,20 @@ async function saveToSupabase(supabase, users) {
   const currentIds = users.map(u => u.id);
 
   if (users.length > 0) {
-    const rows = users.map(u => ({
-      id: u.id,
-      email: u.email,
-      password: u.password,
-      name: u.name || '',
-      allowed_pages: u.allowedPages || []
-    }));
+    const emailMap = new Map();
+    users.forEach(u => {
+      if (u.email) {
+        const lowerEmail = u.email.trim().toLowerCase();
+        emailMap.set(lowerEmail, {
+          id: u.id,
+          email: u.email.trim(),
+          password: u.password,
+          name: u.name || '',
+          allowed_pages: u.allowedPages || []
+        });
+      }
+    });
+    const rows = Array.from(emailMap.values());
 
     const { error: upsertError } = await supabase.from('restricted_users').upsert(rows, { onConflict: 'email' });
     if (upsertError) {
