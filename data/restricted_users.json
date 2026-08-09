@@ -1,0 +1,9 @@
+[
+  {
+    "id": "usr-default-editor",
+    "email": "editor@intellectcircle.org",
+    "password": "editor123",
+    "name": "Blog & Content Editor",
+    "allowedPages": ["blog", "overview", "sessions"]
+  }
+]

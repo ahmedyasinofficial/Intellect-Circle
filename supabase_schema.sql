@@ -16,6 +16,16 @@ CREATE TABLE IF NOT EXISTS public.admin_users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Restricted Users (custom access credentials created by admin)
+CREATE TABLE IF NOT EXISTS public.restricted_users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    name TEXT DEFAULT '',
+    allowed_pages TEXT[] DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Site Settings Table
 CREATE TABLE IF NOT EXISTS public.site_settings (
     id INT PRIMARY KEY DEFAULT 1,

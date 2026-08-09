@@ -87,9 +87,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   const saveCustomUsers = (users) => {
     setCustomUsers(users);
+    // Persist to localStorage for instant local reads
     try {
       localStorage.setItem('ic_admin_custom_users', JSON.stringify(users));
     } catch {}
+    // Persist to server so credentials work across all browsers/devices
+    fetch('/api/restricted-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users })
+    }).catch(err => console.warn('[saveCustomUsers] Server sync failed:', err.message));
   };
 
   const isPageAllowed = useCallback((pageKey) => {
@@ -318,8 +325,27 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
 
     // 1. Check custom user credentials created by Admin
-    const matchedCustomUser = customUsers.find(u => 
-      u.email.toLowerCase().trim() === inputEmail && 
+    //    Always fetch from server first so credentials work across browsers/devices.
+    let allCustomUsers = customUsers; // fallback to local state
+    try {
+      const resp = await fetch('/api/restricted-users');
+      if (resp.ok) {
+        const json = await resp.json();
+        if (Array.isArray(json.users)) {
+          allCustomUsers = json.users;
+          // Sync local state & localStorage with the freshest server data
+          setCustomUsers(allCustomUsers);
+          try {
+            localStorage.setItem('ic_admin_custom_users', JSON.stringify(allCustomUsers));
+          } catch {}
+        }
+      }
+    } catch (fetchErr) {
+      console.warn('[Login] Could not fetch server-side users, falling back to local:', fetchErr.message);
+    }
+
+    const matchedCustomUser = allCustomUsers.find(u =>
+      u.email.toLowerCase().trim() === inputEmail &&
       u.password.trim() === inputPass
     );
 
