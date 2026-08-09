@@ -302,7 +302,9 @@ function App() {
 
   // 7. Admin Authentication State
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
-    return sessionStorage.getItem('ic_admin_logged_in') === 'true';
+    const isSessionActive = sessionStorage.getItem('ic_admin_logged_in') === 'true';
+    const hasCustomPerms = !!localStorage.getItem('ic_admin_active_user_perms');
+    return isSessionActive || hasCustomPerms;
   });
 
   useEffect(() => {
@@ -326,6 +328,9 @@ function App() {
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
     sessionStorage.removeItem('ic_admin_logged_in');
+    try {
+      localStorage.removeItem('ic_admin_active_user_perms');
+    } catch {}
     if (window.location.pathname !== '/') {
       window.history.pushState(null, '', '/');
     }

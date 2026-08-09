@@ -24,8 +24,29 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const seo = data.seo || {};
 
   // Supabase Auth and Token state
-  const [token, setToken] = useState(null);
-  const [userEmail, setUserEmail] = useState('');
+  const [token, setToken] = useState(() => {
+    try {
+      const stored = localStorage.getItem('ic_admin_active_user_perms');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && !parsed.isMaster && parsed.userEmail) {
+          return 'custom-token-' + (parsed.userEmail || 'restricted');
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const [userEmail, setUserEmail] = useState(() => {
+    try {
+      const stored = localStorage.getItem('ic_admin_active_user_perms');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.userEmail) return parsed.userEmail;
+      }
+    } catch {}
+    return '';
+  });
   
   // Dashboard metrics and activity logs
   const [activityLogs, setActivityLogs] = useState([]);
@@ -250,9 +271,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
             setUserEmail(session.user.email);
             if (!isLoggedIn) onLogin();
           } else {
-            setToken(null);
-            setUserEmail('');
-            if (isLoggedIn) onLogout();
+            // Only log out if current session is NOT a restricted custom user session
+            const isCustomUser = activeUserPermissions && !activeUserPermissions.isMaster;
+            if (!isCustomUser) {
+              setToken(null);
+              setUserEmail('');
+              if (isLoggedIn) onLogout();
+            }
           }
         });
 
@@ -260,7 +285,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       }
     };
     checkSession();
-  }, [isLoggedIn]);
+  }, [isLoggedIn, activeUserPermissions]);
 
   // Fetch restricted users on mount
   useEffect(() => {
@@ -527,10 +552,14 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       }).catch(() => {});
     }
     if (isSupabaseConfigured()) {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut().catch(() => {});
     }
+    try {
+      localStorage.removeItem('ic_admin_active_user_perms');
+    } catch {}
     setToken(null);
     setUserEmail('');
+    setActiveUserPermissions({ isMaster: true, allowedPages: ['*'] });
     onLogout();
     triggerNotification('Signed out successfully.');
   };
