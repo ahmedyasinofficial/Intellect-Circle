@@ -85,18 +85,29 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   });
   const [editingUser, setEditingUser] = useState(null);
 
-  const saveCustomUsers = (users) => {
+  const saveCustomUsers = async (users) => {
     setCustomUsers(users);
-    // Persist to localStorage for instant local reads
     try {
       localStorage.setItem('ic_admin_custom_users', JSON.stringify(users));
     } catch {}
-    // Persist to server so credentials work across all browsers/devices
-    fetch('/api/restricted-users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ users })
-    }).catch(err => console.warn('[saveCustomUsers] Server sync failed:', err.message));
+
+    try {
+      const res = await fetch('/api/restricted-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ users })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error('[saveCustomUsers] Backend save error:', errData);
+        triggerNotification(errData.error || 'Failed to sync users with database.', 'error');
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('[saveCustomUsers] Server sync error:', err.message);
+      return false;
+    }
   };
 
   const isPageAllowed = useCallback((pageKey) => {
@@ -251,6 +262,27 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     checkSession();
   }, [isLoggedIn]);
 
+  // Fetch restricted users on mount
+  useEffect(() => {
+    const fetchRestrictedUsers = async () => {
+      try {
+        const res = await fetch('/api/restricted-users');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.users) && data.users.length > 0) {
+            setCustomUsers(data.users);
+            try {
+              localStorage.setItem('ic_admin_custom_users', JSON.stringify(data.users));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load restricted users from API:', err);
+      }
+    };
+    fetchRestrictedUsers();
+  }, []);
+
   // Fetch live submissions & logs on login/tab switch
   const fetchSubmissionsAndLogs = async () => {
     setSubsLoading(true);
@@ -325,15 +357,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
 
     // 1. Check custom user credentials created by Admin
-    //    Always fetch from server first so credentials work across browsers/devices.
-    let allCustomUsers = customUsers; // fallback to local state
+    let allCustomUsers = customUsers;
     try {
       const resp = await fetch('/api/restricted-users');
       if (resp.ok) {
         const json = await resp.json();
-        if (Array.isArray(json.users)) {
+        if (Array.isArray(json.users) && json.users.length > 0) {
           allCustomUsers = json.users;
-          // Sync local state & localStorage with the freshest server data
           setCustomUsers(allCustomUsers);
           try {
             localStorage.setItem('ic_admin_custom_users', JSON.stringify(allCustomUsers));
@@ -341,7 +371,28 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         }
       }
     } catch (fetchErr) {
-      console.warn('[Login] Could not fetch server-side users, falling back to local:', fetchErr.message);
+      console.warn('[Login] Could not fetch server-side users, falling back to local/supabase:', fetchErr.message);
+    }
+
+    // Direct Supabase fallback check if client Supabase is available
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: supaUsers } = await supabase.from('restricted_users').select('*');
+        if (supaUsers && supaUsers.length > 0) {
+          const mapped = supaUsers.map(r => ({
+            id: r.id,
+            email: r.email,
+            password: r.password,
+            name: r.name,
+            allowedPages: r.allowed_pages || []
+          }));
+          const userMap = new Map();
+          [...allCustomUsers, ...mapped].forEach(u => userMap.set(u.email.toLowerCase().trim(), u));
+          allCustomUsers = Array.from(userMap.values());
+        }
+      } catch (sbErr) {
+        console.warn('[Login] Supabase direct check failed:', sbErr);
+      }
     }
 
     const matchedCustomUser = allCustomUsers.find(u =>
@@ -4512,10 +4563,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <button
                             className="btn"
                             style={{ fontSize: '0.78rem', padding: '5px 12px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fca5a5' }}
-                            onClick={() => {
+                            onClick={async () => {
                               if (window.confirm(`Remove user ${u.email}?`)) {
-                                saveCustomUsers(customUsers.filter(c => c.id !== u.id));
-                                triggerNotification('User removed successfully.', 'success');
+                                const nextUsers = customUsers.filter(c => c.id !== u.id);
+                                const ok = await saveCustomUsers(nextUsers);
+                                if (ok !== false) {
+                                  triggerNotification('User removed successfully.', 'success');
+                                }
                               }
                             }}
                           >
@@ -4738,7 +4792,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               <button className="btn btn-outline" onClick={() => setEditingUser(null)}>Cancel</button>
               <button
                 className="btn btn-accent"
-                onClick={() => {
+                onClick={async () => {
                   if (!editingUser.email || !editingUser.password) {
                     triggerNotification('Email and password are required.', 'error');
                     return;
@@ -4751,14 +4805,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       name: editingUser.name || '',
                       allowedPages: editingUser.allowedPages || []
                     };
-                    saveCustomUsers([...customUsers, newUser]);
-                    triggerNotification(`Restricted user "${newUser.name || newUser.email}" created.`, 'success');
+                    const ok = await saveCustomUsers([...customUsers, newUser]);
+                    if (ok !== false) {
+                      triggerNotification(`Restricted user "${newUser.name || newUser.email}" created.`, 'success');
+                    }
                   } else {
-                    saveCustomUsers(customUsers.map(u => u.id === editingUser.id
+                    const updated = customUsers.map(u => u.id === editingUser.id
                       ? { ...u, email: editingUser.email.trim(), password: editingUser.password.trim(), name: editingUser.name || '', allowedPages: editingUser.allowedPages || [] }
                       : u
-                    ));
-                    triggerNotification('User updated successfully.', 'success');
+                    );
+                    const ok = await saveCustomUsers(updated);
+                    if (ok !== false) {
+                      triggerNotification('User updated successfully.', 'success');
+                    }
                   }
                   setEditingUser(null);
                 }}
