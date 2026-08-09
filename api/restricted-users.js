@@ -58,8 +58,8 @@ async function getFromSupabase(supabase) {
 }
 
 async function saveToSupabase(supabase, users) {
-  // Replace all rows with current list
-  await supabase.from('restricted_users').delete().neq('id', '');
+  const currentIds = users.map(u => u.id);
+
   if (users.length > 0) {
     const rows = users.map(u => ({
       id: u.id,
@@ -68,8 +68,28 @@ async function saveToSupabase(supabase, users) {
       name: u.name || '',
       allowed_pages: u.allowedPages || []
     }));
-    const { error } = await supabase.from('restricted_users').insert(rows);
-    if (error) throw error;
+
+    const { error: upsertError } = await supabase.from('restricted_users').upsert(rows, { onConflict: 'id' });
+    if (upsertError) {
+      console.error('[restricted-users] Upsert error:', upsertError.message || upsertError);
+      throw upsertError;
+    }
+  }
+
+  // Delete any user from DB that was removed from the users array
+  try {
+    const { data: existingRows } = await supabase.from('restricted_users').select('id');
+    if (existingRows && Array.isArray(existingRows)) {
+      const toDelete = existingRows.filter(r => !currentIds.includes(r.id)).map(r => r.id);
+      if (toDelete.length > 0) {
+        const { error: delErr } = await supabase.from('restricted_users').delete().in('id', toDelete);
+        if (delErr) {
+          console.warn('[restricted-users] Clean up removed users warning:', delErr.message || delErr);
+        }
+      }
+    }
+  } catch (cleanErr) {
+    console.warn('[restricted-users] Failed clean up step:', cleanErr.message);
   }
 }
 
@@ -117,10 +137,8 @@ export default async function handler(req, res) {
       }
       return res.status(200).json({ success: true });
     } catch (err) {
-      console.error('[restricted-users POST] Error:', err.message);
-      // Still save to fallback file as secondary store
-      writeFallback(users);
-      return res.status(200).json({ success: true, warning: 'Saved to fallback file (Supabase unavailable).' });
+      console.error('[restricted-users POST] Error:', err.message || err);
+      return res.status(500).json({ error: err.message || 'Failed to save users to database' });
     }
   }
 
