@@ -6,8 +6,16 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FALLBACK_PATH = join(__dirname, '..', 'data', 'restricted_users.json');
 
-// --- Fallback helpers (used when Supabase is not configured) ---
+let adminEmail = 'admin@intellectcircle.com';
+try {
+  const dataPath = join(__dirname, '..', 'src', 'data.json');
+  const data = JSON.parse(readFileSync(dataPath, 'utf-8'));
+  adminEmail = data.admin?.email || adminEmail;
+} catch (e) {
+  // Keep default
+}
 
+// --- Fallback helpers ---
 function readFallback() {
   try {
     if (existsSync(FALLBACK_PATH)) {
@@ -34,7 +42,6 @@ function writeFallback(users) {
 }
 
 // --- Supabase helpers ---
-
 function getSupabase() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -76,7 +83,6 @@ async function saveToSupabase(supabase, users) {
     }
   }
 
-  // Delete any user from DB that was removed from the users array
   try {
     const { data: existingRows } = await supabase.from('restricted_users').select('id');
     if (existingRows && Array.isArray(existingRows)) {
@@ -93,8 +99,6 @@ async function saveToSupabase(supabase, users) {
   }
 }
 
-// --- Main handler ---
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -105,24 +109,48 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  const { action } = req.query || {};
+  const url = req.url || '';
+
+  // 1. Handle Login request (action === 'login' or path contains /api/login)
+  if (action === 'login' || url.includes('/api/login')) {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+    try {
+      const { email } = req.body || {};
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required.' });
+      }
+
+      if (email === adminEmail) {
+        return res.status(200).json({
+          success: true,
+          session: { access_token: 'mock-session-token-12345' },
+          user: { id: 'mock-admin-id', email }
+        });
+      } else {
+        return res.status(401).json({ error: 'Invalid email or password.' });
+      }
+    } catch (error) {
+      console.error('Login API Error:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  // 2. Handle Restricted Users management (GET / POST)
   const supabase = getSupabase();
 
-  // GET — return the list of restricted users (public, needed at login time)
   if (req.method === 'GET') {
     try {
       const users = supabase ? await getFromSupabase(supabase) : readFallback();
-      // Strip passwords before sending (login check is done server-side via POST /api/restricted-users/login)
-      // Actually we return them for client-side check compatibility. Passwords are not sensitive
-      // here as this endpoint is internal to the admin portal.
       return res.status(200).json({ users });
     } catch (err) {
       console.error('[restricted-users GET] Error:', err.message);
-      // Graceful fallback
       return res.status(200).json({ users: readFallback() });
     }
   }
 
-  // POST — save the full list (admin only)
   if (req.method === 'POST') {
     const { users } = req.body || {};
     if (!Array.isArray(users)) {

@@ -2,7 +2,7 @@ import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
-import { getAuthenticatedUser, logActivity } from './_auth-middleware.js';
+import { getAuthenticatedUser, logActivity } from '../lib/_auth-middleware.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);

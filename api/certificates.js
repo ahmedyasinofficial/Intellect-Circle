@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getAuthenticatedUser, logActivity } from './_auth-middleware.js';
+import { getAuthenticatedUser, logActivity } from '../lib/_auth-middleware.js';
 import PDFDocument from 'pdfkit';
 import nodemailer from 'nodemailer';
 

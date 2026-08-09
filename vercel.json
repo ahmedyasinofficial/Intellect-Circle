@@ -2,6 +2,10 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/api/login", "destination": "/api/auth?action=login" },
+    { "source": "/api/restricted-users", "destination": "/api/auth" },
+    { "source": "/api/activity-log", "destination": "/api/analytics?action=activity-log" },
+    { "source": "/api/setup-db", "destination": "/api/settings?action=setup-db" },
     { "source": "/api/:path*", "destination": "/api/:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
