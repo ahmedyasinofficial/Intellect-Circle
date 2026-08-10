@@ -318,6 +318,20 @@
       "format": "30min talk + Q&A",
       "isUpcoming": false,
       "summary": "Analyzing inflation, foreign reserves, and fiscal deficits with a specific focus on structural reforms in Pakistan's economy."
+    },
+    {
+      "title": "asdf",
+      "presenter": "asdfas",
+      "scheduled_at": "2026-08-10T10:31",
+      "time": "18:00 PKT",
+      "format": "30min talk + Q&A",
+      "summary": "sadfasdf",
+      "status": "upcoming",
+      "photo": "",
+      "takeaways": [],
+      "registration_link": "",
+      "id": "sessions-1786357927933",
+      "isUpcoming": true
     }
   ],
   "blog": [
@@ -400,6 +414,14 @@
       "excerpt": "Somehting is cooking ",
       "content": "We are hoping ot see soethign huge very soon.",
       "id": "blog-1784274320470"
+    },
+    {
+      "title": "khjhkj",
+      "published_at": "2026-08-18",
+      "author": "kjhkjh",
+      "excerpt": "hjbhj",
+      "content": "lhjblhb",
+      "id": "blog-1786357950962"
     }
   ],
   "team": [
@@ -461,6 +483,15 @@
         "Impact Strategy",
         "Youth Access"
       ]
+    },
+    {
+      "name": "jkhjkh",
+      "role": "lihkj",
+      "bio": "jhlkj",
+      "photo": "",
+      "skills": [],
+      "is_visible": true,
+      "id": "team-1786357994330"
     }
   ],
   "contact": {
@@ -743,13 +774,25 @@
   ],
   "certificates": [
     {
+      "id": "IC-2026-179806",
+      "recipient_name": "asdf",
+      "recipient_email": "asdf@gmail.com",
+      "program_name": "asdfv",
+      "completion_date": "2026-08-12",
+      "certificate_type": "Intellect Circle Certificate",
+      "status": "valid",
+      "is_paid": false,
+      "price": 0,
+      "payment_status": "free",
+      "created_at": "2026-08-10T10:19:39.806Z"
+    },
+    {
       "id": "IC-2026-670813",
       "recipient_name": null,
       "recipient_email": null,
       "program_name": "sadf",
       "completion_date": "2026-08-18",
       "certificate_type": "Collaboration Certificate",
-      "status": "valid",
       "is_paid": false,
       "price": 0,
       "payment_status": "free",
@@ -1483,5 +1526,26 @@
       "status": "revoked",
       "created_at": "2026-07-07T16:24:30.371Z"
     }
-  ]
+  ],
+  "submissions": {
+    "applications": [
+      {
+        "id": "app-1786357246922",
+        "name": "Ahmed",
+        "email": "asdf@gmail.com",
+        "mobileNumber": "03124232423",
+        "age": "23",
+        "city": "Lahore",
+        "occupation": "Student",
+        "whyJoin": "asdfasdf If you have something to share, something to solve, or just a hunger to be around people who think - this is your place.",
+        "heardAbout": "Instagram",
+        "heardAboutOther": "",
+        "heardAboutCombined": "Instagram",
+        "submittedAt": "2026-08-10T10:20:46.922Z",
+        "welcome_email_status": "pending",
+        "welcome_email_send_after": "2026-08-10T11:20:46.927Z"
+      }
+    ],
+    "contacts": []
+  }
 }

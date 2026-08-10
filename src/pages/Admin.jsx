@@ -3217,8 +3217,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     fontWeight: '700',
                     cursor: 'pointer'
                   }}
+                  onClick={() => {
+                    if (sessionSubTab === 'create') {
+                      setSessionSubTab('list');
+                    } else {
+                      startAddSession();
+                      setSessionSubTab('create');
+                    }
+                  }}
                 >
-                  ➕ Create New Session
+                  {sessionSubTab === 'create' ? '← View All Sessions' : '➕ Create New Session'}
                 </button>
               </div>
 
@@ -3230,23 +3238,53 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                       <div className="form-group">
                         <label className="form-label">Session Title *</label>
-                        <input type="text" name="title" className="form-input" required placeholder="e.g. Critical Thinking in Youth Movements" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          placeholder="e.g. Critical Thinking in Youth Movements"
+                          value={sessionForm.title}
+                          onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
+                        />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Presenter / Speaker *</label>
-                        <input type="text" name="presenter" className="form-input" required placeholder="e.g. Ahmad Yasin" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          placeholder="e.g. Ahmad Yasin"
+                          value={sessionForm.presenter}
+                          onChange={(e) => setSessionForm({ ...sessionForm, presenter: e.target.value })}
+                        />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Date *</label>
-                        <input type="date" name="date" className="form-input" required />
+                        <input
+                          type="datetime-local"
+                          className="form-input"
+                          required
+                          value={sessionForm.scheduled_at}
+                          onChange={(e) => setSessionForm({ ...sessionForm, scheduled_at: e.target.value })}
+                        />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Time</label>
-                        <input type="text" name="time" className="form-input" placeholder="e.g. 7:00 PM PKT" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. 7:00 PM PKT"
+                          value={sessionForm.time}
+                          onChange={(e) => setSessionForm({ ...sessionForm, time: e.target.value })}
+                        />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Status *</label>
-                        <select name="status" className="form-input">
+                        <select
+                          className="form-input"
+                          value={sessionForm.status}
+                          onChange={(e) => setSessionForm({ ...sessionForm, status: e.target.value })}
+                        >
                           <option value="upcoming">Upcoming Session</option>
                           <option value="completed">Completed Session</option>
                         </select>
@@ -3254,17 +3292,29 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       <div className="form-group">
                         <label className="form-label">Cover Photo URL</label>
                         <div className="media-input-group">
-                          <input type="text" id="session_photo_input" name="photoUrl" className="form-input" placeholder="https://..." />
-                          <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('session_photo_input').value = url; })} className="btn-select-media">Library</button>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="https://..."
+                            value={sessionForm.photo}
+                            onChange={(e) => setSessionForm({ ...sessionForm, photo: e.target.value })}
+                          />
+                          <button type="button" onClick={() => triggerMediaPicker(url => setSessionForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
                         </div>
                       </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Description</label>
-                        <textarea name="description" className="form-input" rows="3" placeholder="Brief overview of the session scope..." />
+                        <textarea
+                          className="form-input"
+                          rows="3"
+                          placeholder="Brief overview of the session scope..."
+                          value={sessionForm.summary}
+                          onChange={(e) => setSessionForm({ ...sessionForm, summary: e.target.value })}
+                        />
                       </div>
                     </div>
                     <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                      Save Session
+                      {editingSession && !editingSession.isNew ? 'Update Session' : 'Save Session'}
                     </button>
                   </form>
                 </div>
@@ -3355,7 +3405,14 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   </p>
                 </div>
                 <button
-                  onClick={() => setBlogSubTab(blogSubTab === 'create' ? 'list' : 'create')}
+                  onClick={() => {
+                    if (blogSubTab === 'create') {
+                      setBlogSubTab('list');
+                    } else {
+                      startAddBlog();
+                      setBlogSubTab('create');
+                    }
+                  }}
                   className="btn btn-accent"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
@@ -3383,7 +3440,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </button>
                 <button
                   type="button"
-                  onClick={() => setBlogSubTab('create')}
+                  onClick={() => { startAddBlog(); setBlogSubTab('create'); }}
                   style={{
                     background: blogSubTab === 'create' ? '#c9a84c' : '#e2e8f0',
                     color: blogSubTab === 'create' ? '#0f172a' : '#334155',
@@ -3407,38 +3464,61 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Article Title *</label>
-                        <input type="text" name="title" className="form-input" required placeholder="e.g. Highlights from Session #4" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          placeholder="e.g. Highlights from Session #4"
+                          value={blogForm.title}
+                          onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value })}
+                        />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Author *</label>
-                        <input type="text" name="author" className="form-input" required defaultValue="Intellect Circle Editorial" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          placeholder="Intellect Circle Editorial"
+                          value={blogForm.author}
+                          onChange={(e) => setBlogForm({ ...blogForm, author: e.target.value })}
+                        />
                       </div>
                       <div className="form-group">
                         <label className="form-label">Date *</label>
-                        <input type="date" name="date" className="form-input" required defaultValue={new Date().toISOString().split('T')[0]} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Category</label>
-                        <input type="text" name="category" className="form-input" defaultValue="Blog Post" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Cover Image URL</label>
-                        <div className="media-input-group">
-                          <input type="text" id="blog_image_input" name="image" className="form-input" placeholder="https://..." />
-                          <button type="button" onClick={() => triggerMediaPicker(url => { document.getElementById('blog_image_input').value = url; })} className="btn-select-media">Library</button>
-                        </div>
+                        <input
+                          type="date"
+                          className="form-input"
+                          required
+                          value={blogForm.published_at}
+                          onChange={(e) => setBlogForm({ ...blogForm, published_at: e.target.value })}
+                        />
                       </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Short Excerpt *</label>
-                        <textarea name="excerpt" className="form-input" rows="2" required placeholder="Brief preview text for cards..." />
+                        <textarea
+                          className="form-input"
+                          rows="2"
+                          required
+                          placeholder="Brief preview text for cards..."
+                          value={blogForm.excerpt}
+                          onChange={(e) => setBlogForm({ ...blogForm, excerpt: e.target.value })}
+                        />
                       </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Full Article Content *</label>
-                        <textarea name="content" className="form-input" rows="6" required placeholder="Full markdown or plain text article..." />
+                        <textarea
+                          className="form-input"
+                          rows="6"
+                          required
+                          placeholder="Full markdown or plain text article..."
+                          value={blogForm.content}
+                          onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
+                        />
                       </div>
                     </div>
                     <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                      {editingBlog ? 'Update Article' : 'Publish Article'}
+                      {editingBlog && !editingBlog.isNew ? 'Update Article' : 'Publish Article'}
                     </button>
                   </form>
                 </div>
@@ -3539,7 +3619,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   Current Members ({team.length})
                 </button>
                 <button
-                  onClick={() => setTeamSubTab('create')}
+                  onClick={() => { startAddMember(); setTeamSubTab('create'); }}
                   style={{
                     padding: '9px 20px', fontSize: '0.85rem', fontWeight: '600', border: 'none', background: 'none', cursor: 'pointer',
                     borderBottom: teamSubTab === 'create' ? '2px solid var(--accent-color)' : '2px solid transparent',
@@ -3554,25 +3634,40 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               {teamSubTab === 'create' && (
                 <div className="admin-box" style={{ maxWidth: '720px' }}>
                   <div className="admin-box-title" style={{ marginBottom: '18px' }}>Add New Leadership Member</div>
-                  <form onSubmit={(e) => { handleMemberSubmit(e); setTeamSubTab('list'); }}>
+                  <form onSubmit={async (e) => { await handleMemberSubmit(e); setTeamSubTab('list'); }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div className="form-group">
                         <label className="form-label">Full Name *</label>
-                        <input type="text" name="name" className="form-input" required placeholder="Ahmad Yasin" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          placeholder="Ahmad Yasin"
+                          value={memberForm.name}
+                          onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
+                        />
                       </div>
 
                       <div className="form-group">
                         <label className="form-label">Designation / Role *</label>
-                        <input type="text" name="role" className="form-input" required placeholder="Founder & President, Intellect Circles" />
+                        <input
+                          type="text"
+                          className="form-input"
+                          required
+                          placeholder="Founder & President, Intellect Circles"
+                          value={memberForm.role}
+                          onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
+                        />
                       </div>
 
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Short Biography</label>
                         <textarea
-                          name="bio"
                           className="form-input"
                           rows="3"
-                          placeholder="A student of knowledge and a builder at heart, driven by continuous self-learning. My focus is entirely on turning deep insights into practical solutions and spaces for community growth."
+                          placeholder="A student of knowledge and a builder at heart..."
+                          value={memberForm.bio}
+                          onChange={(e) => setMemberForm({ ...memberForm, bio: e.target.value })}
                         />
                       </div>
 
@@ -3614,8 +3709,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                     const reader = new FileReader();
                                     reader.onloadend = () => {
                                       setMemberPhotoPreview(reader.result);
-                                      const el = document.getElementById('member_photo_input');
-                                      if (el) el.value = reader.result;
+                                      setMemberForm(prev => ({ ...prev, photo: reader.result }));
                                     };
                                     reader.readAsDataURL(file);
                                   }
@@ -3627,16 +3721,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <input
                               type="text"
-                              id="member_photo_input"
-                              name="photoUrl"
                               className="form-input"
                               placeholder="Or select from Media Library / paste URL"
-                              onChange={(e) => setMemberPhotoPreview(e.target.value)}
+                              value={memberForm.photo}
+                              onChange={(e) => { setMemberPhotoPreview(e.target.value); setMemberForm(prev => ({ ...prev, photo: e.target.value })); }}
                               style={{ flex: 1 }}
                             />
                             <button
                               type="button"
-                              onClick={() => triggerMediaPicker(url => { setMemberPhotoPreview(url); const el = document.getElementById('member_photo_input'); if (el) el.value = url; })}
+                              onClick={() => triggerMediaPicker(url => { setMemberPhotoPreview(url); setMemberForm(prev => ({ ...prev, photo: url })); })}
                               className="btn-select-media"
                               style={{ whiteSpace: 'nowrap' }}
                             >
@@ -3650,9 +3743,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         <label className="form-label">Skills &amp; Expertises (comma-separated)</label>
                         <input
                           type="text"
-                          name="skills"
                           className="form-input"
                           placeholder="e.g. Leadership, Web Development, Community Building"
+                          value={memberForm.skills.join(', ')}
+                          onChange={(e) => setMemberForm({ ...memberForm, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                         />
                       </div>
 
