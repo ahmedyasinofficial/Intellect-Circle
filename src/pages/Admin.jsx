@@ -257,7 +257,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   // Form Fields
   const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '' });
-  const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '' });
+  const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '', cover_image: '' });
   const [memberForm, setMemberForm] = useState({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
 
   // Pillars & Geographic Model State
@@ -1716,7 +1716,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   // CRUD: BLOGS
   const startAddBlog = () => {
     setEditingBlog({ isNew: true });
-    setBlogForm({ title: '', published_at: new Date().toISOString().substring(0, 10), author: '', excerpt: '', content: '' });
+    setBlogForm({ title: '', published_at: new Date().toISOString().substring(0, 10), author: '', excerpt: '', content: '', cover_image: '' });
   };
 
   const startEditBlog = (b) => {
@@ -1726,7 +1726,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       published_at: b.publishedAt ? new Date(b.publishedAt).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
       author: b.author,
       excerpt: b.excerpt || '',
-      content: b.content || ''
+      content: b.content || '',
+      cover_image: b.cover_image || b.coverImage || ''
     });
   };
 
@@ -3493,6 +3494,49 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           value={blogForm.published_at}
                           onChange={(e) => setBlogForm({ ...blogForm, published_at: e.target.value })}
                         />
+                      </div>
+                      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                        <label className="form-label">Cover Image</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px' }}>
+                          {blogForm.cover_image && (
+                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                              <div style={{ width: '80px', height: '50px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                                <img src={blogForm.cover_image} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              </div>
+                              <button
+                                type="button"
+                                title="Remove cover image"
+                                onClick={() => setBlogForm(prev => ({ ...prev, cover_image: '' }))}
+                                style={{ position: 'absolute', top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: '#e53e3e', color: '#fff', border: 'none', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                              >×</button>
+                            </div>
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="form-input"
+                              style={{ padding: '5px' }}
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onloadend = () => setBlogForm(prev => ({ ...prev, cover_image: reader.result }));
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="media-input-group">
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Or paste image URL..."
+                            value={blogForm.cover_image}
+                            onChange={(e) => setBlogForm({ ...blogForm, cover_image: e.target.value })}
+                          />
+                          <button type="button" onClick={() => triggerMediaPicker(url => setBlogForm(prev => ({ ...prev, cover_image: url })))} className="btn-select-media">Library</button>
+                        </div>
                       </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Short Excerpt *</label>
@@ -5470,6 +5514,49 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       onChange={(e) => setBlogForm({ ...blogForm, published_at: e.target.value })}
                       required
                     />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Cover Image</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+                    {blogForm.cover_image && (
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <div style={{ width: '100px', height: '62px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                          <img src={blogForm.cover_image} alt="Cover Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <button
+                          type="button"
+                          title="Remove cover image"
+                          onClick={() => setBlogForm(prev => ({ ...prev, cover_image: '' }))}
+                          style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', background: '#e53e3e', color: '#fff', border: 'none', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                        >×</button>
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="form-input"
+                        style={{ padding: '5px' }}
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onloadend = () => setBlogForm(prev => ({ ...prev, cover_image: reader.result }));
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="media-input-group">
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Or paste image URL..."
+                      value={blogForm.cover_image}
+                      onChange={(e) => setBlogForm({ ...blogForm, cover_image: e.target.value })}
+                    />
+                    <button type="button" onClick={() => triggerMediaPicker(url => setBlogForm(prev => ({ ...prev, cover_image: url })))} className="btn-select-media">Library</button>
                   </div>
                 </div>
                 <div className="form-group">

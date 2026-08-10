@@ -220,7 +220,7 @@ export default async function handler(req, res) {
 
     if (type === 'blog') {
       if (req.method === 'POST') {
-        const { title, published_at, author, excerpt, content } = req.body;
+        const { title, published_at, author, excerpt, content, cover_image } = req.body;
         if (!title || !author) {
           return res.status(400).json({ error: 'Title and Author are required.' });
         }
@@ -229,7 +229,8 @@ export default async function handler(req, res) {
           published_at: published_at || new Date().toISOString(),
           author,
           excerpt,
-          content
+          content,
+          cover_image: cover_image || null
         }).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Create Blog Recap', `Published recap: ${title}`);
@@ -237,7 +238,7 @@ export default async function handler(req, res) {
       }
 
       if (req.method === 'PUT') {
-        const { id, title, published_at, author, excerpt, content } = req.body;
+        const { id, title, published_at, author, excerpt, content, cover_image } = req.body;
         if (!id) {
           return res.status(400).json({ error: 'Missing blog recap ID.' });
         }
@@ -247,6 +248,7 @@ export default async function handler(req, res) {
         if (author !== undefined) updateData.author = author;
         if (excerpt !== undefined) updateData.excerpt = excerpt;
         if (content !== undefined) updateData.content = content;
+        if (cover_image !== undefined) updateData.cover_image = cover_image || null;
         const { data, error } = await supabase.from('blog').update(updateData).eq('id', id).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Update Blog Recap', `Updated recap: ${data.title}`);
