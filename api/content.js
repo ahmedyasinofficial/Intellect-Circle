@@ -56,16 +56,7 @@ export default async function handler(req, res) {
       } else if (type === 'sessions') {
         const { data, error } = await supabase.from('sessions').select('*').order('scheduled_at', { ascending: false });
         if (error) throw error;
-        
-        // Auto status update check
-        const now = new Date();
-        const updatedData = data.map(s => {
-          if (s.status === 'upcoming' && new Date(s.scheduled_at) < now) {
-            s.status = 'completed';
-          }
-          return s;
-        });
-        return res.status(200).json(updatedData);
+        return res.status(200).json(data);
       } else if (type === 'blog') {
         const { data, error } = await supabase.from('blog').select('*').order('published_at', { ascending: false });
         if (error) throw error;
@@ -155,10 +146,7 @@ export default async function handler(req, res) {
         if (!title || !presenter || !scheduled_at) {
           return res.status(400).json({ error: 'Title, Presenter, and Scheduled Date are required.' });
         }
-        let computedStatus = status || 'upcoming';
-        if (computedStatus === 'upcoming' && new Date(scheduled_at) < new Date()) {
-          computedStatus = 'completed';
-        }
+        const computedStatus = status || 'upcoming';
         const { data, error } = await supabase.from('sessions').insert({
           title,
           presenter,
@@ -191,14 +179,7 @@ export default async function handler(req, res) {
         if (photo !== undefined) updateData.photo = photo;
         if (takeaways !== undefined) updateData.takeaways = takeaways;
         if (registration_link !== undefined) updateData.registration_link = registration_link;
-        if (status !== undefined) {
-          let computedStatus = status;
-          const targetDate = scheduled_at || req.body.scheduledAt;
-          if (computedStatus === 'upcoming' && targetDate && new Date(targetDate) < new Date()) {
-            computedStatus = 'completed';
-          }
-          updateData.status = computedStatus;
-        }
+        if (status !== undefined) updateData.status = status;
         const { data, error } = await supabase.from('sessions').update(updateData).eq('id', id).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Update Session', `Updated session: ${data.title}`);

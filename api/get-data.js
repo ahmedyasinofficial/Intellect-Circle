@@ -177,14 +177,8 @@ export default async function handler(req, res) {
     }));
 
     // Format sessions
-    const now = new Date();
     const sessions = (sessionsRes.data || []).map(s => {
-      // Automatically determine if completed or upcoming based on scheduled_at time
-      let computedStatus = s.status;
-      const scheduledTime = new Date(s.scheduled_at);
-      if (s.status === 'upcoming' && scheduledTime < now) {
-        computedStatus = 'completed';
-      }
+      const computedStatus = s.status || 'upcoming';
       return {
         id: s.id,
         title: s.title,

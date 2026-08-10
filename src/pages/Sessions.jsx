@@ -117,8 +117,12 @@ function Sessions({ data, navigateTo }) {
                   <>
                     {paginatedPastSessions.map((session) => (
                       <div className="archive-card" key={session.id}>
-                        <span className="session-badge" style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary-color)', borderColor: 'var(--border-color)' }}>
-                          Archive Record
+                        <span className="session-badge" style={{
+                          backgroundColor: session.status === 'cancelled' ? '#fee2e2' : 'var(--primary-light)',
+                          color: session.status === 'cancelled' ? '#991b1b' : 'var(--primary-color)',
+                          borderColor: session.status === 'cancelled' ? '#fca5a5' : 'var(--border-color)'
+                        }}>
+                          {session.status === 'cancelled' ? 'Cancelled Session' : 'Archive Record'}
                         </span>
                         <h3 style={{ fontSize: '1.35rem', marginTop: '10px' }}>{session.title}</h3>
                         <div className="archive-meta">

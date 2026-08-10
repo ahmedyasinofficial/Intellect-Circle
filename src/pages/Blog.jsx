@@ -273,6 +273,8 @@ function ArticleView({ blog, navigateTo }) {
   const content = blog.content || excerpt || '';
   const dateStr = blog.date || formatDate(blog.publishedAt || blog.published_at);
 
+  const coverImg = blog.cover_image || blog.coverImage || '';
+
   return (
     <div style={{ minHeight: '80vh', background: 'var(--primary-light)' }}>
       {/* Hero Banner */}
@@ -321,6 +323,11 @@ function ArticleView({ blog, navigateTo }) {
 
       {/* Article Body */}
       <div className="container" style={{ maxWidth: '760px', padding: '36px 16px 60px' }}>
+        {coverImg && (
+          <div style={{ width: '100%', maxHeight: '420px', borderRadius: '16px', overflow: 'hidden', marginBottom: '28px', border: '1px solid var(--border-color)', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+            <img src={coverImg} alt={title} style={{ width: '100%', height: '100%', maxHeight: '420px', objectFit: 'cover' }} />
+          </div>
+        )}
         {excerpt && (
           <p style={{
             fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: '1.8',
@@ -554,6 +561,8 @@ function BlogCard({ blog, navigateTo }) {
   const author = blog.author || 'Intellect Circle Member';
   const excerpt = blog.excerpt || blog.summary || '';
 
+  const coverImg = blog.cover_image || blog.coverImage || '';
+
   return (
     <article
       onClick={() => navigateTo('blog', blog.id)}
@@ -569,9 +578,15 @@ function BlogCard({ blog, navigateTo }) {
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
         boxShadow: hovered ? '0 12px 40px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}
     >
+      {coverImg && (
+        <div style={{ width: 'calc(100% + 56px)', height: '180px', margin: '-28px -28px 18px -28px', overflow: 'hidden', borderBottom: '1px solid var(--border-color)' }}>
+          <img src={coverImg} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }} />
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
         <span style={{
           padding: '4px 12px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.5px',

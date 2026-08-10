@@ -1465,6 +1465,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const startAddMember = () => {
     setEditingMember({ isNew: true });
     setMemberForm({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
+    setTeamSubTab('create');
   };
 
   const startEditMember = (m) => {
@@ -1477,6 +1478,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       skills: m.skills || [],
       is_visible: m.is_visible !== false
     });
+    setTeamSubTab('create');
   };
 
   // Generic file upload → Media Library → returns URL
@@ -1565,7 +1567,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       if (res.ok) {
         triggerNotification(isNew ? 'Added core team member.' : 'Updated member details.', 'success');
         setEditingMember(null);
+        setTeamSubTab('list');
         fetchSubmissionsAndLogs(); // Reload data
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        triggerNotification(errData.error || res.statusText || 'Failed to edit team member.', 'error');
       }
     } catch (err) {
       triggerNotification('Failed to edit team member.', 'error');
@@ -1639,6 +1645,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       takeaways: [],
       registration_link: ''
     });
+    setSessionSubTab('create');
   };
 
   const startEditSession = (s) => {
@@ -1655,6 +1662,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       takeaways: s.takeaways || [],
       registration_link: s.registrationLink || ''
     });
+    setSessionSubTab('create');
   };
 
   const handleSessionSubmit = async (e) => {
@@ -1664,7 +1672,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       return;
     }
 
-    const isNew = editingSession.isNew;
+    const isNew = editingSession ? editingSession.isNew : true;
     const url = '/api/content?type=sessions';
     const method = isNew ? 'POST' : 'PUT';
     const body = isNew
@@ -1684,7 +1692,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       if (res.ok) {
         triggerNotification(isNew ? 'Added session successfully.' : 'Updated session details.', 'success');
         setEditingSession(null);
+        setSessionSubTab('list');
         fetchSubmissionsAndLogs();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        triggerNotification(errData.error || res.statusText || 'Failed to edit session.', 'error');
       }
     } catch (err) {
       triggerNotification('Failed to edit session.', 'error');
@@ -1717,6 +1729,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const startAddBlog = () => {
     setEditingBlog({ isNew: true });
     setBlogForm({ title: '', published_at: new Date().toISOString().substring(0, 10), author: '', excerpt: '', content: '', cover_image: '' });
+    setBlogSubTab('create');
   };
 
   const startEditBlog = (b) => {
@@ -1729,6 +1742,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       content: b.content || '',
       cover_image: b.cover_image || b.coverImage || ''
     });
+    setBlogSubTab('create');
   };
 
   const handleBlogSubmit = async (e) => {
@@ -1738,7 +1752,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       return;
     }
 
-    const isNew = editingBlog.isNew;
+    const isNew = editingBlog ? editingBlog.isNew : true;
     const url = '/api/content?type=blog';
     const method = isNew ? 'POST' : 'PUT';
     const body = isNew
@@ -1758,7 +1772,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       if (res.ok) {
         triggerNotification(isNew ? 'Added blog recap article.' : 'Updated blog recap article.', 'success');
         setEditingBlog(null);
+        setBlogSubTab('list');
         fetchSubmissionsAndLogs();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        triggerNotification(errData.error || res.statusText || 'Failed to edit blog recap.', 'error');
       }
     } catch (err) {
       triggerNotification('Failed to edit blog recap.', 'error');
@@ -3203,11 +3221,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     cursor: 'pointer'
                   }}
                 >
-                  📅 All Sessions ({sessions.length})
+                  All Sessions ({sessions.length})
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSessionSubTab('create')}
                   style={{
                     background: sessionSubTab === 'create' ? '#c9a84c' : '#e2e8f0',
                     color: sessionSubTab === 'create' ? '#0f172a' : '#334155',
@@ -3223,18 +3240,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       setSessionSubTab('list');
                     } else {
                       startAddSession();
-                      setSessionSubTab('create');
                     }
                   }}
                 >
-                  {sessionSubTab === 'create' ? '← View All Sessions' : '➕ Create New Session'}
+                  {sessionSubTab === 'create' ? 'View All Sessions' : 'Create New Session'}
                 </button>
               </div>
 
               {/* Add / Edit Session Form */}
-              {(sessionSubTab === 'create' || editingSession) && (
+              {sessionSubTab === 'create' && (
                 <div className="admin-box" style={{ marginBottom: '24px' }}>
-                  <div className="admin-box-title">{editingSession ? 'Edit Session' : 'Create New Session'}</div>
+                  <div className="admin-box-title">{editingSession && !editingSession.isNew ? 'Edit Session' : 'Create New Session'}</div>
                   <form onSubmit={handleSessionSubmit}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                       <div className="form-group">
@@ -3288,6 +3304,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         >
                           <option value="upcoming">Upcoming Session</option>
                           <option value="completed">Completed Session</option>
+                          <option value="cancelled">Cancelled Session</option>
                         </select>
                       </div>
                       <div className="form-group">
@@ -3314,15 +3331,20 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         />
                       </div>
                     </div>
-                    <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                      {editingSession && !editingSession.isNew ? 'Update Session' : 'Save Session'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                      <button type="submit" className="btn btn-accent">
+                        {editingSession && !editingSession.isNew ? 'Update Session' : 'Save Session'}
+                      </button>
+                      <button type="button" className="btn btn-outline" onClick={() => { setEditingSession(null); setSessionSubTab('list'); }}>
+                        Cancel
+                      </button>
+                    </div>
                   </form>
                 </div>
               )}
 
               {/* Sessions Table */}
-              {(sessionSubTab === 'list' && !editingSession) && (
+              {sessionSubTab === 'list' && (
                 <div className="admin-box">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
                     <div className="admin-box-title" style={{ margin: 0 }}>Existing Sessions ({sessions.length})</div>
@@ -3338,6 +3360,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       <option value="all">All</option>
                       <option value="upcoming">Upcoming</option>
                       <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
                     </select>
                   </div>
                 </div>
@@ -3360,8 +3383,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <td>{s.presenter}</td>
                           <td>{s.date} {s.time ? `(${s.time})` : ''}</td>
                           <td>
-                            <span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 600, background: s.status === 'upcoming' ? '#FEF3C7' : '#E2E8F0', color: s.status === 'upcoming' ? '#D97706' : '#475569' }}>
-                              {s.status === 'upcoming' ? 'Upcoming' : 'Completed'}
+                            <span style={{
+                              padding: '3px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 600,
+                              background: s.status === 'upcoming' ? '#FEF3C7' : (s.status === 'cancelled' ? '#FEE2E2' : '#E2E8F0'),
+                              color: s.status === 'upcoming' ? '#D97706' : (s.status === 'cancelled' ? '#991B1B' : '#475569')
+                            }}>
+                              {s.status === 'upcoming' ? 'Upcoming' : (s.status === 'cancelled' ? 'Cancelled' : 'Completed')}
                             </span>
                           </td>
                           <td style={{ textAlign: 'right' }}>
@@ -3437,11 +3464,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     cursor: 'pointer'
                   }}
                 >
-                  📝 Published Articles & Blogs ({blog.length})
+                  Published Articles ({blog.length})
                 </button>
                 <button
                   type="button"
-                  onClick={() => { startAddBlog(); setBlogSubTab('create'); }}
+                  onClick={() => { startAddBlog(); }}
                   style={{
                     background: blogSubTab === 'create' ? '#c9a84c' : '#e2e8f0',
                     color: blogSubTab === 'create' ? '#0f172a' : '#334155',
@@ -3453,14 +3480,14 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     cursor: 'pointer'
                   }}
                 >
-                  ➕ Publish New Article / Blog
+                  Publish New Article
                 </button>
               </div>
 
               {/* Add / Edit Blog Form */}
-              {(blogSubTab === 'create' || editingBlog) && (
+              {blogSubTab === 'create' && (
                 <div className="admin-box" style={{ marginBottom: '24px' }}>
-                  <div className="admin-box-title">{editingBlog ? 'Edit Blog Article' : 'Publish New Blog / Article'}</div>
+                  <div className="admin-box-title">{editingBlog && !editingBlog.isNew ? 'Edit Blog Article' : 'Publish New Blog / Article'}</div>
                   <form onSubmit={handleBlogSubmit}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -3520,9 +3547,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                               onChange={(e) => {
                                 const file = e.target.files[0];
                                 if (!file) return;
-                                const reader = new FileReader();
-                                reader.onloadend = () => setBlogForm(prev => ({ ...prev, cover_image: reader.result }));
-                                reader.readAsDataURL(file);
+                                handleFileUpload(file, (url) => setBlogForm(prev => ({ ...prev, cover_image: url })));
                               }}
                             />
                           </div>
@@ -3561,15 +3586,20 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         />
                       </div>
                     </div>
-                    <button type="submit" className="btn btn-accent" style={{ marginTop: '10px' }}>
-                      {editingBlog && !editingBlog.isNew ? 'Update Article' : 'Publish Article'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                      <button type="submit" className="btn btn-accent">
+                        {editingBlog && !editingBlog.isNew ? 'Update Article' : 'Publish Article'}
+                      </button>
+                      <button type="button" className="btn btn-outline" onClick={() => { setEditingBlog(null); setBlogSubTab('list'); }}>
+                        Cancel
+                      </button>
+                    </div>
                   </form>
                 </div>
               )}
 
               {/* Blog Table */}
-              {(blogSubTab === 'list' && !editingBlog) && (
+              {blogSubTab === 'list' && (
                 <div className="admin-box">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div className="admin-box-title" style={{ margin: 0 }}>Published Articles & Blogs ({blog.length})</div>
@@ -3674,11 +3704,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </button>
               </div>
 
-              {/* ADD MEMBER FORM */}
+              {/* ADD / EDIT MEMBER FORM */}
               {teamSubTab === 'create' && (
                 <div className="admin-box" style={{ maxWidth: '720px' }}>
-                  <div className="admin-box-title" style={{ marginBottom: '18px' }}>Add New Leadership Member</div>
-                  <form onSubmit={async (e) => { await handleMemberSubmit(e); setTeamSubTab('list'); }}>
+                  <div className="admin-box-title" style={{ marginBottom: '18px' }}>{editingMember && !editingMember.isNew ? 'Edit Leadership Member' : 'Add New Leadership Member'}</div>
+                  <form onSubmit={handleMemberSubmit}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                       <div className="form-group">
                         <label className="form-label">Full Name *</label>
@@ -3722,17 +3752,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           {/* Image Preview Box */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '14px' }}>
                             <div style={{ position: 'relative', width: '64px', height: '64px' }}>
-                              {memberPhotoPreview ? (
-                                <img src={memberPhotoPreview} alt="Preview" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #c9a84c' }} />
+                              {memberForm.photo ? (
+                                <img src={memberForm.photo} alt="Preview" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #c9a84c' }} />
                               ) : (
                                 <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#e2e8f0', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
                                   Preview
                                 </div>
                               )}
-                              {memberPhotoPreview && (
+                              {memberForm.photo && (
                                 <button
                                   type="button"
-                                  onClick={() => { setMemberPhotoPreview(''); const el = document.getElementById('member_photo_input'); if (el) el.value = ''; }}
+                                  onClick={() => setMemberForm(prev => ({ ...prev, photo: '' }))}
                                   style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
                                   title="Clear Photo"
                                 >
@@ -3750,12 +3780,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                 onChange={(e) => {
                                   const file = e.target.files[0];
                                   if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setMemberPhotoPreview(reader.result);
-                                      setMemberForm(prev => ({ ...prev, photo: reader.result }));
-                                    };
-                                    reader.readAsDataURL(file);
+                                    handleFileUpload(file, (url) => setMemberForm(prev => ({ ...prev, photo: url })));
                                   }
                                 }}
                               />
@@ -3768,12 +3793,12 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                               className="form-input"
                               placeholder="Or select from Media Library / paste URL"
                               value={memberForm.photo}
-                              onChange={(e) => { setMemberPhotoPreview(e.target.value); setMemberForm(prev => ({ ...prev, photo: e.target.value })); }}
+                              onChange={(e) => setMemberForm(prev => ({ ...prev, photo: e.target.value }))}
                               style={{ flex: 1 }}
                             />
                             <button
                               type="button"
-                              onClick={() => triggerMediaPicker(url => { setMemberPhotoPreview(url); setMemberForm(prev => ({ ...prev, photo: url })); })}
+                              onClick={() => triggerMediaPicker(url => setMemberForm(prev => ({ ...prev, photo: url })))}
                               className="btn-select-media"
                               style={{ whiteSpace: 'nowrap' }}
                             >
@@ -3789,20 +3814,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           type="text"
                           className="form-input"
                           placeholder="e.g. Leadership, Web Development, Community Building"
-                          value={memberForm.skills.join(', ')}
+                          value={Array.isArray(memberForm.skills) ? memberForm.skills.join(', ') : memberForm.skills || ''}
                           onChange={(e) => setMemberForm({ ...memberForm, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                         />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Hierarchy Order</label>
-                        <input type="number" name="order" className="form-input" defaultValue={team.length + 1} />
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                      <button type="submit" className="btn btn-accent">Add Member</button>
-                      <button type="button" className="btn btn-outline" onClick={() => setTeamSubTab('list')}>Cancel</button>
+                      <button type="submit" className="btn btn-accent">{editingMember && !editingMember.isNew ? 'Update Member' : 'Add Member'}</button>
+                      <button type="button" className="btn btn-outline" onClick={() => { setEditingMember(null); setTeamSubTab('list'); }}>Cancel</button>
                     </div>
                   </form>
                 </div>
@@ -5195,394 +5215,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 {editingUser.isNew ? 'Create User' : 'Save Changes'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* TEAM MEMBER MODAL EDIT */}
-      {editingMember && (
-
-        <div className="modal-overlay" onClick={() => setEditingMember(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h3>{editingMember.isNew ? 'Add Member' : 'Edit Member'}</h3>
-              <button className="modal-close" onClick={() => setEditingMember(null)}>&times;</button>
-            </div>
-            <form onSubmit={handleMemberSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Full Name *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={memberForm.name}
-                    onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Designation / Role *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={memberForm.role}
-                    onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Short Biography</label>
-                  <textarea
-                    className="form-input"
-                    style={{ minHeight: '80px' }}
-                    value={memberForm.bio}
-                    onChange={(e) => setMemberForm({ ...memberForm, bio: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Profile Photo</label>
-                  
-                  {/* Primary Local File Input */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-                    {memberForm.photo && (
-                      <div style={{ position: 'relative', flexShrink: 0 }}>
-                        <div style={{ width: '52px', height: '52px', borderRadius: 'var(--radius-full)', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                          <img src={memberForm.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                        <button
-                          type="button"
-                          title="Remove photo"
-                          onClick={() => setMemberForm(prev => ({ ...prev, photo: '' }))}
-                          style={{
-                            position: 'absolute', top: '-6px', right: '-6px',
-                            width: '20px', height: '20px', borderRadius: '50%',
-                            background: '#e53e3e', color: '#fff', border: 'none',
-                            fontSize: '12px', lineHeight: '1', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                          }}
-                        >×</button>
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleMemberPhotoUpload}
-                        className="form-input"
-                        style={{ padding: '5px' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Secondary/Optional Advanced Details */}
-                  <details style={{ marginTop: '8px' }}>
-                    <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--accent-color)', fontWeight: '500' }}>
-                      Or select from Media Library / paste URL
-                    </summary>
-                    <div className="media-input-group" style={{ marginTop: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="Image URL"
-                        className="form-input"
-                        value={memberForm.photo}
-                        onChange={(e) => setMemberForm({ ...memberForm, photo: e.target.value })}
-                      />
-                      <button type="button" onClick={() => triggerMediaPicker(url => setMemberForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
-                    </div>
-                  </details>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Skills & Expertises (comma-separated)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={memberForm.skills.join(', ')}
-                    onChange={(e) => setMemberForm({ ...memberForm, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    placeholder="e.g. Psychology, Systems Design"
-                  />
-                </div>
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input
-                    type="checkbox"
-                    id="member_visible"
-                    checked={memberForm.is_visible}
-                    onChange={(e) => setMemberForm({ ...memberForm, is_visible: e.target.checked })}
-                  />
-                  <label htmlFor="member_visible" className="form-label" style={{ margin: 0 }}>Show on Hierarchy Page</label>
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" onClick={() => setEditingMember(null)} className="btn btn-outline">Cancel</button>
-                <button type="submit" className="btn btn-accent">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* SESSION MODAL EDIT */}
-      {editingSession && (
-        <div className="modal-overlay" onClick={() => setEditingSession(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h3>{editingSession.isNew ? 'Schedule New Session' : 'Edit Session Details'}</h3>
-              <button className="modal-close" onClick={() => setEditingSession(null)}>&times;</button>
-            </div>
-            <form onSubmit={handleSessionSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Topic Title *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={sessionForm.title}
-                    onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Speaker / Presenter *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={sessionForm.presenter}
-                    onChange={(e) => setSessionForm({ ...sessionForm, presenter: e.target.value })}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Scheduled Date & Time *</label>
-                    <input
-                      type="datetime-local"
-                      className="form-input"
-                      value={sessionForm.scheduled_at}
-                      onChange={(e) => setSessionForm({ ...sessionForm, scheduled_at: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Status</label>
-                    <select
-                      className="form-input"
-                      value={sessionForm.status}
-                      onChange={(e) => setSessionForm({ ...sessionForm, status: e.target.value })}
-                    >
-                      <option value="upcoming">Upcoming</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Format Override</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={sessionForm.format}
-                      onChange={(e) => setSessionForm({ ...sessionForm, format: e.target.value })}
-                      placeholder="e.g. 30min talk + Q&A"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Registration Link</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={sessionForm.registration_link}
-                      onChange={(e) => setSessionForm({ ...sessionForm, registration_link: e.target.value })}
-                      placeholder="Zoom or Google Form link"
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Summary / Description</label>
-                  <textarea
-                    className="form-input"
-                    style={{ minHeight: '80px' }}
-                    value={sessionForm.summary}
-                    onChange={(e) => setSessionForm({ ...sessionForm, summary: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Cover Image</label>
-                  
-                  {/* Primary: File upload */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-                    {sessionForm.photo && (
-                      <div style={{ width: '80px', height: '50px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                        <img src={sessionForm.photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleSessionPhotoUpload}
-                        className="form-input"
-                        style={{ padding: '5px' }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Secondary: URL / Media Library */}
-                  <details style={{ marginTop: '8px' }}>
-                    <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--accent-color)', fontWeight: '500' }}>
-                      Or select from Media Library / paste URL
-                    </summary>
-                    <div className="media-input-group" style={{ marginTop: '8px' }}>
-                      <input
-                        type="text"
-                        placeholder="Image URL"
-                        className="form-input"
-                        value={sessionForm.photo}
-                        onChange={(e) => setSessionForm({ ...sessionForm, photo: e.target.value })}
-                      />
-                      <button type="button" onClick={() => triggerMediaPicker(url => setSessionForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
-                    </div>
-                  </details>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Registration Link (Google Form, Zoom, Meet, or any URL)</label>
-                  <input
-                    type="url"
-                    className="form-input"
-                    placeholder="https://forms.google.com/... or https://zoom.us/..."
-                    value={sessionForm.registration_link}
-                    onChange={(e) => setSessionForm({ ...sessionForm, registration_link: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Key Takeaways (comma-separated, completed only)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={sessionForm.takeaways.join(', ')}
-                    onChange={(e) => setSessionForm({ ...sessionForm, takeaways: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    placeholder="Point 1, Point 2, Point 3"
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" onClick={() => setEditingSession(null)} className="btn btn-outline">Cancel</button>
-                <button type="submit" className="btn btn-accent">Save Session</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* BLOG RECAP MODAL EDIT */}
-      {editingBlog && (
-        <div className="modal-overlay" onClick={() => setEditingBlog(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '750px' }}>
-            <div className="modal-header">
-              <h3>{editingBlog.isNew ? 'Publish Recap Post' : 'Edit Recap Post'}</h3>
-              <button className="modal-close" onClick={() => setEditingBlog(null)}>&times;</button>
-            </div>
-            <form onSubmit={handleBlogSubmit}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Article Title *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={blogForm.title}
-                    onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value })}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                  <div className="form-group">
-                    <label className="form-label">Author Name *</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={blogForm.author}
-                      onChange={(e) => setBlogForm({ ...blogForm, author: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Publish Date *</label>
-                    <input
-                      type="date"
-                      className="form-input"
-                      value={blogForm.published_at}
-                      onChange={(e) => setBlogForm({ ...blogForm, published_at: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Cover Image</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-                    {blogForm.cover_image && (
-                      <div style={{ position: 'relative', flexShrink: 0 }}>
-                        <div style={{ width: '100px', height: '62px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                          <img src={blogForm.cover_image} alt="Cover Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                        <button
-                          type="button"
-                          title="Remove cover image"
-                          onClick={() => setBlogForm(prev => ({ ...prev, cover_image: '' }))}
-                          style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', background: '#e53e3e', color: '#fff', border: 'none', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-                        >×</button>
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="form-input"
-                        style={{ padding: '5px' }}
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onloadend = () => setBlogForm(prev => ({ ...prev, cover_image: reader.result }));
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="media-input-group">
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="Or paste image URL..."
-                      value={blogForm.cover_image}
-                      onChange={(e) => setBlogForm({ ...blogForm, cover_image: e.target.value })}
-                    />
-                    <button type="button" onClick={() => triggerMediaPicker(url => setBlogForm(prev => ({ ...prev, cover_image: url })))} className="btn-select-media">Library</button>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Excerpt / Summary</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={blogForm.excerpt}
-                    onChange={(e) => setBlogForm({ ...blogForm, excerpt: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Article Content (Basic Markdown supports ### and **bold**)</label>
-                  <textarea
-                    className="form-input"
-                    style={{ minHeight: '220px', fontFamily: 'monospace', fontSize: '0.9rem' }}
-                    value={blogForm.content}
-                    onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" onClick={() => setEditingBlog(null)} className="btn btn-outline">Cancel</button>
-                <button type="submit" className="btn btn-accent">Publish Recap</button>
-              </div>
-            </form>
           </div>
         </div>
       )}

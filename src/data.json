@@ -295,7 +295,7 @@
       "isUpcoming": true,
       "takeaways": [],
       "photo": "/uploads/23423.png",
-      "scheduled_at": "2026-07-06T11:52",
+      "scheduled_at": "2026-08-10T13:55",
       "status": "upcoming",
       "registration_link": ""
     },
@@ -322,7 +322,7 @@
     {
       "title": "asdf",
       "presenter": "asdfas",
-      "scheduled_at": "2026-08-10T10:31",
+      "scheduled_at": "2026-08-21T14:01",
       "time": "18:00 PKT",
       "format": "30min talk + Q&A",
       "summary": "sadfasdf",
@@ -331,6 +331,25 @@
       "takeaways": [],
       "registration_link": "",
       "id": "sessions-1786357927933",
+      "isUpcoming": true
+    },
+    {
+      "title": "sadfasdf",
+      "presenter": "sadfsadfsadfs",
+      "scheduled_at": "2026-08-10T13:59",
+      "time": "18:00 PKT",
+      "format": "30min talk + Q&A",
+      "summary": "sadf",
+      "status": "upcoming",
+      "photo": "",
+      "takeaways": [
+        "asdfsa",
+        "sadfasdf",
+        "asddasdf",
+        "asddfs"
+      ],
+      "registration_link": "https://forms.gle/MyzLifHpmTga1d42A",
+      "id": "sessions-1786370415771",
       "isUpcoming": true
     }
   ],
@@ -341,7 +360,9 @@
       "date": "June 27, 2026",
       "author": "Zainab Shah",
       "excerpt": "A deep dive recap of our 35th session, detailing how neural pathways form and how we can systematically optimize our cognitive focus.",
-      "content": "During our most recent session, we explored the fascinating world of neuroscience, focusing on neural plasticity. For years, the scientific consensus was that the adult brain was relatively fixed. We now know this is incorrect: the brain retains its capacity to adapt and change throughout our lives.\n\n### Key Takeaways\n1. **Synaptic Pruning**: The brain eliminates pathways that are not actively used, while strengthening those that are reinforced. Consistent practice is literally structural architecture.\n2. **The Role of Focus**: High attention triggers the release of acetylcholine, a neurotransmitter that marks active synapses for modification.\n3. **Rest as a Catalyst**: While learning occurs during high-focus states, actual structural changes (myelination) take place during deep sleep and recovery.\n\nOur members engaged in a lively Q&A session discussing how these principles apply to breaking bad habits and mastering complex professional skillsets in short timeframes."
+      "content": "During our most recent session, we explored the fascinating world of neuroscience, focusing on neural plasticity. For years, the scientific consensus was that the adult brain was relatively fixed. We now know this is incorrect: the brain retains its capacity to adapt and change throughout our lives.\n\n### Key Takeaways\n1. **Synaptic Pruning**: The brain eliminates pathways that are not actively used, while strengthening those that are reinforced. Consistent practice is literally structural architecture.\n2. **The Role of Focus**: High attention triggers the release of acetylcholine, a neurotransmitter that marks active synapses for modification.\n3. **Rest as a Catalyst**: While learning occurs during high-focus states, actual structural changes (myelination) take place during deep sleep and recovery.\n\nOur members engaged in a lively Q&A session discussing how these principles apply to breaking bad habits and mastering complex professional skillsets in short timeframes.",
+      "published_at": "2026-08-10",
+      "cover_image": "/uploads/Screenshot 2026-07-06 at 4.29.24 PM.png"
     },
     {
       "id": "blog-2",
@@ -349,7 +370,9 @@
       "date": "June 13, 2026",
       "author": "Fatima Ali",
       "excerpt": "A summary of our macroeconomic analysis session, breaking down Pakistan's current fiscal hurdles in plain English.",
-      "content": "Macroeconomics is often viewed as dry, but when applied to the current economic landscape of Pakistan, it becomes a crucial study of our collective future. Our 34th session broke down fiscal policy, IMF packages, and structural reforms.\n\nWe discussed the difference between balance of trade deficits and fiscal deficits, how currency devaluation affects local manufacturing, and the role of youth entrepreneurship in expanding the tax base.\n\nThe session concluded with a debate on policy priorities: should the state focus on export incentives, or should it prioritize aggressive tax collection restructuring? The diversity of views among our members: from economics graduates to engineers, highlighted the strength of Intellect Circle's cross-disciplinary approach."
+      "content": "Macroeconomics is often viewed as dry, but when applied to the current economic landscape of Pakistan, it becomes a crucial study of our collective future. Our 34th session broke down fiscal policy, IMF packages, and structural reforms.\n\nWe discussed the difference between balance of trade deficits and fiscal deficits, how currency devaluation affects local manufacturing, and the role of youth entrepreneurship in expanding the tax base.\n\nThe session concluded with a debate on policy priorities: should the state focus on export incentives, or should it prioritize aggressive tax collection restructuring? The diversity of views among our members: from economics graduates to engineers, highlighted the strength of Intellect Circle's cross-disciplinary approach.",
+      "published_at": "2026-08-10",
+      "cover_image": "/uploads/Screenshot 2026-07-06 at 4.29.24 PM.png"
     },
     {
       "title": "Neural Plasticity: Re-wiring the Mind for Continuous Learning",
