@@ -126,6 +126,8 @@ export default function Assistant({ data, navigateTo }) {
   const handleSendRef = useRef(null);
   // HTMLAudioElement used to play ElevenLabs audio
   const currentAudioRef = useRef(null);
+  // Ref tracking if speech audio is currently playing
+  const isSpeakingRef = useRef(false);
 
   // Prime/Unlock browser audio context on user gesture to bypass Chrome/Safari autoplay blocks
   const unlockAudio = useCallback(() => {
@@ -200,9 +202,13 @@ export default function Assistant({ data, navigateTo }) {
 
       recognition.onend = () => {
         setIsListening(false);
-        // In conversation mode, auto-restart mic if it ended naturally (not from send)
-        if (convoModeRef.current && !blockResultsRef.current && !window.speechSynthesis?.speaking) {
-          try { recognition.start(); } catch (_) {}
+        // In conversation mode, auto-restart mic if ended naturally (not during send or AI speech)
+        if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current) {
+          setTimeout(() => {
+            if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current) {
+              try { recognition.start(); } catch (_) {}
+            }
+          }, 150);
         }
       };
 
@@ -235,6 +241,7 @@ export default function Assistant({ data, navigateTo }) {
 
   // ── Text-to-Speech helpers (ElevenLabs) ────────────────────────────────
   const stopSpeaking = useCallback(() => {
+    isSpeakingRef.current = false;
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current.src = '';
@@ -247,12 +254,14 @@ export default function Assistant({ data, navigateTo }) {
   const speakText = useCallback(async (text, idx, onDone) => {
     // Stop any currently playing audio first
     stopSpeaking();
+    isSpeakingRef.current = true;
     setSpeakingIdx(idx);
 
     let finished = false;
     const safeOnDone = () => {
       if (finished) return;
       finished = true;
+      isSpeakingRef.current = false;
       setSpeakingIdx(-1);
       onDone?.();
     };
@@ -421,14 +430,18 @@ export default function Assistant({ data, navigateTo }) {
               baseTextRef.current = '';
               inputRef.current = '';
               blockResultsRef.current = false;
-              try {
-                recognitionRef.current.start();
-              } catch (_) {
-                try {
-                  recognitionRef.current.abort();
-                  setTimeout(() => recognitionRef.current?.start(), 100);
-                } catch (e) {}
-              }
+              setTimeout(() => {
+                if (convoModeRef.current && !isSpeakingRef.current) {
+                  try {
+                    recognitionRef.current.start();
+                  } catch (_) {
+                    try {
+                      recognitionRef.current.abort();
+                      setTimeout(() => recognitionRef.current?.start(), 100);
+                    } catch (e) {}
+                  }
+                }
+              }, 150);
             }
           });
           return curr;

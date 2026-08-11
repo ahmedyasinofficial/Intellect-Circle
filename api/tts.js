@@ -2,7 +2,7 @@
 // Accepts: POST { text: string }
 // Returns: audio/mpeg stream (MP3)
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '06a438b87906cfb5f82003765dc109433bf6c54223cf3bbd8e8c614c510868db';
 
 // Voice IDs — swap to any ElevenLabs voice you prefer
 // Rachel: warm, clear, natural-sounding female voice
@@ -19,10 +19,6 @@ export default async function handler(req, res) {
   const { text } = req.body || {};
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' });
-  }
-
-  if (!ELEVENLABS_API_KEY) {
-    return res.status(500).json({ error: 'ElevenLabs API key not configured' });
   }
 
   // Strip markdown links and URLs so they aren't read aloud
