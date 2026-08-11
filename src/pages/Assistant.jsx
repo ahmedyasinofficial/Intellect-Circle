@@ -112,13 +112,18 @@ export default function Assistant({ data, navigateTo }) {
   const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
-  // Holds whatever text was already in the box when mic started,
-  // so restarting the mic appends instead of wiping.
+  // Holds whatever text was already in the box when mic started
   const baseTextRef = useRef('');
   // Ref so async callbacks can read the latest convoMode without stale closure
   const convoModeRef = useRef(false);
   // When true, onresult silently discards incoming transcript (used during/after send)
   const blockResultsRef = useRef(false);
+  // Tracks the current input value so recognition callbacks can read it without staleness
+  const inputRef = useRef('');
+  // Timer that auto-sends after 2s of silence in conversation mode
+  const silenceTimerRef = useRef(null);
+  // Ref to the latest handleSend so the silence timer callback can invoke it
+  const handleSendRef = useRef(null);
 
   // Check for Web Speech API support and set up recognition
   useEffect(() => {
@@ -133,12 +138,11 @@ export default function Assistant({ data, navigateTo }) {
       let sessionTranscript = '';
 
       recognition.onstart = () => {
-        sessionTranscript = ''; // only resets the NEW session segment
+        sessionTranscript = '';
         setIsListening(true);
       };
 
       recognition.onresult = (event) => {
-        // Ignore any trailing results that fire after a send
         if (blockResultsRef.current) return;
         let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -148,25 +152,42 @@ export default function Assistant({ data, navigateTo }) {
             interimTranscript += event.results[i][0].transcript;
           }
         }
-        // Prepend whatever was typed/spoken BEFORE this mic session
         const combined = (baseTextRef.current ? baseTextRef.current + ' ' : '') +
           sessionTranscript + interimTranscript;
-        setInput(combined.trimStart());
-        // Auto-resize the textarea
+        const trimmed = combined.trimStart();
+        inputRef.current = trimmed;
+        setInput(trimmed);
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
           textareaRef.current.style.height =
             Math.min(textareaRef.current.scrollHeight, 140) + 'px';
         }
+        // In conversation mode: reset the 2-second silence timer on every result
+        if (convoModeRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(() => {
+            const text = inputRef.current.trim();
+            if (text && convoModeRef.current && handleSendRef.current) {
+              handleSendRef.current(text);
+            }
+          }, 2000);
+        }
       };
 
       recognition.onerror = (event) => {
-        console.warn('Speech recognition error:', event.error);
+        // 'no-speech' is benign; ignore it silently in convo mode
+        if (event.error !== 'no-speech') {
+          console.warn('Speech recognition error:', event.error);
+        }
         setIsListening(false);
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        // In conversation mode, auto-restart mic if it ended naturally (not from send)
+        if (convoModeRef.current && !blockResultsRef.current && !window.speechSynthesis?.speaking) {
+          try { recognition.start(); } catch (_) {}
+        }
       };
 
       recognitionRef.current = recognition;
@@ -183,9 +204,10 @@ export default function Assistant({ data, navigateTo }) {
   // Keep the convoMode ref in sync with state
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
 
-  // Stop listening + speaking when component unmounts
+  // Stop listening + speaking + timers when component unmounts
   useEffect(() => {
     return () => {
+      clearTimeout(silenceTimerRef.current);
       if (recognitionRef.current) recognitionRef.current.abort();
       window.speechSynthesis?.cancel();
     };
@@ -222,8 +244,18 @@ export default function Assistant({ data, navigateTo }) {
   const toggleConvoMode = useCallback(() => {
     setConvoMode(prev => {
       const next = !prev;
-      if (!next) {
-        // Turning off: stop mic + speech
+      if (next) {
+        // Turning ON: immediately start listening so the user can speak right away
+        baseTextRef.current = '';
+        inputRef.current = '';
+        setInput('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        if (recognitionRef.current) {
+          try { recognitionRef.current.start(); } catch (_) {}
+        }
+      } else {
+        // Turning OFF: stop mic, TTS, and any pending silence timer
+        clearTimeout(silenceTimerRef.current);
         if (recognitionRef.current) recognitionRef.current.stop();
         window.speechSynthesis?.cancel();
         setSpeakingIdx(-1);
@@ -250,24 +282,25 @@ export default function Assistant({ data, navigateTo }) {
   }, [messages]);
 
   const handleSend = useCallback(async (questionText) => {
-    const q = (questionText || input).trim();
+    const q = (questionText || inputRef.current || input).trim();
     if (!q || loading) return;
 
-    // Block any trailing onresult events that fire after stop()
+    // Block trailing onresult events + clear the silence timer
+    clearTimeout(silenceTimerRef.current);
     blockResultsRef.current = true;
-    // Stop the mic & any ongoing speech before sending
-    if (recognitionRef.current && isListening) recognitionRef.current.abort();
+    if (recognitionRef.current) recognitionRef.current.abort();
     window.speechSynthesis?.cancel();
     setSpeakingIdx(-1);
     baseTextRef.current = '';
+    inputRef.current = '';
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // Unblock results after a tick so the next mic session works normally
-    setTimeout(() => { blockResultsRef.current = false; }, 200);
+    // Unblock results after a short delay so the next mic session works normally
+    setTimeout(() => { blockResultsRef.current = false; }, 300);
 
     let answerText = '';
     try {
@@ -276,9 +309,7 @@ export default function Assistant({ data, navigateTo }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q, history: buildHistory() })
       });
-
       const json = await res.json();
-
       if (!res.ok || json.error) {
         answerText = json.error || "Sorry, I couldn't answer that right now. Please try again.";
         setMessages(prev => [...prev, { role: 'assistant', text: answerText, isError: true }]);
@@ -291,14 +322,14 @@ export default function Assistant({ data, navigateTo }) {
       setMessages(prev => [...prev, { role: 'assistant', text: answerText, isError: true }]);
     } finally {
       setLoading(false);
-      // In conversation mode: speak the reply, then auto-start mic for next turn
       if (convoModeRef.current && answerText) {
+        // Speak reply, then reopen mic for the next turn
         setMessages(curr => {
           const replyIdx = curr.length - 1;
           speakText(answerText, replyIdx, () => {
-            // After AI finishes speaking, re-open mic for user's next question
             if (convoModeRef.current && recognitionRef.current) {
               baseTextRef.current = '';
+              inputRef.current = '';
               try { recognitionRef.current.start(); } catch (_) {}
             }
           });
@@ -310,6 +341,9 @@ export default function Assistant({ data, navigateTo }) {
     }
   }, [input, loading, buildHistory, speakText]);
 
+  // Always keep the ref pointing to the latest handleSend so silence timer can call it
+  handleSendRef.current = handleSend;
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -318,6 +352,7 @@ export default function Assistant({ data, navigateTo }) {
   };
 
   const handleTextareaChange = (e) => {
+    inputRef.current = e.target.value;
     setInput(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
@@ -336,12 +371,15 @@ export default function Assistant({ data, navigateTo }) {
   }, [isListening, input]);
 
   const clearChat = () => {
+    clearTimeout(silenceTimerRef.current);
     setMessages([]);
     setInput('');
-    if (recognitionRef.current) recognitionRef.current.stop();
+    inputRef.current = '';
+    if (recognitionRef.current) recognitionRef.current.abort();
     window.speechSynthesis?.cancel();
     setSpeakingIdx(-1);
     setConvoMode(false);
+    baseTextRef.current = '';
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.focus({ preventScroll: true });
