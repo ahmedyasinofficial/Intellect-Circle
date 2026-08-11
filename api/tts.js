@@ -2,7 +2,7 @@
 // Accepts: POST { text: string }
 // Returns: audio/mpeg stream (MP3)
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '06a438b87906cfb5f82003765dc109433bf6c54223cf3bbd8e8c614c510868db';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_93480b34de260f2ffdafa60c79dca140294abcb15d78f096';
 
 // Voice IDs — swap to any ElevenLabs voice you prefer
 // Rachel: warm, clear, natural-sounding female voice
