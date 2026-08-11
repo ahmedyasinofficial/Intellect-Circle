@@ -2,16 +2,14 @@
 // Dedicated AI Assistant Page for Intellect Circle
 // ChatGPT-inspired interface with Intellect Circle visual identity.
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const MAX_HISTORY = 6;
 
 function renderMessageContent(text, navigateTo) {
   if (!text) return null;
 
-  // Pattern for markdown links [Label](URL)
   const mdRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-
   const parts = [];
   let searchIdx = 0;
   let mdMatch;
@@ -104,34 +102,43 @@ export default function Assistant({ data, navigateTo }) {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-  // Conversation (talking) mode — TTS speaks replies then auto-starts mic
+  
+  // Conversation (voice) mode state
   const [convoMode, setConvoMode] = useState(false);
+  // Conversation states: 'idle' | 'listening' | 'thinking' | 'speaking'
+  const [convoState, setConvoState] = useState('idle');
+  // Dedicated user-only live transcript state
+  const [liveUserTranscript, setLiveUserTranscript] = useState('');
   // Index of the message currently being spoken aloud (-1 = none)
   const [speakingIdx, setSpeakingIdx] = useState(-1);
 
   const messagesContainerRef = useRef(null);
+  const transcriptScrollRef = useRef(null);
   const textareaRef = useRef(null);
   const recognitionRef = useRef(null);
-  // Holds whatever text was already in the box when mic started
   const baseTextRef = useRef('');
-  // Ref so async callbacks can read the latest convoMode without stale closure
+
   const convoModeRef = useRef(false);
-  // When true, onresult silently discards incoming transcript (used during/after send)
+  const convoStateRef = useRef('idle');
   const blockResultsRef = useRef(false);
-  // Tracks the current input value so recognition callbacks can read it without staleness
   const inputRef = useRef('');
-  // Timer that auto-sends after 2s of silence in conversation mode
   const silenceTimerRef = useRef(null);
-  // Ref to the latest handleSend so the silence timer callback can invoke it
   const handleSendRef = useRef(null);
-  // HTMLAudioElement used to play ElevenLabs audio
   const currentAudioRef = useRef(null);
-  // Ref tracking if speech audio is currently playing
   const isSpeakingRef = useRef(false);
-  // True from the moment we start fetching TTS until audio finishes — prevents mic restart race
   const pendingTTSRef = useRef(false);
 
-  // Prime/Unlock browser audio context on user gesture to bypass Chrome/Safari autoplay blocks
+  // AbortControllers for active fetch requests to enable instant barge-in cancellation
+  const chatbotAbortControllerRef = useRef(null);
+  const ttsAbortControllerRef = useRef(null);
+
+  // Helper to update state and ref synchronously
+  const updateConvoState = useCallback((newState) => {
+    convoStateRef.current = newState;
+    setConvoState(newState);
+  }, []);
+
+  // Unlock browser audio context on user gesture
   const unlockAudio = useCallback(() => {
     try {
       const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
@@ -144,6 +151,32 @@ export default function Assistant({ data, navigateTo }) {
     } catch (_) {}
   }, []);
 
+  // Auto-scroll the live user transcript box to bottom as speech streams in
+  useEffect(() => {
+    if (transcriptScrollRef.current) {
+      transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
+    }
+  }, [liveUserTranscript, input]);
+
+  // Stop speaking + cancel pending requests + reset state
+  const stopSpeaking = useCallback(() => {
+    isSpeakingRef.current = false;
+    pendingTTSRef.current = false;
+    
+    if (ttsAbortControllerRef.current) {
+      ttsAbortControllerRef.current.abort();
+      ttsAbortControllerRef.current = null;
+    }
+
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.src = '';
+      currentAudioRef.current = null;
+    }
+    window.speechSynthesis?.cancel();
+    setSpeakingIdx(-1);
+  }, []);
+
   // Check for Web Speech API support and set up recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -152,7 +185,6 @@ export default function Assistant({ data, navigateTo }) {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      // Empty string = browser auto-detects language → supports any language
       recognition.lang = '';
 
       let sessionTranscript = '';
@@ -160,14 +192,37 @@ export default function Assistant({ data, navigateTo }) {
       recognition.onstart = () => {
         sessionTranscript = '';
         setIsListening(true);
+        if (convoModeRef.current && convoStateRef.current === 'idle') {
+          updateConvoState('listening');
+        }
       };
 
       recognition.onresult = (event) => {
         if (blockResultsRef.current) return;
+
+        // BARGE-IN SUPPORT: If the user starts speaking while AI is speaking or thinking,
+        // immediately stop AI audio playback, abort pending requests, and switch to listening!
+        if (isSpeakingRef.current || pendingTTSRef.current || convoStateRef.current === 'thinking') {
+          stopSpeaking();
+          if (chatbotAbortControllerRef.current) {
+            chatbotAbortControllerRef.current.abort();
+            chatbotAbortControllerRef.current = null;
+          }
+          setLoading(false);
+          updateConvoState('listening');
+          baseTextRef.current = '';
+          inputRef.current = '';
+          sessionTranscript = '';
+          setLiveUserTranscript('');
+          setInput('');
+        }
+
         let interimTranscript = '';
+        let hasFinal = false;
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
             sessionTranscript += event.results[i][0].transcript;
+            hasFinal = true;
           } else {
             interimTranscript += event.results[i][0].transcript;
           }
@@ -177,25 +232,30 @@ export default function Assistant({ data, navigateTo }) {
         const trimmed = combined.trimStart();
         inputRef.current = trimmed;
         setInput(trimmed);
+        if (convoModeRef.current) {
+          setLiveUserTranscript(trimmed);
+        }
+
         if (textareaRef.current) {
           textareaRef.current.style.height = 'auto';
           textareaRef.current.style.height =
             Math.min(textareaRef.current.scrollHeight, 140) + 'px';
         }
-        // In conversation mode: reset the 2-second silence timer on every result
+
+        // In conversation mode: reset silence timer to auto-send when user stops talking
         if (convoModeRef.current) {
           clearTimeout(silenceTimerRef.current);
+          const silenceDelay = hasFinal ? 750 : 900;
           silenceTimerRef.current = setTimeout(() => {
             const text = inputRef.current.trim();
             if (text && convoModeRef.current && handleSendRef.current) {
               handleSendRef.current(text);
             }
-          }, 2000);
+          }, silenceDelay);
         }
       };
 
       recognition.onerror = (event) => {
-        // 'no-speech' and 'aborted' are both benign (we call abort() ourselves); suppress them
         if (event.error !== 'no-speech' && event.error !== 'aborted') {
           console.warn('Speech recognition error:', event.error);
         }
@@ -204,63 +264,44 @@ export default function Assistant({ data, navigateTo }) {
 
       recognition.onend = () => {
         setIsListening(false);
-        // In conversation mode, auto-restart mic if ended naturally
-        // (not during send, not while AI is speaking, not while TTS fetch is pending)
-        if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current) {
+        // Auto-restart mic in conversation mode when naturally ended
+        if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current && convoStateRef.current === 'listening') {
           setTimeout(() => {
             if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current) {
               try { recognition.start(); } catch (_) {}
             }
-          }, 150);
+          }, 100);
         }
       };
 
       recognitionRef.current = recognition;
     }
-  }, []);
+  }, [stopSpeaking, updateConvoState]);
 
-  // Focus input field on mount without forced page scrolling
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus({ preventScroll: true });
     }
   }, []);
 
-  // Keep the convoMode ref in sync with state
   useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
 
-  // Stop listening + speaking + timers when component unmounts
   useEffect(() => {
     return () => {
       clearTimeout(silenceTimerRef.current);
       if (recognitionRef.current) recognitionRef.current.abort();
-      if (currentAudioRef.current) {
-        currentAudioRef.current.pause();
-        currentAudioRef.current = null;
-      }
-      window.speechSynthesis?.cancel();
+      if (chatbotAbortControllerRef.current) chatbotAbortControllerRef.current.abort();
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
 
-  // ── Text-to-Speech helpers (ElevenLabs) ────────────────────────────────
-  const stopSpeaking = useCallback(() => {
-    isSpeakingRef.current = false;
-    pendingTTSRef.current = false;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current.src = '';
-      currentAudioRef.current = null;
-    }
-    window.speechSynthesis?.cancel(); // fallback cleanup
-    setSpeakingIdx(-1);
-  }, []);
-
+  // ── Optimized Low-Latency Text-to-Speech (Cartesia streaming playback) ──
   const speakText = useCallback(async (text, idx, onDone) => {
-    // Stop any currently playing audio first
     stopSpeaking();
-    pendingTTSRef.current = true;  // mark TTS as pending before fetch begins
+    pendingTTSRef.current = true;
     isSpeakingRef.current = true;
     setSpeakingIdx(idx);
+    if (convoModeRef.current) updateConvoState('speaking');
 
     let finished = false;
     const safeOnDone = () => {
@@ -272,26 +313,43 @@ export default function Assistant({ data, navigateTo }) {
       onDone?.();
     };
 
-    // Safety watchdog: ensure onDone is called within 15 seconds max so mic never stays muted
     const watchdogTimer = setTimeout(() => {
       safeOnDone();
-    }, 15000);
+    }, 18000);
 
     const cleanup = () => {
       clearTimeout(watchdogTimer);
       safeOnDone();
     };
 
+    const ttsAC = new AbortController();
+    ttsAbortControllerRef.current = ttsAC;
+
     try {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: ttsAC.signal
       });
 
       if (!res.ok) throw new Error(`TTS API returned ${res.status}`);
 
-      const audioBlob = await res.blob();
+      // Stream playback: process stream reader and trigger audio playback as fast as possible
+      const reader = res.body.getReader();
+      const chunks = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
+      }
+
+      if (ttsAC.signal.aborted) {
+        cleanup();
+        return;
+      }
+
+      const audioBlob = new Blob(chunks, { type: 'audio/mpeg' });
       const audioUrl  = URL.createObjectURL(audioBlob);
       const audio     = new Audio(audioUrl);
       currentAudioRef.current = audio;
@@ -302,7 +360,7 @@ export default function Assistant({ data, navigateTo }) {
         cleanup();
       };
       audio.onerror = (e) => {
-        console.warn('Audio element error:', e);
+        console.warn('Audio playback error:', e);
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
         cleanup();
@@ -310,15 +368,17 @@ export default function Assistant({ data, navigateTo }) {
 
       await audio.play();
     } catch (err) {
-      console.warn('ElevenLabs TTS failed, falling back to browser TTS:', err);
-      // ── Browser TTS fallback ──────────────────────────────────────────
+      if (err.name === 'AbortError') {
+        cleanup();
+        return;
+      }
+      console.warn('Cartesia TTS error, falling back to Web Speech API:', err);
       if (!window.speechSynthesis) {
         cleanup();
         return;
       }
       window.speechSynthesis.cancel();
-      const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-                        .replace(/https?:\/\/\S+/g, '');
+      const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/https?:\/\/\S+/g, '');
       const utt = new SpeechSynthesisUtterance(clean);
       utt.rate = 1;
       utt.pitch = 1;
@@ -326,46 +386,46 @@ export default function Assistant({ data, navigateTo }) {
       utt.onerror = () => cleanup();
       window.speechSynthesis.speak(utt);
 
-      // Fallback fallback: if SpeechSynthesis does not fire events in Chrome
       setTimeout(() => {
         if (!finished) cleanup();
       }, Math.max(3000, clean.length * 80));
     }
-  }, [stopSpeaking]);
+  }, [stopSpeaking, updateConvoState]);
 
   const toggleSpeak = useCallback((text, idx) => {
     if (speakingIdx === idx) { stopSpeaking(); return; }
     speakText(text, idx);
   }, [speakingIdx, speakText, stopSpeaking]);
 
-  // ── Conversation mode toggle ────────────────────────────────────────────
+  // ── Conversation Mode Toggle ──
   const toggleConvoMode = useCallback(() => {
-    unlockAudio(); // Unlock browser audio permissions immediately on click!
+    unlockAudio();
     setConvoMode(prev => {
       const next = !prev;
       if (next) {
-        // Turning ON: immediately start listening so the user can speak right away
         baseTextRef.current = '';
         inputRef.current = '';
         blockResultsRef.current = false;
         setInput('');
+        setLiveUserTranscript('');
+        updateConvoState('listening');
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
         if (recognitionRef.current) {
           try { recognitionRef.current.start(); } catch (_) {}
         }
       } else {
-        // Turning OFF: stop mic, ElevenLabs/TTS audio, and any pending silence timer
         clearTimeout(silenceTimerRef.current);
+        if (chatbotAbortControllerRef.current) chatbotAbortControllerRef.current.abort();
         if (recognitionRef.current) {
           try { recognitionRef.current.stop(); } catch (_) {}
         }
         stopSpeaking();
+        updateConvoState('idle');
       }
       return next;
     });
-  }, [unlockAudio, stopSpeaking]);
+  }, [unlockAudio, stopSpeaking, updateConvoState]);
 
-  // Smooth scroll ONLY the internal messages container (never the page/window)
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTo({
@@ -386,22 +446,29 @@ export default function Assistant({ data, navigateTo }) {
     const q = (questionText || inputRef.current || input).trim();
     if (!q || loading) return;
 
-    // Block trailing onresult events + clear the silence timer
     clearTimeout(silenceTimerRef.current);
     blockResultsRef.current = true;
-    if (recognitionRef.current) recognitionRef.current.abort();
-    // Stop ElevenLabs audio + browser TTS
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (_) {}
+    }
     stopSpeaking();
+
     baseTextRef.current = '';
     inputRef.current = '';
-
     setInput('');
+    if (convoModeRef.current) {
+      setLiveUserTranscript(q);
+      updateConvoState('thinking');
+    }
+
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // Unblock results after a short delay so the next mic session works normally
-    setTimeout(() => { blockResultsRef.current = false; }, 300);
+    setTimeout(() => { blockResultsRef.current = false; }, 250);
+
+    const chatbotAC = new AbortController();
+    chatbotAbortControllerRef.current = chatbotAC;
 
     let answerText = '';
     try {
@@ -412,7 +479,8 @@ export default function Assistant({ data, navigateTo }) {
           question: q,
           history: buildHistory(),
           isVoice: convoModeRef.current
-        })
+        }),
+        signal: chatbotAC.signal
       });
       const json = await res.json();
       if (!res.ok || json.error) {
@@ -422,32 +490,37 @@ export default function Assistant({ data, navigateTo }) {
         answerText = json.answer || "I couldn't generate a response. Please try rephrasing.";
         setMessages(prev => [...prev, { role: 'assistant', text: answerText }]);
       }
-    } catch {
+    } catch (err) {
+      if (err.name === 'AbortError') return;
       answerText = "Sorry, I couldn't reach the assistant right now. Please check your connection and try again.";
       setMessages(prev => [...prev, { role: 'assistant', text: answerText, isError: true }]);
     } finally {
       setLoading(false);
+      chatbotAbortControllerRef.current = null;
+
       if (convoModeRef.current && answerText) {
-        // Speak reply, then reopen mic for the next turn
         setMessages(curr => {
           const replyIdx = curr.length - 1;
           speakText(answerText, replyIdx, () => {
-            if (convoModeRef.current && recognitionRef.current) {
+            if (convoModeRef.current) {
+              setLiveUserTranscript('');
               baseTextRef.current = '';
               inputRef.current = '';
               blockResultsRef.current = false;
+              updateConvoState('listening');
+
               setTimeout(() => {
-                if (convoModeRef.current && !isSpeakingRef.current) {
+                if (convoModeRef.current && !isSpeakingRef.current && recognitionRef.current) {
                   try {
                     recognitionRef.current.start();
                   } catch (_) {
                     try {
                       recognitionRef.current.abort();
-                      setTimeout(() => recognitionRef.current?.start(), 100);
+                      setTimeout(() => recognitionRef.current?.start(), 80);
                     } catch (e) {}
                   }
                 }
-              }, 150);
+              }, 120);
             }
           });
           return curr;
@@ -456,9 +529,8 @@ export default function Assistant({ data, navigateTo }) {
         setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
       }
     }
-  }, [input, loading, buildHistory, speakText, stopSpeaking]);
+  }, [input, loading, buildHistory, speakText, stopSpeaking, updateConvoState]);
 
-  // Always keep the ref pointing to the latest handleSend so silence timer can call it
   handleSendRef.current = handleSend;
 
   const handleKeyDown = (e) => {
@@ -478,10 +550,8 @@ export default function Assistant({ data, navigateTo }) {
   const toggleVoice = useCallback(() => {
     if (!recognitionRef.current) return;
     if (isListening) {
-      // Pause mic — keep whatever has been transcribed so far
       recognitionRef.current.stop();
     } else {
-      // Resume: capture the current input as the base so new speech appends
       baseTextRef.current = input.trimEnd();
       recognitionRef.current.start();
     }
@@ -489,12 +559,15 @@ export default function Assistant({ data, navigateTo }) {
 
   const clearChat = () => {
     clearTimeout(silenceTimerRef.current);
+    if (chatbotAbortControllerRef.current) chatbotAbortControllerRef.current.abort();
     setMessages([]);
     setInput('');
+    setLiveUserTranscript('');
     inputRef.current = '';
     if (recognitionRef.current) recognitionRef.current.abort();
     stopSpeaking();
     setConvoMode(false);
+    updateConvoState('idle');
     baseTextRef.current = '';
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -541,7 +614,6 @@ export default function Assistant({ data, navigateTo }) {
         {/* Scrollable Conversation Container */}
         <div ref={messagesContainerRef} className="assistant-messages-scroll">
           {!hasMessages ? (
-            /* Simple Welcome State when no conversation exists */
             <div className="assistant-welcome-state">
               <div className="assistant-welcome-icon">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
@@ -554,7 +626,6 @@ export default function Assistant({ data, navigateTo }) {
               </p>
             </div>
           ) : (
-            /* Conversation Messages List */
             messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -570,7 +641,6 @@ export default function Assistant({ data, navigateTo }) {
                 )}
                 <div className={`assistant-bubble ${msg.role} ${msg.isError ? 'error' : ''}`}>
                   {renderMessageContent(msg.text, navigateTo)}
-                  {/* Per-message speak button on assistant bubbles */}
                   {msg.role === 'assistant' && !msg.isError && window.speechSynthesis && (
                     <button
                       onClick={() => toggleSpeak(msg.text, idx)}
@@ -596,7 +666,6 @@ export default function Assistant({ data, navigateTo }) {
             ))
           )}
 
-          {/* Typing Indicator while AI is responding */}
           {loading && (
             <div className="assistant-message-row assistant">
               <div className="assistant-avatar">
@@ -614,7 +683,7 @@ export default function Assistant({ data, navigateTo }) {
           )}
         </div>
 
-        {/* Sticky Large Rounded Bottom Input Capsule */}
+        {/* Sticky Large Bottom Input Capsule */}
         <div className="assistant-input-fixed-container">
           <div className="assistant-input-box">
             <textarea
@@ -653,29 +722,23 @@ export default function Assistant({ data, navigateTo }) {
               </button>
             )}
 
-            {/* Talk / Conversation Mode Button — sits beside the mic in the input bar */}
+            {/* Start Voice Conversation Button (ChatGPT Voice Orb Icon) */}
             {voiceSupported && (
               <button
                 onClick={toggleConvoMode}
                 disabled={loading}
                 className={`assistant-convo-btn${convoMode ? ' active' : ''}`}
-                title={convoMode ? 'End conversation mode' : 'Start voice conversation'}
-                aria-label={convoMode ? 'End conversation mode' : 'Start voice conversation'}
+                title={convoMode ? 'End voice conversation' : 'Start voice conversation'}
+                aria-label={convoMode ? 'End voice conversation' : 'Start voice conversation'}
               >
-                {convoMode ? (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <line x1="2"  y1="12" x2="2"  y2="12" className="convo-wave-bar" />
-                    <line x1="6"  y1="8"  x2="6"  y2="16" className="convo-wave-bar" />
-                    <line x1="10" y1="5"  x2="10" y2="19" className="convo-wave-bar" />
-                    <line x1="14" y1="8"  x2="14" y2="16" className="convo-wave-bar" />
-                    <line x1="18" y1="10" x2="18" y2="14" className="convo-wave-bar" />
-                    <line x1="22" y1="12" x2="22" y2="12" className="convo-wave-bar" />
-                  </svg>
-                ) : (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.01 1.18 2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z" />
-                  </svg>
-                )}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="2"  y1="12" x2="2"  y2="12" className="convo-wave-bar" />
+                  <line x1="6"  y1="8"  x2="6"  y2="16" className="convo-wave-bar" />
+                  <line x1="10" y1="5"  x2="10" y2="19" className="convo-wave-bar" />
+                  <line x1="14" y1="8"  x2="14" y2="16" className="convo-wave-bar" />
+                  <line x1="18" y1="10" x2="18" y2="14" className="convo-wave-bar" />
+                  <line x1="22" y1="12" x2="22" y2="12" className="convo-wave-bar" />
+                </svg>
               </button>
             )}
 
@@ -706,26 +769,27 @@ export default function Assistant({ data, navigateTo }) {
         </div>
       </div>
 
-      {/* ChatGPT-Style Full-Screen Voice Call Overlay */}
+      {/* ChatGPT-Style Voice Conversation Overlay */}
       {convoMode && (
-        <div className="assistant-call-overlay">
-          <div className="assistant-call-header">
-            <div className="assistant-call-brand">
-              <div className="assistant-call-logo">
+        <div className="assistant-voice-overlay">
+          <div className="assistant-voice-header">
+            <div className="assistant-voice-brand">
+              <div className="assistant-voice-logo">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="12" cy="8" r="4" />
                   <path d="M6 20v-2a6 6 0 0 1 12 0v2" />
                 </svg>
               </div>
               <div>
-                <h3 className="assistant-call-title">Intellect Circle AI</h3>
-                <span className="assistant-call-status-tag">Live Voice Call</span>
+                <h3 className="assistant-voice-title">Intellect Circle AI</h3>
+                <span className="assistant-voice-status-tag">Voice Conversation</span>
               </div>
             </div>
             <button
               onClick={toggleConvoMode}
-              className="assistant-call-close-btn"
-              title="Close Voice Call"
+              className="assistant-voice-close-btn"
+              title="Close Voice Conversation"
+              aria-label="Close Voice Conversation"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -734,19 +798,19 @@ export default function Assistant({ data, navigateTo }) {
             </button>
           </div>
 
-          {/* Central Visualizer Area */}
-          <div className="assistant-call-body">
-            <div className={`assistant-voice-orb ${loading ? 'thinking' : (speakingIdx !== -1 ? 'speaking' : (isListening ? 'listening' : 'idle'))}`}>
+          {/* Central Voice Orb & Dynamic Visualizer */}
+          <div className="assistant-voice-body">
+            <div className={`assistant-voice-orb ${convoState}`}>
               <div className="orb-ring ring-1"></div>
               <div className="orb-ring ring-2"></div>
               <div className="orb-ring ring-3"></div>
               <div className="orb-core">
-                {loading ? (
+                {convoState === 'thinking' ? (
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
                     <path d="M12 3a9 9 0 0 1 9 9" strokeLinecap="round" />
                   </svg>
-                ) : speakingIdx !== -1 ? (
+                ) : convoState === 'speaking' ? (
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <line x1="4" y1="12" x2="4" y2="12" className="wave-line L1" />
                     <line x1="8" y1="8" x2="8" y2="16" className="wave-line L2" />
@@ -765,68 +829,41 @@ export default function Assistant({ data, navigateTo }) {
               </div>
             </div>
 
-            <div className="assistant-call-state-label">
-              {loading ? (
+            <div className="assistant-voice-state-label">
+              <span className={`assistant-voice-state-indicator ${convoState}`} />
+              {convoState === 'thinking' ? (
                 <span>Thinking...</span>
-              ) : speakingIdx !== -1 ? (
-                <span>AI Speaking...</span>
-              ) : isListening ? (
+              ) : convoState === 'speaking' ? (
+                <span>Speaking...</span>
+              ) : convoState === 'listening' ? (
                 <span>Listening...</span>
               ) : (
-                <span>Call Connected</span>
+                <span>Voice Connected</span>
               )}
             </div>
 
-            {/* Transcript subtitle snippet */}
-            <div className="assistant-call-transcript-box">
-              {input ? (
-                <p className="transcript-user">"{input}"</p>
-              ) : messages.length > 0 && messages[messages.length - 1].role === 'assistant' ? (
-                <p className="transcript-ai">
-                  {messages[messages.length - 1].text.slice(0, 180)}
-                  {messages[messages.length - 1].text.length > 180 ? '...' : ''}
-                </p>
+            {/* Scrollable Live User Transcript Container (No AI text rendered) */}
+            <div className="assistant-voice-transcript-box" ref={transcriptScrollRef}>
+              {liveUserTranscript || input ? (
+                <p className="transcript-user">"{liveUserTranscript || input}"</p>
               ) : (
-                <p className="transcript-hint">Speak clearly, I'm listening to you...</p>
+                <p className="transcript-hint">Start speaking, I'm listening to you...</p>
               )}
             </div>
           </div>
 
-          {/* Floating Call Action Bar */}
-          <div className="assistant-call-controls">
-            <button
-              onClick={toggleVoice}
-              className={`assistant-call-btn mic ${isListening ? 'active' : 'muted'}`}
-              title={isListening ? 'Mute Microphone' : 'Unmute Microphone'}
-            >
-              {isListening ? (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="2" width="6" height="11" rx="3" />
-                  <path d="M5 10a7 7 0 0 0 14 0" />
-                  <line x1="12" y1="19" x2="12" y2="22" />
-                  <line x1="8" y1="22" x2="16" y2="22" />
-                </svg>
-              ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                  <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6" />
-                  <path d="M17 16.95A7 7 0 0 1 5 10v-1m14 0v1a7 7 0 0 1-.11 1.23" />
-                  <line x1="12" y1="19" x2="12" y2="22" />
-                  <line x1="8" y1="22" x2="16" y2="22" />
-                </svg>
-              )}
-              <span>{isListening ? 'Mute' : 'Unmute'}</span>
-            </button>
-
+          {/* Bottom Action Bar */}
+          <div className="assistant-voice-controls">
             <button
               onClick={toggleConvoMode}
-              className="assistant-call-btn end"
-              title="End Voice Call"
+              className="assistant-voice-end-btn"
+              title="End Voice Conversation"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.73-1.68-1.36-2.66-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
-              <span>End Call</span>
+              <span>End Conversation</span>
             </button>
           </div>
         </div>
