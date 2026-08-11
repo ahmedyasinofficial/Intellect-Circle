@@ -124,6 +124,8 @@ export default function Assistant({ data, navigateTo }) {
   const silenceTimerRef = useRef(null);
   // Ref to the latest handleSend so the silence timer callback can invoke it
   const handleSendRef = useRef(null);
+  // HTMLAudioElement used to play ElevenLabs audio
+  const currentAudioRef = useRef(null);
 
   // Check for Web Speech API support and set up recognition
   useEffect(() => {
@@ -133,7 +135,8 @@ export default function Assistant({ data, navigateTo }) {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      // Empty string = browser auto-detects language → supports any language
+      recognition.lang = '';
 
       let sessionTranscript = '';
 
@@ -209,31 +212,71 @@ export default function Assistant({ data, navigateTo }) {
     return () => {
       clearTimeout(silenceTimerRef.current);
       if (recognitionRef.current) recognitionRef.current.abort();
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
       window.speechSynthesis?.cancel();
     };
   }, []);
 
-  // ── Text-to-Speech helpers ──────────────────────────────────────────────
-  const speakText = useCallback((text, idx, onDone) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); // stop anything already playing
-    // Strip markdown-style links so the URL isn't read aloud
-    const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-                      .replace(/https?:\/\/\S+/g, '');
-    const utt = new SpeechSynthesisUtterance(clean);
-    utt.rate  = 1;
-    utt.pitch = 1;
-    utt.lang  = 'en-US';
-    utt.onstart = () => setSpeakingIdx(idx);
-    utt.onend   = () => { setSpeakingIdx(-1); onDone?.(); };
-    utt.onerror = () => { setSpeakingIdx(-1); onDone?.(); };
-    window.speechSynthesis.speak(utt);
-  }, []);
-
+  // ── Text-to-Speech helpers (ElevenLabs) ────────────────────────────────
   const stopSpeaking = useCallback(() => {
-    window.speechSynthesis?.cancel();
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.src = '';
+      currentAudioRef.current = null;
+    }
+    window.speechSynthesis?.cancel(); // fallback cleanup
     setSpeakingIdx(-1);
   }, []);
+
+  const speakText = useCallback(async (text, idx, onDone) => {
+    // Stop any currently playing audio first
+    stopSpeaking();
+    setSpeakingIdx(idx);
+
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok) throw new Error(`TTS API returned ${res.status}`);
+
+      const audioBlob = await res.blob();
+      const audioUrl  = URL.createObjectURL(audioBlob);
+      const audio     = new Audio(audioUrl);
+      currentAudioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        currentAudioRef.current = null;
+        setSpeakingIdx(-1);
+        onDone?.();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        currentAudioRef.current = null;
+        setSpeakingIdx(-1);
+        onDone?.();
+      };
+
+      await audio.play();
+    } catch (err) {
+      console.warn('ElevenLabs TTS failed, falling back to browser TTS:', err);
+      // ── Browser TTS fallback ──────────────────────────────────────────
+      if (!window.speechSynthesis) { setSpeakingIdx(-1); onDone?.(); return; }
+      const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                        .replace(/https?:\/\/\S+/g, '');
+      const utt = new SpeechSynthesisUtterance(clean);
+      utt.rate = 1; utt.pitch = 1;
+      utt.onend   = () => { setSpeakingIdx(-1); onDone?.(); };
+      utt.onerror = () => { setSpeakingIdx(-1); onDone?.(); };
+      window.speechSynthesis.speak(utt);
+    }
+  }, [stopSpeaking]);
 
   const toggleSpeak = useCallback((text, idx) => {
     if (speakingIdx === idx) { stopSpeaking(); return; }
@@ -254,11 +297,10 @@ export default function Assistant({ data, navigateTo }) {
           try { recognitionRef.current.start(); } catch (_) {}
         }
       } else {
-        // Turning OFF: stop mic, TTS, and any pending silence timer
+        // Turning OFF: stop mic, ElevenLabs/TTS audio, and any pending silence timer
         clearTimeout(silenceTimerRef.current);
         if (recognitionRef.current) recognitionRef.current.stop();
-        window.speechSynthesis?.cancel();
-        setSpeakingIdx(-1);
+        stopSpeaking();
       }
       return next;
     });
@@ -289,8 +331,8 @@ export default function Assistant({ data, navigateTo }) {
     clearTimeout(silenceTimerRef.current);
     blockResultsRef.current = true;
     if (recognitionRef.current) recognitionRef.current.abort();
-    window.speechSynthesis?.cancel();
-    setSpeakingIdx(-1);
+    // Stop ElevenLabs audio + browser TTS
+    stopSpeaking();
     baseTextRef.current = '';
     inputRef.current = '';
 
@@ -376,8 +418,7 @@ export default function Assistant({ data, navigateTo }) {
     setInput('');
     inputRef.current = '';
     if (recognitionRef.current) recognitionRef.current.abort();
-    window.speechSynthesis?.cancel();
-    setSpeakingIdx(-1);
+    stopSpeaking();
     setConvoMode(false);
     baseTextRef.current = '';
     if (textareaRef.current) {
