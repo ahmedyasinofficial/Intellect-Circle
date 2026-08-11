@@ -159,10 +159,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid request body.' });
   }
 
-  const { question, history } = body;
+  const { question, history, isVoice } = req.body || {};
 
   if (!question || typeof question !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid question.' });
+    return res.status(400).json({ error: 'Question is required.' });
   }
 
   const trimmedQuestion = question.trim();
@@ -207,8 +207,16 @@ export default async function handler(req, res) {
   // Fetch live website data from Supabase
   const liveKnowledge = await fetchLiveWebsiteContext();
 
-  // Combine system prompt + live knowledge
-  const fullSystemText = SYSTEM_PROMPT + liveKnowledge;
+  const voicePromptExtension = isVoice ? `
+MODE: LIVE VOICE CALL
+You are currently speaking directly to the user in a voice call.
+1. Respond in natural, warm human speech suitable for text-to-speech.
+2. Do NOT use markdown tags, asterisks, bullet lists, or bracketed link syntax like [Apply](/apply).
+3. Keep your answers concise, direct, and conversational (1-3 sentences).
+` : '';
+
+  // Combine system prompt + live knowledge + mode extensions
+  const fullSystemText = SYSTEM_PROMPT + voicePromptExtension + '\n' + liveKnowledge;
 
   // Build Gemini API contents payload
   const contents = [];

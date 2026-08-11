@@ -249,6 +249,24 @@ export default function Assistant({ data, navigateTo }) {
     stopSpeaking();
     setSpeakingIdx(idx);
 
+    let finished = false;
+    const safeOnDone = () => {
+      if (finished) return;
+      finished = true;
+      setSpeakingIdx(-1);
+      onDone?.();
+    };
+
+    // Safety watchdog: ensure onDone is called within 15 seconds max so mic never stays muted
+    const watchdogTimer = setTimeout(() => {
+      safeOnDone();
+    }, 15000);
+
+    const cleanup = () => {
+      clearTimeout(watchdogTimer);
+      safeOnDone();
+    };
+
     try {
       const res = await fetch('/api/tts', {
         method: 'POST',
@@ -266,28 +284,37 @@ export default function Assistant({ data, navigateTo }) {
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
-        setSpeakingIdx(-1);
-        onDone?.();
+        cleanup();
       };
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.warn('Audio element error:', e);
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
-        setSpeakingIdx(-1);
-        onDone?.();
+        cleanup();
       };
 
       await audio.play();
     } catch (err) {
       console.warn('ElevenLabs TTS failed, falling back to browser TTS:', err);
       // ── Browser TTS fallback ──────────────────────────────────────────
-      if (!window.speechSynthesis) { setSpeakingIdx(-1); onDone?.(); return; }
+      if (!window.speechSynthesis) {
+        cleanup();
+        return;
+      }
+      window.speechSynthesis.cancel();
       const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
                         .replace(/https?:\/\/\S+/g, '');
       const utt = new SpeechSynthesisUtterance(clean);
-      utt.rate = 1; utt.pitch = 1;
-      utt.onend   = () => { setSpeakingIdx(-1); onDone?.(); };
-      utt.onerror = () => { setSpeakingIdx(-1); onDone?.(); };
+      utt.rate = 1;
+      utt.pitch = 1;
+      utt.onend = () => cleanup();
+      utt.onerror = () => cleanup();
       window.speechSynthesis.speak(utt);
+
+      // Fallback fallback: if SpeechSynthesis does not fire events in Chrome
+      setTimeout(() => {
+        if (!finished) cleanup();
+      }, Math.max(3000, clean.length * 80));
     }
   }, [stopSpeaking]);
 
@@ -366,7 +393,11 @@ export default function Assistant({ data, navigateTo }) {
       const res = await fetch('/api/chatbot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, history: buildHistory() })
+        body: JSON.stringify({
+          question: q,
+          history: buildHistory(),
+          isVoice: convoModeRef.current
+        })
       });
       const json = await res.json();
       if (!res.ok || json.error) {

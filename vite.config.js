@@ -577,6 +577,44 @@ const localDbPlugin = () => ({
             res.end(JSON.stringify({ error: error.message }));
           }
         });
+      } else if (url === '/api/tts') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            req.body = body ? JSON.parse(body) : {};
+            const { default: handler } = await import('./api/tts.js');
+            res.status = (code) => { res.statusCode = code; return res; };
+            res.json = (data) => {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(data));
+            };
+            await handler(req, res);
+          } catch (error) {
+            console.error('[Dev /api/tts error]', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message }));
+          }
+        });
+      } else if (url === '/api/chatbot') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            req.body = body ? JSON.parse(body) : {};
+            const { default: handler } = await import('./api/chatbot.js');
+            res.status = (code) => { res.statusCode = code; return res; };
+            res.json = (data) => {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(data));
+            };
+            await handler(req, res);
+          } catch (error) {
+            console.error('[Dev /api/chatbot error]', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: error.message }));
+          }
+        });
       } else if (url === '/api/setup-db') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, status: 'configured', message: 'Offline development mode: Database auto-configured.' }));
