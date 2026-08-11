@@ -104,6 +104,10 @@ export default function Assistant({ data, navigateTo }) {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  // Conversation (talking) mode — TTS speaks replies then auto-starts mic
+  const [convoMode, setConvoMode] = useState(false);
+  // Index of the message currently being spoken aloud (-1 = none)
+  const [speakingIdx, setSpeakingIdx] = useState(-1);
 
   const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
@@ -111,6 +115,10 @@ export default function Assistant({ data, navigateTo }) {
   // Holds whatever text was already in the box when mic started,
   // so restarting the mic appends instead of wiping.
   const baseTextRef = useRef('');
+  // Ref so async callbacks can read the latest convoMode without stale closure
+  const convoModeRef = useRef(false);
+  // When true, onresult silently discards incoming transcript (used during/after send)
+  const blockResultsRef = useRef(false);
 
   // Check for Web Speech API support and set up recognition
   useEffect(() => {
@@ -130,6 +138,8 @@ export default function Assistant({ data, navigateTo }) {
       };
 
       recognition.onresult = (event) => {
+        // Ignore any trailing results that fire after a send
+        if (blockResultsRef.current) return;
         let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
@@ -170,13 +180,56 @@ export default function Assistant({ data, navigateTo }) {
     }
   }, []);
 
-  // Stop listening when component unmounts
+  // Keep the convoMode ref in sync with state
+  useEffect(() => { convoModeRef.current = convoMode; }, [convoMode]);
+
+  // Stop listening + speaking when component unmounts
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      if (recognitionRef.current) recognitionRef.current.abort();
+      window.speechSynthesis?.cancel();
     };
+  }, []);
+
+  // ── Text-to-Speech helpers ──────────────────────────────────────────────
+  const speakText = useCallback((text, idx, onDone) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel(); // stop anything already playing
+    // Strip markdown-style links so the URL isn't read aloud
+    const clean = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                      .replace(/https?:\/\/\S+/g, '');
+    const utt = new SpeechSynthesisUtterance(clean);
+    utt.rate  = 1;
+    utt.pitch = 1;
+    utt.lang  = 'en-US';
+    utt.onstart = () => setSpeakingIdx(idx);
+    utt.onend   = () => { setSpeakingIdx(-1); onDone?.(); };
+    utt.onerror = () => { setSpeakingIdx(-1); onDone?.(); };
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    window.speechSynthesis?.cancel();
+    setSpeakingIdx(-1);
+  }, []);
+
+  const toggleSpeak = useCallback((text, idx) => {
+    if (speakingIdx === idx) { stopSpeaking(); return; }
+    speakText(text, idx);
+  }, [speakingIdx, speakText, stopSpeaking]);
+
+  // ── Conversation mode toggle ────────────────────────────────────────────
+  const toggleConvoMode = useCallback(() => {
+    setConvoMode(prev => {
+      const next = !prev;
+      if (!next) {
+        // Turning off: stop mic + speech
+        if (recognitionRef.current) recognitionRef.current.stop();
+        window.speechSynthesis?.cancel();
+        setSpeakingIdx(-1);
+      }
+      return next;
+    });
   }, []);
 
   // Smooth scroll ONLY the internal messages container (never the page/window)
@@ -200,56 +253,62 @@ export default function Assistant({ data, navigateTo }) {
     const q = (questionText || input).trim();
     if (!q || loading) return;
 
-    // Stop the mic first so its onresult can't overwrite the cleared input
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-    }
-    // Reset the base-text anchor so the next mic session starts fresh
+    // Block any trailing onresult events that fire after stop()
+    blockResultsRef.current = true;
+    // Stop the mic & any ongoing speech before sending
+    if (recognitionRef.current && isListening) recognitionRef.current.abort();
+    window.speechSynthesis?.cancel();
+    setSpeakingIdx(-1);
     baseTextRef.current = '';
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    // Unblock results after a tick so the next mic session works normally
+    setTimeout(() => { blockResultsRef.current = false; }, 200);
 
+    let answerText = '';
     try {
       const res = await fetch('/api/chatbot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: q,
-          history: buildHistory()
-        })
+        body: JSON.stringify({ question: q, history: buildHistory() })
       });
 
       const json = await res.json();
 
       if (!res.ok || json.error) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          text: json.error || "Sorry, I couldn't answer that right now. Please try again.",
-          isError: true
-        }]);
+        answerText = json.error || "Sorry, I couldn't answer that right now. Please try again.";
+        setMessages(prev => [...prev, { role: 'assistant', text: answerText, isError: true }]);
       } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          text: json.answer || "I couldn't generate a response. Please try rephrasing."
-        }]);
+        answerText = json.answer || "I couldn't generate a response. Please try rephrasing.";
+        setMessages(prev => [...prev, { role: 'assistant', text: answerText }]);
       }
     } catch {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        text: "Sorry, I couldn't reach the assistant right now. Please check your connection and try again.",
-        isError: true
-      }]);
+      answerText = "Sorry, I couldn't reach the assistant right now. Please check your connection and try again.";
+      setMessages(prev => [...prev, { role: 'assistant', text: answerText, isError: true }]);
     } finally {
       setLoading(false);
-      setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
+      // In conversation mode: speak the reply, then auto-start mic for next turn
+      if (convoModeRef.current && answerText) {
+        setMessages(curr => {
+          const replyIdx = curr.length - 1;
+          speakText(answerText, replyIdx, () => {
+            // After AI finishes speaking, re-open mic for user's next question
+            if (convoModeRef.current && recognitionRef.current) {
+              baseTextRef.current = '';
+              try { recognitionRef.current.start(); } catch (_) {}
+            }
+          });
+          return curr;
+        });
+      } else {
+        setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
+      }
     }
-  }, [input, loading, buildHistory]);
+  }, [input, loading, buildHistory, speakText]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -279,9 +338,10 @@ export default function Assistant({ data, navigateTo }) {
   const clearChat = () => {
     setMessages([]);
     setInput('');
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
+    if (recognitionRef.current) recognitionRef.current.stop();
+    window.speechSynthesis?.cancel();
+    setSpeakingIdx(-1);
+    setConvoMode(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.focus({ preventScroll: true });
@@ -308,18 +368,20 @@ export default function Assistant({ data, navigateTo }) {
             </h1>
           </div>
 
-          {hasMessages && (
-            <button
-              onClick={clearChat}
-              className="assistant-clear-btn"
-              title="Clear current conversation"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-              </svg>
-              <span>Clear</span>
-            </button>
-          )}
+          <div className="assistant-header-actions">
+            {hasMessages && (
+              <button
+                onClick={clearChat}
+                className="assistant-clear-btn"
+                title="Clear current conversation"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                </svg>
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
         </header>
 
         {/* Scrollable Conversation Container */}
@@ -352,10 +414,29 @@ export default function Assistant({ data, navigateTo }) {
                     </svg>
                   </div>
                 )}
-                <div
-                  className={`assistant-bubble ${msg.role} ${msg.isError ? 'error' : ''}`}
-                >
+                <div className={`assistant-bubble ${msg.role} ${msg.isError ? 'error' : ''}`}>
                   {renderMessageContent(msg.text, navigateTo)}
+                  {/* Per-message speak button on assistant bubbles */}
+                  {msg.role === 'assistant' && !msg.isError && window.speechSynthesis && (
+                    <button
+                      onClick={() => toggleSpeak(msg.text, idx)}
+                      className={`assistant-speak-btn${speakingIdx === idx ? ' speaking' : ''}`}
+                      title={speakingIdx === idx ? 'Stop reading' : 'Read aloud'}
+                      aria-label={speakingIdx === idx ? 'Stop reading' : 'Read aloud'}
+                    >
+                      {speakingIdx === idx ? (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="6" width="12" height="12" rx="2" />
+                        </svg>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -404,17 +485,41 @@ export default function Assistant({ data, navigateTo }) {
                 title={isListening ? 'Click to stop listening' : 'Click to speak'}
               >
                 {isListening ? (
-                  /* Stop / wave icon when listening */
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="6" width="12" height="12" rx="2" />
                   </svg>
                 ) : (
-                  /* Microphone icon */
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="9" y="2" width="6" height="11" rx="3" />
                     <path d="M5 10a7 7 0 0 0 14 0" />
                     <line x1="12" y1="19" x2="12" y2="22" />
                     <line x1="8" y1="22" x2="16" y2="22" />
+                  </svg>
+                )}
+              </button>
+            )}
+
+            {/* Talk / Conversation Mode Button — sits beside the mic in the input bar */}
+            {voiceSupported && (
+              <button
+                onClick={toggleConvoMode}
+                disabled={loading}
+                className={`assistant-convo-btn${convoMode ? ' active' : ''}`}
+                title={convoMode ? 'End conversation mode' : 'Start voice conversation'}
+                aria-label={convoMode ? 'End conversation mode' : 'Start voice conversation'}
+              >
+                {convoMode ? (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="2"  y1="12" x2="2"  y2="12" className="convo-wave-bar" />
+                    <line x1="6"  y1="8"  x2="6"  y2="16" className="convo-wave-bar" />
+                    <line x1="10" y1="5"  x2="10" y2="19" className="convo-wave-bar" />
+                    <line x1="14" y1="8"  x2="14" y2="16" className="convo-wave-bar" />
+                    <line x1="18" y1="10" x2="18" y2="14" className="convo-wave-bar" />
+                    <line x1="22" y1="12" x2="22" y2="12" className="convo-wave-bar" />
+                  </svg>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.01 1.18 2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z" />
                   </svg>
                 )}
               </button>
