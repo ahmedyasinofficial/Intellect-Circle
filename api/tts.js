@@ -5,7 +5,7 @@
 const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 
 // Cartesia voice ID
-const VOICE_ID = '95d51f79-c397-46f9-b49a-23763d3eaa2d';
+const VOICE_ID = 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4';
 
 // Cartesia model — sonic-2 is their latest high-quality model
 const MODEL_ID = 'sonic-2';
