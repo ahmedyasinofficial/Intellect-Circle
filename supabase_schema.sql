@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS public.blog (
     author TEXT NOT NULL,
     excerpt TEXT,
     content TEXT,
+    cover_image TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

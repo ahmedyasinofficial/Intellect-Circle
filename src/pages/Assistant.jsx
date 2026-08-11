@@ -2,7 +2,7 @@
 // Dedicated AI Assistant Page for Intellect Circle
 // ChatGPT-inspired interface with Intellect Circle visual identity.
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 const MAX_HISTORY = 6;
 
@@ -102,15 +102,81 @@ export default function Assistant({ data, navigateTo }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
 
   const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
+  const recognitionRef = useRef(null);
+  // Holds whatever text was already in the box when mic started,
+  // so restarting the mic appends instead of wiping.
+  const baseTextRef = useRef('');
+
+  // Check for Web Speech API support and set up recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      setVoiceSupported(true);
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      let sessionTranscript = '';
+
+      recognition.onstart = () => {
+        sessionTranscript = ''; // only resets the NEW session segment
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            sessionTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        // Prepend whatever was typed/spoken BEFORE this mic session
+        const combined = (baseTextRef.current ? baseTextRef.current + ' ' : '') +
+          sessionTranscript + interimTranscript;
+        setInput(combined.trimStart());
+        // Auto-resize the textarea
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.height =
+            Math.min(textareaRef.current.scrollHeight, 140) + 'px';
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
 
   // Focus input field on mount without forced page scrolling
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus({ preventScroll: true });
     }
+  }, []);
+
+  // Stop listening when component unmounts
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
   }, []);
 
   // Smooth scroll ONLY the internal messages container (never the page/window)
@@ -133,6 +199,13 @@ export default function Assistant({ data, navigateTo }) {
   const handleSend = useCallback(async (questionText) => {
     const q = (questionText || input).trim();
     if (!q || loading) return;
+
+    // Stop the mic first so its onresult can't overwrite the cleared input
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop();
+    }
+    // Reset the base-text anchor so the next mic session starts fresh
+    baseTextRef.current = '';
 
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: q }]);
@@ -191,9 +264,24 @@ export default function Assistant({ data, navigateTo }) {
     e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px';
   };
 
+  const toggleVoice = useCallback(() => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      // Pause mic — keep whatever has been transcribed so far
+      recognitionRef.current.stop();
+    } else {
+      // Resume: capture the current input as the base so new speech appends
+      baseTextRef.current = input.trimEnd();
+      recognitionRef.current.start();
+    }
+  }, [isListening, input]);
+
   const clearChat = () => {
     setMessages([]);
     setInput('');
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.focus({ preventScroll: true });
@@ -296,15 +384,42 @@ export default function Assistant({ data, navigateTo }) {
           <div className="assistant-input-box">
             <textarea
               ref={textareaRef}
-              className="assistant-input-textarea"
+              className={`assistant-input-textarea${isListening ? ' voice-active' : ''}`}
               value={input}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
               disabled={loading}
-              placeholder="Message Intellect Circle AI..."
+              placeholder={isListening ? '🎙 Listening… speak now' : 'Message Intellect Circle AI...'}
               rows={1}
               maxLength={1000}
             />
+
+            {/* Microphone Button */}
+            {voiceSupported && (
+              <button
+                onClick={toggleVoice}
+                disabled={loading}
+                className={`assistant-mic-btn${isListening ? ' listening' : ''}`}
+                aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                title={isListening ? 'Click to stop listening' : 'Click to speak'}
+              >
+                {isListening ? (
+                  /* Stop / wave icon when listening */
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                ) : (
+                  /* Microphone icon */
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="11" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                    <line x1="8" y1="22" x2="16" y2="22" />
+                  </svg>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || loading}
