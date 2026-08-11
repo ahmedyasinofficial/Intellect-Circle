@@ -128,6 +128,8 @@ export default function Assistant({ data, navigateTo }) {
   const currentAudioRef = useRef(null);
   // Ref tracking if speech audio is currently playing
   const isSpeakingRef = useRef(false);
+  // True from the moment we start fetching TTS until audio finishes — prevents mic restart race
+  const pendingTTSRef = useRef(false);
 
   // Prime/Unlock browser audio context on user gesture to bypass Chrome/Safari autoplay blocks
   const unlockAudio = useCallback(() => {
@@ -193,8 +195,8 @@ export default function Assistant({ data, navigateTo }) {
       };
 
       recognition.onerror = (event) => {
-        // 'no-speech' is benign; ignore it silently in convo mode
-        if (event.error !== 'no-speech') {
+        // 'no-speech' and 'aborted' are both benign (we call abort() ourselves); suppress them
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
           console.warn('Speech recognition error:', event.error);
         }
         setIsListening(false);
@@ -202,10 +204,11 @@ export default function Assistant({ data, navigateTo }) {
 
       recognition.onend = () => {
         setIsListening(false);
-        // In conversation mode, auto-restart mic if ended naturally (not during send or AI speech)
-        if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current) {
+        // In conversation mode, auto-restart mic if ended naturally
+        // (not during send, not while AI is speaking, not while TTS fetch is pending)
+        if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current) {
           setTimeout(() => {
-            if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current) {
+            if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current) {
               try { recognition.start(); } catch (_) {}
             }
           }, 150);
@@ -242,6 +245,7 @@ export default function Assistant({ data, navigateTo }) {
   // ── Text-to-Speech helpers (ElevenLabs) ────────────────────────────────
   const stopSpeaking = useCallback(() => {
     isSpeakingRef.current = false;
+    pendingTTSRef.current = false;
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current.src = '';
@@ -254,6 +258,7 @@ export default function Assistant({ data, navigateTo }) {
   const speakText = useCallback(async (text, idx, onDone) => {
     // Stop any currently playing audio first
     stopSpeaking();
+    pendingTTSRef.current = true;  // mark TTS as pending before fetch begins
     isSpeakingRef.current = true;
     setSpeakingIdx(idx);
 
@@ -262,6 +267,7 @@ export default function Assistant({ data, navigateTo }) {
       if (finished) return;
       finished = true;
       isSpeakingRef.current = false;
+      pendingTTSRef.current = false;
       setSpeakingIdx(-1);
       onDone?.();
     };

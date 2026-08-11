@@ -8,8 +8,8 @@ const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '06a438b87906cfb5f8
 // Rachel: warm, clear, natural-sounding female voice
 const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel
 
-// eleven_turbo_v2_5 supports 32 languages automatically
-const MODEL_ID = 'eleven_turbo_v2_5';
+// eleven_multilingual_v2 — supports 29 languages, available on all ElevenLabs plans
+const MODEL_ID = 'eleven_multilingual_v2';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
           voice_settings: {
             stability: 0.45,        // balanced — natural variation
             similarity_boost: 0.80, // high — stays close to voice character
-            style: 0.30,            // mild expressiveness
+            // NOTE: `style` param requires Creator+ plan — intentionally omitted
             use_speaker_boost: true,
           },
         }),
@@ -58,9 +58,10 @@ export default async function handler(req, res) {
 
     if (!elResponse.ok) {
       const errText = await elResponse.text();
-      console.error('ElevenLabs error:', elResponse.status, errText);
-      return res.status(elResponse.status).json({
-        error: `ElevenLabs returned ${elResponse.status}`,
+      console.error('[TTS] ElevenLabs error:', elResponse.status, errText);
+      // Return 502 so the client falls back to browser TTS instead of crashing
+      return res.status(502).json({
+        error: `ElevenLabs returned ${elResponse.status}: ${errText.slice(0, 200)}`,
       });
     }
 
