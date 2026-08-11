@@ -127,6 +127,19 @@ export default function Assistant({ data, navigateTo }) {
   // HTMLAudioElement used to play ElevenLabs audio
   const currentAudioRef = useRef(null);
 
+  // Prime/Unlock browser audio context on user gesture to bypass Chrome/Safari autoplay blocks
+  const unlockAudio = useCallback(() => {
+    try {
+      const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
+      silentAudio.play().catch(() => {});
+      if (window.speechSynthesis && !window.speechSynthesis.speaking) {
+        const dummy = new SpeechSynthesisUtterance("");
+        dummy.volume = 0;
+        window.speechSynthesis.speak(dummy);
+      }
+    } catch (_) {}
+  }, []);
+
   // Check for Web Speech API support and set up recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -285,12 +298,14 @@ export default function Assistant({ data, navigateTo }) {
 
   // ── Conversation mode toggle ────────────────────────────────────────────
   const toggleConvoMode = useCallback(() => {
+    unlockAudio(); // Unlock browser audio permissions immediately on click!
     setConvoMode(prev => {
       const next = !prev;
       if (next) {
         // Turning ON: immediately start listening so the user can speak right away
         baseTextRef.current = '';
         inputRef.current = '';
+        blockResultsRef.current = false;
         setInput('');
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
         if (recognitionRef.current) {
@@ -299,12 +314,14 @@ export default function Assistant({ data, navigateTo }) {
       } else {
         // Turning OFF: stop mic, ElevenLabs/TTS audio, and any pending silence timer
         clearTimeout(silenceTimerRef.current);
-        if (recognitionRef.current) recognitionRef.current.stop();
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch (_) {}
+        }
         stopSpeaking();
       }
       return next;
     });
-  }, []);
+  }, [unlockAudio, stopSpeaking]);
 
   // Smooth scroll ONLY the internal messages container (never the page/window)
   useEffect(() => {
@@ -372,7 +389,15 @@ export default function Assistant({ data, navigateTo }) {
             if (convoModeRef.current && recognitionRef.current) {
               baseTextRef.current = '';
               inputRef.current = '';
-              try { recognitionRef.current.start(); } catch (_) {}
+              blockResultsRef.current = false;
+              try {
+                recognitionRef.current.start();
+              } catch (_) {
+                try {
+                  recognitionRef.current.abort();
+                  setTimeout(() => recognitionRef.current?.start(), 100);
+                } catch (e) {}
+              }
             }
           });
           return curr;
@@ -381,7 +406,7 @@ export default function Assistant({ data, navigateTo }) {
         setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
       }
     }
-  }, [input, loading, buildHistory, speakText]);
+  }, [input, loading, buildHistory, speakText, stopSpeaking]);
 
   // Always keep the ref pointing to the latest handleSend so silence timer can call it
   handleSendRef.current = handleSend;
@@ -630,6 +655,132 @@ export default function Assistant({ data, navigateTo }) {
           </div>
         </div>
       </div>
+
+      {/* ChatGPT-Style Full-Screen Voice Call Overlay */}
+      {convoMode && (
+        <div className="assistant-call-overlay">
+          <div className="assistant-call-header">
+            <div className="assistant-call-brand">
+              <div className="assistant-call-logo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M6 20v-2a6 6 0 0 1 12 0v2" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="assistant-call-title">Intellect Circle AI</h3>
+                <span className="assistant-call-status-tag">Live Voice Call</span>
+              </div>
+            </div>
+            <button
+              onClick={toggleConvoMode}
+              className="assistant-call-close-btn"
+              title="Close Voice Call"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Central Visualizer Area */}
+          <div className="assistant-call-body">
+            <div className={`assistant-voice-orb ${loading ? 'thinking' : (speakingIdx !== -1 ? 'speaking' : (isListening ? 'listening' : 'idle'))}`}>
+              <div className="orb-ring ring-1"></div>
+              <div className="orb-ring ring-2"></div>
+              <div className="orb-ring ring-3"></div>
+              <div className="orb-core">
+                {loading ? (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+                    <path d="M12 3a9 9 0 0 1 9 9" strokeLinecap="round" />
+                  </svg>
+                ) : speakingIdx !== -1 ? (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="4" y1="12" x2="4" y2="12" className="wave-line L1" />
+                    <line x1="8" y1="8" x2="8" y2="16" className="wave-line L2" />
+                    <line x1="12" y1="4" x2="12" y2="20" className="wave-line L3" />
+                    <line x1="16" y1="8" x2="16" y2="16" className="wave-line L4" />
+                    <line x1="20" y1="12" x2="20" y2="12" className="wave-line L5" />
+                  </svg>
+                ) : (
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2" width="6" height="11" rx="3" />
+                    <path d="M5 10a7 7 0 0 0 14 0" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                    <line x1="8" y1="22" x2="16" y2="22" />
+                  </svg>
+                )}
+              </div>
+            </div>
+
+            <div className="assistant-call-state-label">
+              {loading ? (
+                <span>Thinking...</span>
+              ) : speakingIdx !== -1 ? (
+                <span>AI Speaking...</span>
+              ) : isListening ? (
+                <span>Listening...</span>
+              ) : (
+                <span>Call Connected</span>
+              )}
+            </div>
+
+            {/* Transcript subtitle snippet */}
+            <div className="assistant-call-transcript-box">
+              {input ? (
+                <p className="transcript-user">"{input}"</p>
+              ) : messages.length > 0 && messages[messages.length - 1].role === 'assistant' ? (
+                <p className="transcript-ai">
+                  {messages[messages.length - 1].text.slice(0, 180)}
+                  {messages[messages.length - 1].text.length > 180 ? '...' : ''}
+                </p>
+              ) : (
+                <p className="transcript-hint">Speak clearly, I'm listening to you...</p>
+              )}
+            </div>
+          </div>
+
+          {/* Floating Call Action Bar */}
+          <div className="assistant-call-controls">
+            <button
+              onClick={toggleVoice}
+              className={`assistant-call-btn mic ${isListening ? 'active' : 'muted'}`}
+              title={isListening ? 'Mute Microphone' : 'Unmute Microphone'}
+            >
+              {isListening ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="2" width="6" height="11" rx="3" />
+                  <path d="M5 10a7 7 0 0 0 14 0" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                  <line x1="8" y1="22" x2="16" y2="22" />
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                  <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V5a3 3 0 0 0-5.94-.6" />
+                  <path d="M17 16.95A7 7 0 0 1 5 10v-1m14 0v1a7 7 0 0 1-.11 1.23" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                  <line x1="8" y1="22" x2="16" y2="22" />
+                </svg>
+              )}
+              <span>{isListening ? 'Mute' : 'Unmute'}</span>
+            </button>
+
+            <button
+              onClick={toggleConvoMode}
+              className="assistant-call-btn end"
+              title="End Voice Call"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.73-1.68-1.36-2.66-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+              </svg>
+              <span>End Call</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
