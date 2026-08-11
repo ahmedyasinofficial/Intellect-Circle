@@ -1,15 +1,14 @@
-// /api/tts.js — ElevenLabs Text-to-Speech serverless endpoint
+// /api/tts.js — Cartesia Text-to-Speech serverless endpoint
 // Accepts: POST { text: string }
 // Returns: audio/mpeg stream (MP3)
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_93480b34de260f2ffdafa60c79dca140294abcb15d78f096';
+const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY;
 
-// Voice IDs — swap to any ElevenLabs voice you prefer
-// Rachel: warm, clear, natural-sounding female voice
-const VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel
+// Cartesia voice ID
+const VOICE_ID = 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4';
 
-// eleven_multilingual_v2 — supports 29 languages, available on all ElevenLabs plans
-const MODEL_ID = 'eleven_multilingual_v2';
+// Cartesia model — sonic-2 is their latest high-quality model
+const MODEL_ID = 'sonic-2';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -33,35 +32,43 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'No speakable text after cleaning' });
   }
 
+  if (!CARTESIA_API_KEY) {
+    console.error('[TTS] CARTESIA_API_KEY is not set');
+    return res.status(500).json({ error: 'TTS service is not configured' });
+  }
+
   try {
-    const elResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
+    const cartesiaResponse = await fetch(
+      'https://api.cartesia.ai/tts/bytes',
       {
         method: 'POST',
         headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
+          'Cartesia-Version': '2024-06-10',
+          'X-API-Key': CARTESIA_API_KEY,
           'Content-Type': 'application/json',
-          'Accept': 'audio/mpeg',
         },
         body: JSON.stringify({
-          text: clean,
           model_id: MODEL_ID,
-          voice_settings: {
-            stability: 0.45,        // balanced — natural variation
-            similarity_boost: 0.80, // high — stays close to voice character
-            // NOTE: `style` param requires Creator+ plan — intentionally omitted
-            use_speaker_boost: true,
+          transcript: clean,
+          voice: {
+            mode: 'id',
+            id: VOICE_ID,
+          },
+          output_format: {
+            container: 'mp3',
+            bit_rate: 128000,
+            sample_rate: 44100,
           },
         }),
       }
     );
 
-    if (!elResponse.ok) {
-      const errText = await elResponse.text();
-      console.error('[TTS] ElevenLabs error:', elResponse.status, errText);
+    if (!cartesiaResponse.ok) {
+      const errText = await cartesiaResponse.text();
+      console.error('[TTS] Cartesia error:', cartesiaResponse.status, errText);
       // Return 502 so the client falls back to browser TTS instead of crashing
       return res.status(502).json({
-        error: `ElevenLabs returned ${elResponse.status}: ${errText.slice(0, 200)}`,
+        error: `Cartesia returned ${cartesiaResponse.status}: ${errText.slice(0, 200)}`,
       });
     }
 
@@ -70,7 +77,7 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    const reader = elResponse.body.getReader();
+    const reader = cartesiaResponse.body.getReader();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -78,7 +85,7 @@ export default async function handler(req, res) {
     }
     res.end();
   } catch (err) {
-    console.error('TTS endpoint error:', err);
+    console.error('[TTS] Endpoint error:', err);
     res.status(500).json({ error: 'TTS request failed' });
   }
 }
