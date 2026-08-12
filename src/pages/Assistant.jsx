@@ -395,6 +395,7 @@ export default function Assistant({ data, navigateTo }) {
     setConvoMode(prev => {
       const next = !prev;
       if (next) {
+        setMessages([]);
         baseTextRef.current = '';
         inputRef.current = '';
         blockResultsRef.current = false;
@@ -408,10 +409,17 @@ export default function Assistant({ data, navigateTo }) {
       } else {
         clearTimeout(silenceTimerRef.current);
         if (chatbotAbortControllerRef.current) chatbotAbortControllerRef.current.abort();
+        if (ttsAbortControllerRef.current) ttsAbortControllerRef.current.abort();
         if (recognitionRef.current) {
           try { recognitionRef.current.stop(); } catch (_) {}
+          try { recognitionRef.current.abort(); } catch (_) {}
         }
         stopSpeaking();
+        setMessages([]);
+        setLiveUserTranscript('');
+        setInput('');
+        inputRef.current = '';
+        baseTextRef.current = '';
         updateConvoState('idle');
       }
       return next;
