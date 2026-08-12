@@ -191,6 +191,11 @@ export default function Assistant({ data, navigateTo }) {
 
       recognition.onstart = () => {
         sessionTranscript = '';
+        if (convoModeRef.current && (convoStateRef.current === 'thinking' || convoStateRef.current === 'speaking' || blockResultsRef.current)) {
+          try { recognition.abort(); } catch (_) {}
+          setIsListening(false);
+          return;
+        }
         setIsListening(true);
         if (convoModeRef.current && convoStateRef.current === 'idle') {
           updateConvoState('listening');
@@ -198,23 +203,8 @@ export default function Assistant({ data, navigateTo }) {
       };
 
       recognition.onresult = (event) => {
-        if (blockResultsRef.current) return;
-
-        // BARGE-IN SUPPORT: If the user starts speaking while AI is speaking or thinking,
-        // immediately stop AI audio playback, abort pending requests, and switch to listening!
-        if (isSpeakingRef.current || pendingTTSRef.current || convoStateRef.current === 'thinking') {
-          stopSpeaking();
-          if (chatbotAbortControllerRef.current) {
-            chatbotAbortControllerRef.current.abort();
-            chatbotAbortControllerRef.current = null;
-          }
-          setLoading(false);
-          updateConvoState('listening');
-          baseTextRef.current = '';
-          inputRef.current = '';
-          sessionTranscript = '';
-          setLiveUserTranscript('');
-          setInput('');
+        if (blockResultsRef.current || isSpeakingRef.current || pendingTTSRef.current || convoStateRef.current === 'thinking' || convoStateRef.current === 'speaking') {
+          return;
         }
 
         let interimTranscript = '';
@@ -264,13 +254,15 @@ export default function Assistant({ data, navigateTo }) {
 
       recognition.onend = () => {
         setIsListening(false);
-        // Auto-restart mic in conversation mode when naturally ended
-        if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current && convoStateRef.current === 'listening') {
-          setTimeout(() => {
-            if (convoModeRef.current && !blockResultsRef.current && !isSpeakingRef.current && !pendingTTSRef.current) {
-              try { recognition.start(); } catch (_) {}
-            }
-          }, 100);
+        // Auto-restart mic in conversation mode only when naturally ended during listening state
+        if (
+          convoModeRef.current &&
+          convoStateRef.current === 'listening' &&
+          !blockResultsRef.current &&
+          !isSpeakingRef.current &&
+          !pendingTTSRef.current
+        ) {
+          try { recognition.start(); } catch (_) {}
         }
       };
 
@@ -451,6 +443,7 @@ export default function Assistant({ data, navigateTo }) {
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch (_) {}
     }
+    setIsListening(false);
     stopSpeaking();
 
     baseTextRef.current = '';
@@ -464,8 +457,6 @@ export default function Assistant({ data, navigateTo }) {
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-
-    setTimeout(() => { blockResultsRef.current = false; }, 250);
 
     const chatbotAC = new AbortController();
     chatbotAbortControllerRef.current = chatbotAC;
@@ -506,27 +497,38 @@ export default function Assistant({ data, navigateTo }) {
               setLiveUserTranscript('');
               baseTextRef.current = '';
               inputRef.current = '';
+              setInput('');
               blockResultsRef.current = false;
               updateConvoState('listening');
 
-              setTimeout(() => {
-                if (convoModeRef.current && !isSpeakingRef.current && recognitionRef.current) {
+              if (!isSpeakingRef.current && recognitionRef.current) {
+                try {
+                  recognitionRef.current.start();
+                } catch (_) {
                   try {
+                    recognitionRef.current.abort();
                     recognitionRef.current.start();
-                  } catch (_) {
-                    try {
-                      recognitionRef.current.abort();
-                      setTimeout(() => recognitionRef.current?.start(), 80);
-                    } catch (e) {}
-                  }
+                  } catch (e) {}
                 }
-              }, 120);
+              }
             }
           });
           return curr;
         });
       } else {
-        setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
+        if (convoModeRef.current) {
+          setLiveUserTranscript('');
+          baseTextRef.current = '';
+          inputRef.current = '';
+          setInput('');
+          blockResultsRef.current = false;
+          updateConvoState('listening');
+          if (recognitionRef.current) {
+            try { recognitionRef.current.start(); } catch (_) {}
+          }
+        } else {
+          setTimeout(() => textareaRef.current?.focus({ preventScroll: true }), 50);
+        }
       }
     }
   }, [input, loading, buildHistory, speakText, stopSpeaking, updateConvoState]);
