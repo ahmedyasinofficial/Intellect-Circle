@@ -382,30 +382,30 @@ function BlogList({ blogs = [], navigateTo }) {
       {/* Hero */}
       <section style={{
         background: 'linear-gradient(135deg, var(--primary-dark) 0%, #1a2840 100%)',
-        padding: '72px 20px 60px',
+        padding: '36px 20px 28px',
         borderBottom: '3px solid var(--accent-color)'
       }}>
         <div className="container" style={{ textAlign: 'center' }}>
           <span style={{
-            display: 'inline-block', marginBottom: '16px',
-            padding: '6px 18px', borderRadius: '20px', fontSize: '0.78rem',
+            display: 'inline-block', marginBottom: '8px',
+            padding: '4px 12px', borderRadius: '20px', fontSize: '0.72rem',
             fontWeight: '700', letterSpacing: '1px',
             background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.35)',
             color: 'var(--accent-color)'
           }}>INTELLECT CIRCLE BLOG</span>
           <h1 style={{
-            fontSize: 'clamp(2rem, 5vw, 3rem)', color: 'white', margin: '0 0 18px',
+            fontSize: 'clamp(1.5rem, 3.5vw, 2.1rem)', color: 'white', margin: '0 0 8px',
             fontFamily: 'var(--font-serif)', lineHeight: '1.2'
           }}>Articles &amp; Session Recaps</h1>
-          <p style={{ color: 'rgba(255,255,255,0.65)', maxWidth: '560px', margin: '0 auto 36px', lineHeight: '1.7', fontSize: '1rem' }}>
+          <p style={{ color: 'rgba(255,255,255,0.65)', maxWidth: '560px', margin: '0 auto 18px', lineHeight: '1.5', fontSize: '0.9rem' }}>
             Deep-dive written recaps of our community sessions, expert analyses, and intellectual discussions.
           </p>
 
           {/* Search Bar */}
-          <div style={{ maxWidth: '520px', margin: '0 auto', position: 'relative' }}>
+          <div style={{ maxWidth: '480px', margin: '0 auto', position: 'relative' }}>
             <svg
-              style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}
-              width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"
+              style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"
             >
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -415,10 +415,10 @@ function BlogList({ blogs = [], navigateTo }) {
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
-                width: '100%', padding: '14px 20px 14px 50px', boxSizing: 'border-box',
+                width: '100%', padding: '10px 18px 10px 44px', boxSizing: 'border-box',
                 borderRadius: '32px', border: '1px solid rgba(255,255,255,0.2)',
                 background: 'rgba(255,255,255,0.1)', color: 'white',
-                fontSize: '0.95rem', outline: 'none',
+                fontSize: '0.9rem', outline: 'none',
                 backdropFilter: 'blur(8px)', transition: 'border-color 0.2s'
               }}
               onFocus={e => e.target.style.borderColor = 'var(--accent-color)'}
@@ -436,7 +436,7 @@ function BlogList({ blogs = [], navigateTo }) {
             )}
           </div>
           {search && (
-            <p style={{ marginTop: '12px', color: 'rgba(255,255,255,0.5)', fontSize: '0.82rem' }}>
+            <p style={{ marginTop: '8px', color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem' }}>
               {filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"
             </p>
           )}
