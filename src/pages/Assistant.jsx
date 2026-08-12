@@ -296,26 +296,30 @@ export default function Assistant({ data, navigateTo }) {
     if (convoModeRef.current) updateConvoState('speaking');
 
     let finished = false;
+    let watchdogTimer = null;
+
     const safeOnDone = () => {
       if (finished) return;
       finished = true;
+      if (watchdogTimer) clearTimeout(watchdogTimer);
       isSpeakingRef.current = false;
       pendingTTSRef.current = false;
       setSpeakingIdx(-1);
       onDone?.();
     };
 
-    const watchdogTimer = setTimeout(() => {
-      safeOnDone();
-    }, 18000);
-
     const cleanup = () => {
-      clearTimeout(watchdogTimer);
       safeOnDone();
     };
 
     const ttsAC = new AbortController();
     ttsAbortControllerRef.current = ttsAC;
+
+    // Initial watchdog timer while fetching audio (60 seconds buffer)
+    watchdogTimer = setTimeout(() => {
+      console.warn('TTS fetch watchdog timeout fired');
+      cleanup();
+    }, 60000);
 
     try {
       const res = await fetch('/api/tts', {
@@ -357,6 +361,15 @@ export default function Assistant({ data, navigateTo }) {
         currentAudioRef.current = null;
         cleanup();
       };
+      audio.onloadedmetadata = () => {
+        // Dynamically scale watchdog based on actual audio duration + 15s buffer
+        if (watchdogTimer) clearTimeout(watchdogTimer);
+        const durationMs = ((audio.duration && isFinite(audio.duration)) ? audio.duration : 60) * 1000 + 15000;
+        watchdogTimer = setTimeout(() => {
+          console.warn('Audio duration watchdog fired');
+          cleanup();
+        }, Math.max(60000, durationMs));
+      };
 
       await audio.play();
     } catch (err) {
@@ -378,9 +391,10 @@ export default function Assistant({ data, navigateTo }) {
       utt.onerror = () => cleanup();
       window.speechSynthesis.speak(utt);
 
-      setTimeout(() => {
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(() => {
         if (!finished) cleanup();
-      }, Math.max(3000, clean.length * 80));
+      }, 180000);
     }
   }, [stopSpeaking, updateConvoState]);
 
