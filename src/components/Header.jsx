@@ -85,7 +85,7 @@ function Header({ currentPage, navigateTo }) {
                 Contact
               </a>
             </li>
-            <li className="mobile-only-cta" style={{ display: 'none' }}>
+            <li className="mobile-only-cta">
               <button
                 onClick={() => handleNavClick('apply')}
                 className="btn btn-accent"

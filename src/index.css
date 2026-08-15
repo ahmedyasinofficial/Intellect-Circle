@@ -321,6 +321,15 @@ img {
   transform: rotate(-135deg);
 }
 
+/* Show Join button inside mobile nav, hide it in the header actions on mobile */
+.mobile-only-cta {
+  display: none; /* hidden by default on desktop */
+}
+
+.desktop-only-cta {
+  display: inline-flex; /* visible by default on desktop */
+}
+
 /* Footer styling */
 .footer {
   background-color: var(--primary-dark);
@@ -2501,6 +2510,15 @@ img {
     transform: translateX(-50%);
     width: 30px;
   }
+  /* Show Join button inside nav, hide the desktop header version */
+  .mobile-only-cta {
+    display: list-item;
+    width: 100%;
+    padding: 0 20px;
+  }
+  .desktop-only-cta {
+    display: none;
+  }
 }
 
 @media (max-width: 480px) {
@@ -4182,6 +4200,15 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
    Dark sidebar + clean content area
    ================================================ */
 
+/* ─── Responsive Table Wrappers ─── */
+.table-responsive,
+.admin-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
 /* Page shell */
 .admin-control-room-wrapper {
   min-height: 100vh;
@@ -4832,7 +4859,98 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
   margin-left: 56px;
 }
 
-/* ─── Mobile ─── */
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN PANEL — HEADER STRUCTURE (flex zones)
+   ═══════════════════════════════════════════════════════════════ */
+
+.admin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.admin-header-search {
+  position: relative;
+  flex: 1;
+  max-width: 360px;
+  margin: 0 14px;
+}
+
+.admin-header-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Hamburger — hidden on desktop */
+.admin-mobile-menu-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.admin-mobile-menu-btn span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: #94a3b8;
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+.admin-mobile-menu-btn:hover span {
+  background: #ffffff;
+}
+
+/* Mobile overlay */
+.admin-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 39;
+  backdrop-filter: blur(2px);
+}
+
+/* Table scroll wrappers — desktop baseline */
+.table-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ≤ 1024px — Tablet: Sidebar auto-collapse
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .admin-control-room-sidebar.expanded {
+    width: 200px;
+  }
+
+  .admin-control-room-content {
+    margin-left: 200px;
+  }
+
+  .admin-control-room-sidebar.collapsed ~ .admin-control-room-content {
+    margin-left: 56px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ≤ 900px — Small Tablet: Sidebar becomes horizontal tabs bar
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
   .admin-header-bar {
     padding: 0 16px;
@@ -4857,6 +4975,11 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
     border-right: none;
     border-bottom: 1px solid #252c3e;
     z-index: 40;
+    scrollbar-width: none;
+  }
+
+  .admin-control-room-sidebar::-webkit-scrollbar {
+    display: none;
   }
 
   .admin-control-room-content {
@@ -4873,9 +4996,10 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
 
   .sidebar-item-btn {
     flex-shrink: 0;
-    padding: 8px 14px;
+    padding: 8px 12px;
     border-radius: 6px;
     white-space: nowrap;
+    font-size: 0.8rem;
   }
 
   .sidebar-item-btn.active::before {
@@ -4898,14 +5022,361 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
   .overview-metric-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  /* Panel header stacks on tablet */
+  .admin-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .admin-panel-header .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ≤ 768px — Mobile: Sidebar becomes a slide-in DRAWER
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Header ── */
+  .admin-header-bar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  /* Show hamburger on mobile */
+  .admin-mobile-menu-btn {
+    display: flex;
+  }
+
+  .admin-header-email {
+    display: none;
+  }
+
+  .admin-header-search {
+    margin: 0 8px;
+    max-width: none;
+    flex: 1;
+  }
+
+  .admin-btn-label {
+    display: none;
+  }
+
+  .admin-header-btn {
+    padding: 5px 8px !important;
+  }
+
+  /* ── Mobile Overlay (visible when drawer is open) ── */
+  .admin-mobile-overlay {
+    display: block;
+  }
+
+  /* ── Sidebar becomes a fixed slide-in drawer ── */
+  .admin-control-room-sidebar {
+    position: fixed !important;
+    top: 48px !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: calc(100vh - 48px) !important;
+    width: 260px !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 16px 0 !important;
+    border-right: 1px solid #252c3e !important;
+    border-bottom: none !important;
+    z-index: 40 !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease !important;
+    scrollbar-width: thin;
+  }
+
+  /* Drawer open state */
+  .admin-control-room-sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  /* Restore sidebar items to vertical layout */
+  .sidebar-brand,
+  .sidebar-category-header,
+  .sidebar-toggle-btn {
+    display: flex;
+  }
+
+  .sidebar-category-header {
+    display: block;
+  }
+
+  .sidebar-toggle-btn {
+    display: flex;
+  }
+
+  .sidebar-item-btn {
+    flex-shrink: initial;
+    padding: 9px 16px;
+    white-space: normal;
+    border-radius: 0;
+    font-size: 0.855rem;
+  }
+
+  .sidebar-item-btn.active::before {
+    display: block;
+  }
+
+  .sidebar-item-btn.active {
+    background: #252c3e;
+    color: #ffffff;
+  }
+
+  .sidebar-item-btn.active svg {
+    color: #c9a84c;
+  }
+
+  /* ── Content ── */
+  .admin-control-room-layout {
+    flex-direction: row;
+  }
+
+  .admin-control-room-content {
+    margin-left: 0 !important;
+    padding: 14px;
+    width: 100%;
+  }
+
+  /* ── Content Components ── */
+  .admin-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+  }
+
+  .admin-panel-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .admin-panel-header .btn,
+  .admin-panel-header > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .admin-box {
+    padding: 16px;
+  }
+
+  .admin-section-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  /* Stat cards */
+  .overview-metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .overview-metric-value {
+    font-size: 1.5rem;
+  }
+
+  /* Tables: horizontal scroll */
+  .admin-table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-table {
+    min-width: 560px;
+  }
+
+  /* Forms: full width stacking */
+  .form-row,
+  div[style*="grid-template-columns: 1fr 1fr"],
+  div[style*="gridTemplateColumns: '1fr 1fr'"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  /* Sub-tab bars */
+  .website-subtab-bar {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .website-subtab-btn {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  /* Submission drawer full screen */
+  .submission-profile-drawer {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .drawer-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Overview quick actions */
+  .admin-box[style*="display: flex"] {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Blog / Session sub-tab strips */
+  .blog-list-controls,
+  .session-list-controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Certificate table */
+  .cert-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ≤ 480px — Small phones (iPhone SE, etc.)
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
+  .admin-header-bar {
+    height: 52px;
+    min-height: 52px;
+  }
+
+  .admin-control-room-layout {
+    margin-top: 52px;
+  }
+
+  .admin-control-room-sidebar {
+    top: 52px !important;
+    height: calc(100vh - 52px) !important;
+  }
+
   .overview-metric-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
+
+  .overview-metric-card {
+    padding: 12px 14px;
+  }
+
+  .overview-metric-value {
+    font-size: 1.35rem;
+  }
+
   .admin-control-room-content {
+    padding: 10px;
+  }
+
+  .admin-box {
     padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .admin-box-title {
+    font-size: 0.8rem;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+  }
+
+  .admin-panel-header h2 {
+    font-size: 0.98rem;
+  }
+
+  .admin-panel-header {
+    margin-bottom: 12px;
+  }
+
+  /* Sidebar drawer width on very small screens */
+  .admin-control-room-sidebar.mobile-open {
+    width: 240px !important;
+  }
+
+  /* Sub-tabs */
+  .website-subtab-btn {
+    padding: 5px 8px;
+    font-size: 0.74rem;
+    gap: 4px;
+  }
+
+  .website-subtab-btn svg {
+    display: none;
+  }
+
+  /* Buttons in forms */
+  .btn {
+    font-size: 0.85rem;
+  }
+
+  /* Table min-width tighter on small phones */
+  .admin-table {
+    min-width: 480px;
+    font-size: 0.8rem;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 8px 10px;
+  }
+
+  /* Submission drawer */
+  .drawer-header {
+    padding: 14px 16px;
+  }
+
+  .drawer-body {
+    padding: 16px;
+  }
+
+  /* Login card */
+  .admin-login-card {
+    padding: 30px 20px;
+    margin: 0 12px;
+  }
+
+  .admin-login-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ≤ 375px — Very small phones (iPhone SE 1st gen, etc.)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 375px) {
+  .overview-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-control-room-sidebar.mobile-open {
+    width: 100% !important;
+  }
+
+  .overview-metric-value {
+    font-size: 1.2rem;
+  }
+
+  .admin-box-title,
+  .website-subtab-btn span {
+    font-size: 0.75rem;
+  }
+
+  .sidebar-item-btn {
+    font-size: 0.82rem;
   }
 }
 

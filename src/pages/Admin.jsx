@@ -182,6 +182,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
   });
 
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   const toggleSidebar = () => {
     setIsSidebarCollapsed(prev => {
       const nextState = !prev;
@@ -191,6 +193,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       return nextState;
     });
   };
+
+  const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
 
   // Certificates state
   const [certificates, setCertificates] = useState([]);
@@ -2066,28 +2070,36 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
       {/* Header bar */}
       <div className="admin-header-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+        <div className="admin-header-left">
+          {/* Mobile hamburger */}
+          <button
+            className="admin-mobile-menu-btn"
+            onClick={() => setIsMobileSidebarOpen(prev => !prev)}
+            aria-label="Toggle navigation menu"
+          >
+            <span></span><span></span><span></span>
+          </button>
           <img
             src={logoImage}
             alt="Intellect Circle"
             style={{ height: '28px', width: 'auto', objectFit: 'contain', flexShrink: 0 }}
           />
-          <span className="user-email-badge" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span className="user-email-badge admin-header-email">
             {activeUserPermissions && !activeUserPermissions.isMaster
               ? (activeUserPermissions.name || activeUserPermissions.userEmail)
               : (userEmail || 'Administrator')}
             {' — '}
-            {activeUserPermissions && !activeUserPermissions.isMaster ? 'Restricted Access' : 'Master Administrator'}
+            {activeUserPermissions && !activeUserPermissions.isMaster ? 'Restricted' : 'Master Admin'}
           </span>
         </div>
 
         {/* Global Search Bar */}
-        <div style={{ position: 'relative', flex: '1', maxWidth: '360px', margin: '0 14px' }}>
+        <div className="admin-header-search">
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <SearchIcon style={{ width: '13px', height: '13px', color: '#94a3b8', position: 'absolute', left: '9px', pointerEvents: 'none' }} />
             <input
               type="text"
-              placeholder="Search pages, blogs, sessions, settings..."
+              placeholder="Search pages, blogs, sessions..."
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
               style={{
@@ -2136,21 +2148,32 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+        <div className="admin-header-right">
           <button onClick={() => navigateTo('home')} className="admin-header-btn">
-            <ExternalLinkIcon style={{ width: '13px', height: '13px' }} /> Public Site
+            <ExternalLinkIcon style={{ width: '13px', height: '13px' }} />
+            <span className="admin-btn-label">Public Site</span>
           </button>
           <button onClick={handleLogoutClick} className="admin-header-btn" style={{ color: '#fca5a5' }}>
-            <LogOutIcon style={{ width: '13px', height: '13px' }} /> Sign Out
+            <LogOutIcon style={{ width: '13px', height: '13px' }} />
+            <span className="admin-btn-label">Sign Out</span>
           </button>
         </div>
       </div>
 
 
       <div className="admin-control-room-layout">
+
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div
+            className="admin-mobile-overlay"
+            onClick={closeMobileSidebar}
+            aria-hidden="true"
+          />
+        )}
         
         {/* Collapsible Left Sidebar */}
-        <aside className={`admin-control-room-sidebar ${isSidebarCollapsed ? 'collapsed' : 'expanded'}`}>
+        <aside className={`admin-control-room-sidebar ${isSidebarCollapsed ? 'collapsed' : 'expanded'} ${isMobileSidebarOpen ? 'mobile-open' : ''}`}>
           
           {/* Sidebar Brand */}
           {!isSidebarCollapsed ? (
@@ -2180,7 +2203,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {!isSidebarCollapsed && <div className="sidebar-category-header">Overview</div>}
           <button 
             className={`sidebar-item-btn ${activeTab === 'overview' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('overview')}
+            onClick={() => { setActiveTab('overview'); closeMobileSidebar(); }}
             title="Dashboard Overview"
           >
             <OverviewIcon />
@@ -2196,7 +2219,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {!isSidebarCollapsed && <div className="sidebar-category-header">Content</div>}
           <button 
             className={`sidebar-item-btn ${(activeTab === 'content_website' || activeTab === 'text') ? 'active' : ''}`} 
-            onClick={() => setActiveTab('content_website')}
+            onClick={() => { setActiveTab('content_website'); closeMobileSidebar(); }}
             title="Website Content Manager"
           >
             <CopyIcon />
@@ -2209,7 +2232,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'media' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('media')}
+            onClick={() => { setActiveTab('media'); closeMobileSidebar(); }}
             title="Media Library"
           >
             <MediaIcon />
@@ -2222,7 +2245,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'seo' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('seo')}
+            onClick={() => { setActiveTab('seo'); closeMobileSidebar(); }}
             title="SEO Settings"
           >
             <SEOIcon />
@@ -2238,7 +2261,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {!isSidebarCollapsed && <div className="sidebar-category-header">Community</div>}
           <button 
             className={`sidebar-item-btn ${activeTab === 'subs' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('subs')}
+            onClick={() => { setActiveTab('subs'); closeMobileSidebar(); }}
             title="Submissions Manager"
           >
             <SubsIcon />
@@ -2255,7 +2278,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'sessions' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('sessions')}
+            onClick={() => { setActiveTab('sessions'); closeMobileSidebar(); }}
             title="Sessions"
           >
             <CalendarIcon />
@@ -2272,7 +2295,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'blog' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('blog')}
+            onClick={() => { setActiveTab('blog'); closeMobileSidebar(); }}
             title="Blogs & Articles"
           >
             <BlogIcon />
@@ -2289,7 +2312,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'team' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('team')}
+            onClick={() => { setActiveTab('team'); closeMobileSidebar(); }}
             title="Hierarchy / Team"
           >
             <TeamIcon />
@@ -2302,7 +2325,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'certificates' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('certificates')}
+            onClick={() => { setActiveTab('certificates'); closeMobileSidebar(); }}
             title="Certificates"
           >
             <CertificateIcon />
@@ -2318,7 +2341,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {!isSidebarCollapsed && <div className="sidebar-category-header">Analytics</div>}
           <button 
             className={`sidebar-item-btn ${activeTab === 'stats' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('stats')}
+            onClick={() => { setActiveTab('stats'); closeMobileSidebar(); }}
             title="Stats & Values"
           >
             <StatsIcon />
@@ -2331,7 +2354,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'logs' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('logs')}
+            onClick={() => { setActiveTab('logs'); closeMobileSidebar(); }}
             title="Activity Logs"
           >
             <LogsIcon />
@@ -2347,7 +2370,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {!isSidebarCollapsed && <div className="sidebar-category-header">Settings</div>}
           <button 
             className={`sidebar-item-btn ${activeTab === 'contact' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('contact')}
+            onClick={() => { setActiveTab('contact'); closeMobileSidebar(); }}
             title="Contact & Social"
           >
             <InfoIcon />
@@ -2360,7 +2383,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           </button>
           <button 
             className={`sidebar-item-btn ${activeTab === 'system' ? 'active' : ''}`} 
-            onClick={() => setActiveTab('system')}
+            onClick={() => { setActiveTab('system'); closeMobileSidebar(); }}
             title="API Keys / System"
           >
             <KeysIcon />
@@ -2374,7 +2397,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           {activeUserPermissions?.isMaster && (
             <button 
               className={`sidebar-item-btn ${activeTab === 'access' ? 'active' : ''}`} 
-              onClick={() => setActiveTab('access')}
+              onClick={() => { setActiveTab('access'); closeMobileSidebar(); }}
               title="Access Control"
             >
               <LockIcon style={{ width: '16px', height: '16px' }} />
@@ -4112,7 +4135,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 <h2>Administrative Activity Logs</h2>
               </div>
               
-              <div className="admin-box">
+              <div className="admin-box" style={{ padding: 0, overflow: 'hidden' }}>
+                <div className="admin-table-container">
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -4138,6 +4162,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -4773,6 +4798,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </div>
               ) : (
                 <div className="admin-box" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div className="admin-table-container">
                   <table className="admin-table" style={{ width: '100%' }}>
                     <thead>
                       <tr>
@@ -4899,6 +4925,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     </tbody>
                   </table>
                   </div>
+                </div>
                 )}
               </div>
             )}
