@@ -249,7 +249,7 @@ function Home({ data, navigateTo }) {
         <div className="container hero-grid" style={{ position: 'relative', zIndex: 2 }}>
           <div className="hero-content">
             <span className="hero-badge">Grassroots Youth Movement</span>
-            <h1>{hero.headline || 'Intellect Circle'}</h1>
+            <h1 className="ic-reveal-slide revealed">{hero.headline || 'Intellect Circle'}</h1>
             <p className="hero-tagline">{hero.tagline || 'A structured learning community for young intellects.'}</p>
             <p>{hero.description || 'Gathering bi-weekly to share expertise, challenge perspectives, and build deep intellectual connections.'}</p>
             <div className="hero-ctas">
@@ -298,7 +298,9 @@ function Home({ data, navigateTo }) {
       <section className="stats-bar">
         <div className="container stats-grid">
           {stats.map((stat) => (
-            <StatCounter key={stat.id} target={stat.value} label={stat.label} />
+            <div key={stat.id} className="ic-reveal">
+              <StatCounter target={stat.value} label={stat.label} />
+            </div>
           ))}
         </div>
       </section>
@@ -368,7 +370,7 @@ function Home({ data, navigateTo }) {
           </div>
           <div className="teaser-grid">
             {teaserColumns.map((col, index) => (
-              <div className="teaser-card" key={index}>
+              <div className="teaser-card ic-reveal" key={index}>
                 <div className="teaser-icon">
                   {index === 0 && (
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -406,7 +408,7 @@ function Home({ data, navigateTo }) {
             </div>
             <div className="how-it-works-grid">
               {howSteps.map((step, index) => (
-                <div className="how-step-card" key={index}>
+                <div className="how-step-card ic-reveal" key={index}>
                   <div className="how-step-number">{step.number}</div>
                   <p>{step.text}</p>
                   {index < howSteps.length - 1 && (
@@ -435,7 +437,7 @@ function Home({ data, navigateTo }) {
             </div>
             <div className="pillars-grid">
               {pillarItems.map((pillar) => (
-                <div className={`pillar-card ${pillar.status === 'Coming Soon' ? 'coming-soon' : ''}`} key={pillar.id}>
+                <div className={`pillar-card ic-reveal-scale ${pillar.status === 'Coming Soon' ? 'coming-soon' : ''}`} key={pillar.id}>
                   {pillar.status === 'Coming Soon' && (
                     <span className="pillar-badge">Coming Soon</span>
                   )}

@@ -1,8 +1,24 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import logoImage from '../assets/logo.png'
 
 function Header({ currentPage, navigateTo }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Glassmorphism scroll effect — adds .scrolled to strengthen blur + gold border
+  useEffect(() => {
+    const header = document.querySelector('.header-wrapper');
+    const handleScroll = () => {
+      if (!header) return;
+      if (window.scrollY > 20) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // run on mount
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);

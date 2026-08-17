@@ -87,6 +87,39 @@ function App() {
     return '';
   });
 
+  // 2b. Global scroll-reveal observer (UI/UX Pro Max: Subtle fade-up on section entry)
+  useEffect(() => {
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return; // skip — CSS already handles this via @media
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target); // fire once
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    );
+
+    // Observe all current .ic-reveal elements, and re-observe on page change
+    const observeAll = () => {
+      document.querySelectorAll('.ic-reveal, .ic-reveal-scale, .ic-reveal-slide').forEach((el) => {
+        if (!el.classList.contains('revealed')) observer.observe(el);
+      });
+    };
+
+    observeAll();
+    // Re-run briefly after React renders new page content
+    const timer = setTimeout(observeAll, 80);
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [currentPage]);
   // Scroll to top on every route/page/article navigation change
   useEffect(() => {
     window.scrollTo(0, 0);
