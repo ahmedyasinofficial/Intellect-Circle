@@ -56,6 +56,11 @@ function Sessions({ data, navigateTo }) {
               {upcomingSessions.length > 0 ? (
                 upcomingSessions.map((session) => (
                   <div className={`upcoming-card ${session.photo ? 'has-photo' : ''}`} key={session.id}>
+                    {session.photo && (
+                      <div className="upcoming-graphic">
+                        <SmartImage src={session.photo} alt={session.title} />
+                      </div>
+                    )}
                     <div className="upcoming-content">
                       <span className="session-badge">Next Session</span>
                       <h3 style={{ fontSize: '1.75rem', marginBottom: '15px' }}>{session.title}</h3>
@@ -82,11 +87,6 @@ function Sessions({ data, navigateTo }) {
                         </a>
                       )}
                     </div>
-                    {session.photo && (
-                      <div className="upcoming-graphic">
-                        <SmartImage src={session.photo} alt={session.title} />
-                      </div>
-                    )}
                   </div>
                 ))
               ) : (

@@ -13,7 +13,7 @@ function SmartImage({ src, alt, className = '', imgClassName = '', style = {}, .
   return (
     <div 
       className={`img-container-custom ${className}`} 
-      style={{ width: '100%', height: '100%', ...style }} 
+      style={{ width: '100%', ...style }} 
       {...props}
     >
       <img 
