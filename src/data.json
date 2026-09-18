@@ -297,8 +297,7 @@
       "photo": "/uploads/1221.png",
       "scheduled_at": "2026-09-09T09:20",
       "status": "upcoming",
-      "registration_link": "",
-      "googleMeetLink": "https://meet.google.com/abc-defg-hij"
+      "registration_link": ""
     },
     {
       "id": "session-2",
@@ -1578,7 +1577,6 @@
         "welcome_email_sent_at": "2026-08-10T11:20:47.079Z"
       }
     ],
-    "contacts": [],
-    "sessionRegistrations": []
+    "contacts": []
   }
 }
