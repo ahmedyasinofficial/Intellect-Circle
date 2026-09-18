@@ -115,69 +115,6 @@ https://intellectcircle.dpdns.org`;
   }
 }
 
-async function sendSessionRegistrationEmailLocal({ name, email, sessionTitle, presenter, date, time, format, meetLink }) {
-  const mailSubject = `Registration Confirmed: ${sessionTitle} | Intellect Circle`;
-  let mailText = `Dear ${name},
-
-Thank you for registering for our upcoming session: "${sessionTitle}". We are excited to have you join us!
-
-Session Details:
-- Title: ${sessionTitle}
-${presenter ? `- Presenter: ${presenter}\n` : ''}${date ? `- Date: ${date} ${time ? `at ${time}` : ''}\n` : ''}${format ? `- Format: ${format}\n` : ''}
-To receive session reminders, agenda files, and participate in post-session discussions, please join our official WhatsApp Community:
-https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
-`;
-
-  if (meetLink) {
-    mailText += `
-Online Meeting Link (Google Meet):
-${meetLink}
-`;
-  }
-
-  mailText += `
-Best regards,
-Intellect Circle Team
-https://intellectcircle.dpdns.org`;
-
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
-
-  if (smtpHost && smtpUser && smtpPass) {
-    try {
-      const nodemailer = await import('nodemailer');
-      const transporter = nodemailer.default.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        }
-      });
-
-      await transporter.sendMail({
-        from: `"Intellect Circle" <${smtpFrom}>`,
-        to: email,
-        subject: mailSubject,
-        text: mailText
-      });
-      console.log(`[Local Session Email] Sent session registration confirmation to ${email}`);
-      return { success: true };
-    } catch (error) {
-      console.error(`[Local Session Email] SMTP error sending to ${email}:`, error.message);
-      return { success: false, error: error.message };
-    }
-  } else {
-    const msg = `[Local Session Email Simulation] SMTP not configured. Registered ${name} (${email}) for ${sessionTitle}. WhatsApp link sent.`;
-    console.log(msg);
-    return { success: true, simulated: true };
-  }
-}
-
 // Custom local database persistence plugin for CMS in development
 const localDbPlugin = () => ({
   name: 'local-db-plugin',
@@ -268,8 +205,6 @@ const localDbPlugin = () => ({
               item.id = `${type}-` + Date.now();
               if (type === 'sessions') {
                 item.isUpcoming = item.status === 'upcoming';
-                if (item.google_meet_link !== undefined) item.googleMeetLink = item.google_meet_link;
-                if (item.googleMeetLink !== undefined) item.google_meet_link = item.googleMeetLink;
               }
               data[type].push(item);
               fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
@@ -283,8 +218,6 @@ const localDbPlugin = () => ({
               } else {
                 if (type === 'sessions') {
                   payload.isUpcoming = payload.status === 'upcoming';
-                  if (payload.google_meet_link !== undefined) payload.googleMeetLink = payload.google_meet_link;
-                  if (payload.googleMeetLink !== undefined) payload.google_meet_link = payload.googleMeetLink;
                 }
                 data[type] = data[type].map(t => t.id === payload.id ? { ...t, ...payload } : t);
               }
@@ -310,7 +243,7 @@ const localDbPlugin = () => ({
           try {
             const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
             const action = parsedUrl.searchParams.get('action');
-            if (!action || !['submit-application', 'submit-contact', 'register-session', 'delete-submission'].includes(action)) {
+            if (!action || !['submit-application', 'submit-contact', 'delete-submission'].includes(action)) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Invalid or missing action parameter.' }));
               return;
@@ -318,8 +251,7 @@ const localDbPlugin = () => ({
 
             const dataPath = path.resolve(__dirname, 'src/data.json');
             const dataContent = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-            if (!dataContent.submissions) dataContent.submissions = { applications: [], contacts: [], sessionRegistrations: [] };
-            if (!dataContent.submissions.sessionRegistrations) dataContent.submissions.sessionRegistrations = [];
+            if (!dataContent.submissions) dataContent.submissions = { applications: [], contacts: [] };
 
             if (action === 'submit-application') {
               const application = JSON.parse(body);
@@ -361,39 +293,6 @@ const localDbPlugin = () => ({
               fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ success: true, message: 'Contact inquiry submitted successfully' }));
-            } else if (action === 'register-session') {
-              const reg = JSON.parse(body);
-              if (!dataContent.submissions.sessionRegistrations) dataContent.submissions.sessionRegistrations = [];
-              const newReg = {
-                id: 'reg-' + Date.now(),
-                name: reg.name,
-                email: reg.email,
-                mobileNumber: reg.phone || reg.mobileNumber || '',
-                sessionId: reg.sessionId || '',
-                sessionTitle: reg.sessionTitle || '',
-                presenter: reg.presenter || '',
-                date: reg.date || '',
-                time: reg.time || '',
-                format: reg.format || '',
-                meetLink: reg.meetLink || reg.googleMeetLink || '',
-                submittedAt: new Date().toISOString()
-              };
-              dataContent.submissions.sessionRegistrations.unshift(newReg);
-              fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
-
-              sendSessionRegistrationEmailLocal({
-                name: reg.name,
-                email: reg.email,
-                sessionTitle: reg.sessionTitle || 'Intellect Circle Knowledge Session',
-                presenter: reg.presenter,
-                date: reg.date,
-                time: reg.time,
-                format: reg.format,
-                meetLink: reg.meetLink || reg.googleMeetLink
-              }).catch(console.error);
-
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, message: 'Registration confirmed. WhatsApp community link sent to email.' }));
             } else if (action === 'delete-submission') {
               const { id } = JSON.parse(body);
               if (dataContent.submissions.applications) {
@@ -401,9 +300,6 @@ const localDbPlugin = () => ({
               }
               if (dataContent.submissions.contacts) {
                 dataContent.submissions.contacts = dataContent.submissions.contacts.filter(c => c.id !== id);
-              }
-              if (dataContent.submissions.sessionRegistrations) {
-                dataContent.submissions.sessionRegistrations = dataContent.submissions.sessionRegistrations.filter(r => r.id !== id);
               }
               fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
               res.writeHead(200, { 'Content-Type': 'application/json' });

@@ -181,7 +181,6 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     photo TEXT,
     takeaways JSONB DEFAULT '[]'::jsonb, -- Using jsonb for flexibility instead of text[]
     registration_link TEXT,
-    google_meet_link TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -207,10 +206,10 @@ CREATE TABLE IF NOT EXISTS public.media_library (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Submissions Table (Applications + Contact inquiries + Session registrations)
+-- Submissions Table (Applications + Contact inquiries)
 CREATE TABLE IF NOT EXISTS public.submissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL CHECK (type IN ('application', 'contact', 'session_registration')),
+    type TEXT NOT NULL CHECK (type IN ('application', 'contact')),
     name TEXT NOT NULL,
     email TEXT NOT NULL,
     age INT,
@@ -220,8 +219,6 @@ CREATE TABLE IF NOT EXISTS public.submissions (
     heard_about TEXT,
     message TEXT,
     mobile_number TEXT,
-    session_id TEXT,
-    session_title TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     welcome_email_status TEXT DEFAULT 'pending',
     welcome_email_sent_at TIMESTAMPTZ,
@@ -576,13 +573,6 @@ CREATE POLICY "Allow anonymous insert access to analytics_events" ON public.anal
 DROP POLICY IF EXISTS "Allow authenticated admins select access to analytics_events" ON public.analytics_events;
 CREATE POLICY "Allow authenticated admins select access to analytics_events" ON public.analytics_events
     FOR SELECT USING (true);
-
--- Migration: Add Google Meet link to sessions and session_registration support in submissions
-ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS google_meet_link TEXT;
-ALTER TABLE IF EXISTS public.submissions DROP CONSTRAINT IF EXISTS submissions_type_check;
-ALTER TABLE IF EXISTS public.submissions ADD CONSTRAINT submissions_type_check CHECK (type IN ('application', 'contact', 'session_registration'));
-ALTER TABLE IF EXISTS public.submissions ADD COLUMN IF NOT EXISTS session_id TEXT;
-ALTER TABLE IF EXISTS public.submissions ADD COLUMN IF NOT EXISTS session_title TEXT;
 
 -- Reload Supabase PostgREST API schema cache
 NOTIFY pgrst, 'reload schema';

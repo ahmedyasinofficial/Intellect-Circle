@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react'
 import StatCounter from '../components/StatCounter'
 import logoImage from '../assets/logo.png'
 import SmartImage from '../components/SmartImage'
-import SessionRegisterModal from '../components/SessionRegisterModal'
 
 function HeroCanvas() {
   const canvasRef = useRef(null);
@@ -153,7 +152,6 @@ function HeroCanvas() {
 }
 
 function Home({ data, navigateTo }) {
-  const [registerModalSession, setRegisterModalSession] = useState(null);
   const [tiltStyle, setTiltStyle] = React.useState({
     transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0) scale(1)',
     filter: 'drop-shadow(0 10px 20px rgba(74, 85, 104, 0.12))',
@@ -347,45 +345,12 @@ function Home({ data, navigateTo }) {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginTop: '20px' }}>
-                  <button 
-                    type="button"
-                    onClick={() => setRegisterModalSession(featuredSession)} 
-                    className="btn btn-accent"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <line x1="19" x2="19" y1="8" y2="14" />
-                      <line x1="22" x2="16" y1="11" y2="11" />
-                    </svg>
-                    Register Now
-                  </button>
-
-                  {(featuredSession.googleMeetLink || featuredSession.meetLink) && (
-                    <a 
-                      href={featuredSession.googleMeetLink || featuredSession.meetLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="btn"
-                      style={{
-                        backgroundColor: '#1a73e8',
-                        color: '#ffffff',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        textDecoration: 'none'
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m22 8-6 4 6 4V8Z" />
-                        <rect width="14" height="12" x="2" y="6" rx="2" />
-                      </svg>
-                      Join Session
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {featuredSession.registrationLink && (
+                    <a href={featuredSession.registrationLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent">
+                      Register Now
                     </a>
                   )}
-
                   <button onClick={() => navigateTo('sessions')} className="btn btn-outline-gold">
                     Explore All Sessions
                   </button>
@@ -564,13 +529,6 @@ function Home({ data, navigateTo }) {
           </div>
         </div>
       </section>
-
-      {/* Session Registration Modal */}
-      <SessionRegisterModal 
-        isOpen={!!registerModalSession} 
-        onClose={() => setRegisterModalSession(null)} 
-        session={registerModalSession} 
-      />
     </div>
   );
 }
