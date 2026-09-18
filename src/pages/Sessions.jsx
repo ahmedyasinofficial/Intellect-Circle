@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import SmartImage from '../components/SmartImage'
+import SessionRegisterModal from '../components/SessionRegisterModal'
 
 function Sessions({ data, navigateTo }) {
   const sessions = data.sessions || [];
+  const [registerModalSession, setRegisterModalSession] = useState(null);
 
   // Filter sessions
   const upcomingSessions = sessions.filter(s => s.isUpcoming);
@@ -56,6 +58,11 @@ function Sessions({ data, navigateTo }) {
               {upcomingSessions.length > 0 ? (
                 upcomingSessions.map((session) => (
                   <div className={`upcoming-card ${session.photo ? 'has-photo' : ''}`} key={session.id}>
+                    {session.photo && (
+                      <div className="upcoming-graphic">
+                        <SmartImage src={session.photo} alt={session.title} />
+                      </div>
+                    )}
                     <div className="upcoming-content">
                       <span className="session-badge">Next Session</span>
                       <h3 style={{ fontSize: '1.75rem', marginBottom: '15px' }}>{session.title}</h3>
@@ -76,17 +83,46 @@ function Sessions({ data, navigateTo }) {
                         </div>
                       </div>
 
-                      {session.registrationLink && (
-                        <a href={session.registrationLink} target="_blank" rel="noopener noreferrer" className="btn btn-accent" style={{ marginTop: '20px', display: 'inline-block' }}>
-                          Register Now →
-                        </a>
-                      )}
-                    </div>
-                    {session.photo && (
-                      <div className="upcoming-graphic">
-                        <SmartImage src={session.photo} alt={session.title} />
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', marginTop: '20px' }}>
+                        <button 
+                          type="button"
+                          onClick={() => setRegisterModalSession(session)} 
+                          className="btn btn-accent"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <line x1="19" x2="19" y1="8" y2="14" />
+                            <line x1="22" x2="16" y1="11" y2="11" />
+                          </svg>
+                          Register Now
+                        </button>
+
+                        {(session.googleMeetLink || session.meetLink) && (
+                          <a 
+                            href={session.googleMeetLink || session.meetLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="btn"
+                            style={{
+                              backgroundColor: '#1a73e8',
+                              color: '#ffffff',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="m22 8-6 4 6 4V8Z" />
+                              <rect width="14" height="12" x="2" y="6" rx="2" />
+                            </svg>
+                            Join Session
+                          </a>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -352,6 +388,13 @@ function Sessions({ data, navigateTo }) {
           </div>
         </div>
       </section>
+
+      {/* Session Registration Modal */}
+      <SessionRegisterModal 
+        isOpen={!!registerModalSession} 
+        onClose={() => setRegisterModalSession(null)} 
+        session={registerModalSession} 
+      />
     </div>
   );
 }

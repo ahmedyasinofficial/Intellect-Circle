@@ -294,10 +294,11 @@
       "summary": "Exploring strategic interaction, Nash equilibria, and how mathematical models help us understand conflict and cooperation in daily life.",
       "isUpcoming": true,
       "takeaways": [],
-      "photo": "/uploads/23423.png",
-      "scheduled_at": "2026-08-10T13:55",
+      "photo": "/uploads/1221.png",
+      "scheduled_at": "2026-09-09T09:20",
       "status": "upcoming",
-      "registration_link": ""
+      "registration_link": "",
+      "googleMeetLink": "https://meet.google.com/abc-defg-hij"
     },
     {
       "id": "session-2",
@@ -724,6 +725,13 @@
     }
   ],
   "media": [
+    {
+      "id": "media-1788945625446",
+      "name": "1221.png",
+      "url": "/uploads/1221.png",
+      "size": 4846674,
+      "mime_type": "image/png"
+    },
     {
       "id": "media-1784028003014",
       "name": "Untitled design.png",
@@ -1570,6 +1578,7 @@
         "welcome_email_sent_at": "2026-08-10T11:20:47.079Z"
       }
     ],
-    "contacts": []
+    "contacts": [],
+    "sessionRegistrations": []
   }
 }

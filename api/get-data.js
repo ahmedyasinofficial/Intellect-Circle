@@ -192,7 +192,9 @@ export default async function handler(req, res) {
         status: computedStatus,
         takeaways: s.takeaways || [],
         photo: s.photo,
-        registrationLink: s.registration_link
+        registrationLink: s.registration_link,
+        googleMeetLink: s.google_meet_link || '',
+        meetLink: s.google_meet_link || ''
       };
     });
 
@@ -226,6 +228,7 @@ export default async function handler(req, res) {
     // Format submissions
     const applications = [];
     const contacts = [];
+    const sessionRegistrations = [];
     if (submissionsRes.data) {
       submissionsRes.data.forEach(row => {
         if (row.type === 'application') {
@@ -248,6 +251,17 @@ export default async function handler(req, res) {
             name: row.name,
             email: row.email,
             message: row.message,
+            submittedAt: row.created_at
+          });
+        } else if (row.type === 'session_registration') {
+          sessionRegistrations.push({
+            id: row.id,
+            name: row.name,
+            email: row.email,
+            mobileNumber: row.mobile_number,
+            sessionId: row.session_id || '',
+            sessionTitle: row.session_title || row.why_join || '',
+            message: row.message || '',
             submittedAt: row.created_at
           });
         }
@@ -302,7 +316,8 @@ export default async function handler(req, res) {
       contact,
       submissions: {
         applications,
-        contacts
+        contacts,
+        sessionRegistrations
       }
     };
 
