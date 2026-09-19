@@ -142,12 +142,11 @@ export default async function handler(req, res) {
 
     if (type === 'sessions') {
       if (req.method === 'POST') {
-        const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink } = req.body;
+        const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link } = req.body;
         if (!title || !presenter || !scheduled_at) {
           return res.status(400).json({ error: 'Title, Presenter, and Scheduled Date are required.' });
         }
         const computedStatus = status || 'upcoming';
-        const meetUrl = google_meet_link || meet_link || meetLink || null;
         const { data, error } = await supabase.from('sessions').insert({
           title,
           presenter,
@@ -158,8 +157,7 @@ export default async function handler(req, res) {
           status: computedStatus,
           photo,
           takeaways: takeaways || [],
-          registration_link,
-          google_meet_link: meetUrl
+          registration_link
         }).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Create Session', `Scheduled session: ${title} by ${presenter}`);
@@ -167,7 +165,7 @@ export default async function handler(req, res) {
       }
 
       if (req.method === 'PUT') {
-        const { id, title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink } = req.body;
+        const { id, title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link } = req.body;
         if (!id) {
           return res.status(400).json({ error: 'Missing session ID.' });
         }
@@ -181,8 +179,6 @@ export default async function handler(req, res) {
         if (photo !== undefined) updateData.photo = photo;
         if (takeaways !== undefined) updateData.takeaways = takeaways;
         if (registration_link !== undefined) updateData.registration_link = registration_link;
-        const meetUrl = google_meet_link !== undefined ? google_meet_link : (meet_link !== undefined ? meet_link : meetLink);
-        if (meetUrl !== undefined) updateData.google_meet_link = meetUrl;
         if (status !== undefined) updateData.status = status;
         const { data, error } = await supabase.from('sessions').update(updateData).eq('id', id).select().single();
         if (error) throw error;
