@@ -211,7 +211,8 @@ export default async function handler(req, res) {
       publishedAt: b.published_at,
       author: b.author,
       excerpt: b.excerpt,
-      content: b.content
+      content: b.content,
+      cover_image: b.cover_image || ''
     }));
 
     // Format contact settings

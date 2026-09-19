@@ -360,10 +360,10 @@
       "id": "blog-1",
       "title": "Neural Plasticity: Re-wiring the Mind for Continuous Learning",
       "date": "June 27, 2026",
-      "author": "Zainab Shah",
+      "author": "Aslam",
       "excerpt": "A deep dive recap of our 35th session, detailing how neural pathways form and how we can systematically optimize our cognitive focus.",
       "content": "During our most recent session, we explored the fascinating world of neuroscience, focusing on neural plasticity. For years, the scientific consensus was that the adult brain was relatively fixed. We now know this is incorrect: the brain retains its capacity to adapt and change throughout our lives.\n\n### Key Takeaways\n1. **Synaptic Pruning**: The brain eliminates pathways that are not actively used, while strengthening those that are reinforced. Consistent practice is literally structural architecture.\n2. **The Role of Focus**: High attention triggers the release of acetylcholine, a neurotransmitter that marks active synapses for modification.\n3. **Rest as a Catalyst**: While learning occurs during high-focus states, actual structural changes (myelination) take place during deep sleep and recovery.\n\nOur members engaged in a lively Q&A session discussing how these principles apply to breaking bad habits and mastering complex professional skillsets in short timeframes.",
-      "published_at": "2026-08-10",
+      "published_at": "2026-09-19",
       "cover_image": "/uploads/Screenshot 2026-07-06 at 4.29.24 PM.png"
     },
     {
@@ -442,11 +442,12 @@
     },
     {
       "title": "khjhkj",
-      "published_at": "2026-08-18",
+      "published_at": "2026-09-19",
       "author": "kjhkjh",
       "excerpt": "hjbhj",
       "content": "lhjblhb",
-      "id": "blog-1786357950962"
+      "id": "blog-1786357950962",
+      "cover_image": "/uploads/23E2E.png"
     }
   ],
   "team": [
@@ -726,6 +727,13 @@
     }
   ],
   "media": [
+    {
+      "id": "media-1789858095763",
+      "name": "23E2E.png",
+      "url": "/uploads/23E2E.png",
+      "size": 2614031,
+      "mime_type": "image/png"
+    },
     {
       "id": "media-1788945625446",
       "name": "1221.png",
