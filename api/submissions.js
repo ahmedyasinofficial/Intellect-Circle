@@ -161,6 +161,118 @@ https://intellectcircle.dpdns.org`;
   }
 }
 
+async function sendSessionRegistrationEmail({ name, email, sessionTitle, presenter, date, time, format, meetLink }) {
+  const mailSubject = `Registration Confirmed: ${sessionTitle} | Intellect Circle`;
+  let mailText = `Dear ${name},
+
+Thank you for registering for our upcoming session: "${sessionTitle}". We are excited to have you join us!
+
+Session Details:
+- Title: ${sessionTitle}
+${presenter ? `- Presenter: ${presenter}\n` : ''}${date ? `- Date: ${date} ${time ? `at ${time}` : ''}\n` : ''}${format ? `- Format: ${format}\n` : ''}
+To receive session reminders, agenda files, and participate in post-session discussions, please join our official WhatsApp Community:
+https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
+`;
+
+  if (meetLink) {
+    mailText += `
+Online Meeting Link (Google Meet):
+${meetLink}
+`;
+  }
+
+  mailText += `
+Stay connected and follow our social media pages:
+- Instagram: https://instagram.com/intellectcircle
+- LinkedIn: https://www.linkedin.com/company/intellect-circle/
+- Facebook: https://www.facebook.com/profile.php?id=61590726385267
+
+Best regards,
+Intellect Circle Team
+https://intellectcircle.dpdns.org`;
+
+  const mailHtml = `
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #0b132b; padding: 28px 24px; text-align: center; border-bottom: 3px solid #c9a84c;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">Intellect Circle</h1>
+      <p style="color: #c9a84c; margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Session Registration Confirmed</p>
+    </div>
+    <div style="padding: 30px 24px; color: #1e293b; line-height: 1.6;">
+      <p style="font-size: 16px; margin-top: 0;">Dear <strong>${name}</strong>,</p>
+      <p style="font-size: 15px; color: #475569;">You are successfully registered for our upcoming session. We look forward to your presence and active participation!</p>
+
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #c9a84c; border-radius: 6px; padding: 18px 20px; margin: 24px 0;">
+        <h3 style="margin: 0 0 10px; color: #0b132b; font-size: 16px;">${sessionTitle}</h3>
+        ${presenter ? `<p style="margin: 4px 0; font-size: 14px; color: #475569;"><strong>Presenter:</strong> ${presenter}</p>` : ''}
+        ${date ? `<p style="margin: 4px 0; font-size: 14px; color: #475569;"><strong>Date/Time:</strong> ${date} ${time ? `at ${time}` : ''}</p>` : ''}
+        ${format ? `<p style="margin: 4px 0; font-size: 14px; color: #475569;"><strong>Format:</strong> ${format}</p>` : ''}
+      </div>
+
+      <div style="text-align: center; margin: 30px 0;">
+        <p style="font-size: 15px; font-weight: 600; color: #0b132b; margin-bottom: 12px;">Join Our WhatsApp Community</p>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Get live meeting reminders, session resources, and connect with fellow attendees.</p>
+        <a href="https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1" style="display: inline-block; background-color: #25D366; color: #ffffff; text-decoration: none; font-weight: 600; padding: 12px 26px; border-radius: 6px; font-size: 15px;">
+          Join WhatsApp Community →
+        </a>
+      </div>
+
+      ${meetLink ? `
+      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 16px 20px; margin: 24px 0; text-align: center;">
+        <p style="margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #1e40af;">Online Meeting Link (Google Meet)</p>
+        <a href="${meetLink}" style="display: inline-block; background-color: #1a73e8; color: #ffffff; text-decoration: none; font-weight: 600; padding: 10px 22px; border-radius: 6px; font-size: 14px;">
+          Join Google Meet Session →
+        </a>
+        <p style="margin: 8px 0 0; font-size: 12px; color: #64748b; word-break: break-all;">${meetLink}</p>
+      </div>
+      ` : ''}
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;" />
+      <p style="font-size: 13px; color: #94a3b8; margin: 0;">
+        Intellect Circle — A structured peer-to-peer knowledge sharing community.<br />
+        Visit us at <a href="https://intellectcircle.dpdns.org" style="color: #c9a84c;">intellectcircle.dpdns.org</a>
+      </p>
+    </div>
+  </div>
+  `;
+
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Intellect Circle" <${smtpFrom}>`,
+        to: email,
+        subject: mailSubject,
+        text: mailText,
+        html: mailHtml
+      });
+      console.log(`[Session Email] Sent session registration confirmation to ${email}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[Session Email] SMTP error sending to ${email}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  } else {
+    const msg = `[Session Email Simulation] SMTP not configured. Registered ${name} (${email}) for ${sessionTitle}. WhatsApp link sent.`;
+    console.log(msg);
+    return { success: true, simulated: true };
+  }
+}
+
 async function processPendingWelcomeEmails(supabase) {
   try {
     const { data: pending, error } = await supabase
@@ -216,7 +328,7 @@ export default async function handler(req, res) {
   }
 
   const { action } = req.query;
-  if (!action || !['submit-application', 'submit-contact', 'delete-submission'].includes(action)) {
+  if (!action || !['submit-application', 'submit-contact', 'register-session', 'delete-submission'].includes(action)) {
     return res.status(400).json({ error: 'Invalid or missing action parameter.' });
   }
 
@@ -309,6 +421,85 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ success: true, message: 'Contact inquiry submitted successfully' });
+    }
+
+    if (action === 'register-session') {
+      const { name, email, phone, mobileNumber, sessionId, sessionTitle, presenter, date, time, format, meetLink } = req.body || {};
+      const actualPhone = phone || mobileNumber || '';
+      if (!name || !email || !actualPhone) {
+        return res.status(400).json({ error: 'Name, email, and phone number are required.' });
+      }
+
+      // Insert session registration row
+      const insertPayload = {
+        type: 'session_registration',
+        name,
+        email,
+        mobile_number: actualPhone,
+        session_id: sessionId || null,
+        session_title: sessionTitle || null,
+        message: `Registered for session: ${sessionTitle || sessionId || 'Featured Session'}`,
+        created_at: new Date().toISOString()
+      };
+
+      let insertRes = await fetch(`${supabaseUrl}/rest/v1/submissions`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(insertPayload)
+      });
+
+      if (!insertRes.ok) {
+        // Fallback: in case session_id/session_title columns are not yet present in live Supabase table
+        insertRes = await fetch(`${supabaseUrl}/rest/v1/submissions`, {
+          method: 'POST',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
+            type: 'session_registration',
+            name,
+            email,
+            mobile_number: actualPhone,
+            why_join: sessionTitle || '',
+            message: `Registered for session: ${sessionTitle || sessionId || 'Featured Session'}`,
+            created_at: new Date().toISOString()
+          })
+        });
+
+        if (!insertRes.ok) {
+          const errorText = await insertRes.text();
+          console.warn(`Supabase session registration insert warning: ${errorText}`);
+        }
+      }
+
+      // Send email containing WhatsApp community link and session details
+      try {
+        await sendSessionRegistrationEmail({
+          name,
+          email,
+          sessionTitle: sessionTitle || 'Intellect Circle Knowledge Session',
+          presenter,
+          date,
+          time,
+          format,
+          meetLink
+        });
+      } catch (emailErr) {
+        console.error('[Session Email Error] Email delivery failed:', emailErr.message || emailErr);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Registration successful! The WhatsApp community link has been sent to your email.'
+      });
     }
 
     if (action === 'delete-submission') {

@@ -295,10 +295,11 @@
       "isUpcoming": true,
       "takeaways": [],
       "photo": "/uploads/1221.png",
-      "scheduled_at": "2026-09-09T09:20",
+      "scheduled_at": "2026-09-19T08:41",
       "status": "upcoming",
       "registration_link": "",
-      "googleMeetLink": ""
+      "googleMeetLink": "https://meet.google.com/exv-qwfq-edz",
+      "google_meet_link": "https://meet.google.com/exv-qwfq-edz"
     },
     {
       "id": "session-2",
@@ -1560,6 +1561,22 @@
   ],
   "submissions": {
     "applications": [
+      {
+        "id": "app-1789807031284",
+        "name": "awefwer",
+        "email": "qwer@gmail.com",
+        "mobileNumber": "23141234213",
+        "age": "19",
+        "city": "1234132",
+        "occupation": "sdafasf",
+        "whyJoin": "If you have something to share, something to solve, or just a hunger to be around people who think - this is your place.",
+        "heardAbout": "Instagram",
+        "heardAboutOther": "",
+        "heardAboutCombined": "Instagram",
+        "submittedAt": "2026-09-19T08:37:11.284Z",
+        "welcome_email_status": "pending",
+        "welcome_email_send_after": "2026-09-19T09:37:11.296Z"
+      },
       {
         "id": "app-1789805842437",
         "name": "wertwert",

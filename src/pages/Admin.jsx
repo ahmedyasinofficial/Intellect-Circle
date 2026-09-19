@@ -260,7 +260,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [editingMember, setEditingMember] = useState(null);
 
   // Form Fields
-  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '' });
+  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '', google_meet_link: '' });
   const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '', cover_image: '' });
   const [memberForm, setMemberForm] = useState({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
 
@@ -1647,7 +1647,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       status: 'upcoming',
       photo: '',
       takeaways: [],
-      registration_link: ''
+      registration_link: '',
+      google_meet_link: ''
     });
     setSessionSubTab('create');
   };
@@ -1664,7 +1665,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       status: s.status || 'upcoming',
       photo: s.photo || '',
       takeaways: s.takeaways || [],
-      registration_link: s.registrationLink || ''
+      registration_link: s.registrationLink || '',
+      google_meet_link: s.googleMeetLink || s.meetLink || s.google_meet_link || ''
     });
     setSessionSubTab('create');
   };
@@ -1811,24 +1813,32 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
 
   // Submissions Delete Helper
   const handleDeleteSubmission = async (type, id) => {
-    if (!window.confirm(`Are you sure you want to delete this ${type === 'applications' ? 'application' : 'message'} record?`)) {
+    if (!window.confirm(`Are you sure you want to delete this record?`)) {
       return;
     }
     await deleteSubmission(type, id);
-    triggerNotification('Submission deleted from Supabase.');
+    triggerNotification('Submission deleted successfully.');
     fetchSubmissionsAndLogs();
   };
 
   // CSV / Excel Export triggers
   const handleExportCSVClick = () => {
-    const list = subsTab === 'applications' ? submissions.applications : submissions.contacts;
-    const filename = subsTab === 'applications' ? 'Intellect_Circle_Membership_Applications' : 'Intellect_Circle_Contact_Queries';
+    const list = subsTab === 'applications' 
+      ? submissions.applications 
+      : (subsTab === 'contacts' ? submissions.contacts : (submissions.sessionRegistrations || []));
+    const filename = subsTab === 'applications' 
+      ? 'Intellect_Circle_Membership_Applications' 
+      : (subsTab === 'contacts' ? 'Intellect_Circle_Contact_Queries' : 'Intellect_Circle_Session_Registrations');
     exportToCSV(list, filename, false);
   };
 
   const handleExportExcelClick = () => {
-    const list = subsTab === 'applications' ? submissions.applications : submissions.contacts;
-    const filename = subsTab === 'applications' ? 'Intellect_Circle_Membership_Applications' : 'Intellect_Circle_Contact_Queries';
+    const list = subsTab === 'applications' 
+      ? submissions.applications 
+      : (subsTab === 'contacts' ? submissions.contacts : (submissions.sessionRegistrations || []));
+    const filename = subsTab === 'applications' 
+      ? 'Intellect_Circle_Membership_Applications' 
+      : (subsTab === 'contacts' ? 'Intellect_Circle_Contact_Queries' : 'Intellect_Circle_Session_Registrations');
     exportToExcel(list, filename);
   };
 
@@ -1910,13 +1920,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const totalBlogPages = Math.ceil(filteredBlogs.length / itemsPerPage);
 
   // Filtered submissions
-  const activeSubs = subsTab === 'applications' ? (submissions?.applications || []) : (submissions?.contacts || []);
+  const activeSubs = subsTab === 'applications' 
+    ? (submissions?.applications || []) 
+    : (subsTab === 'contacts' ? (submissions?.contacts || []) : (submissions?.sessionRegistrations || []));
   let filteredSubs = (activeSubs || []).filter(sub => {
     const term = (subsSearch || '').toLowerCase();
     return !term || 
       (sub.name && sub.name.toLowerCase().includes(term)) || 
       (sub.full_name && sub.full_name.toLowerCase().includes(term)) || 
       (sub.email && sub.email.toLowerCase().includes(term)) ||
+      (sub.mobileNumber && sub.mobileNumber.toLowerCase().includes(term)) ||
+      (sub.sessionTitle && sub.sessionTitle.toLowerCase().includes(term)) ||
       (sub.city && sub.city.toLowerCase().includes(term)) ||
       (sub.occupation && sub.occupation.toLowerCase().includes(term)) ||
       (sub.message && sub.message.toLowerCase().includes(term));
@@ -2271,7 +2285,9 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 {!isPageAllowed('subs') ? (
                   <LockIcon style={{ marginLeft: 'auto', width: '11px', height: '11px', opacity: 0.5 }} />
                 ) : (
-                  <span className="sidebar-badge">{submissions.applications.length + submissions.contacts.length}</span>
+                  <span className="sidebar-badge">
+                    {(submissions.applications?.length || 0) + (submissions.contacts?.length || 0) + (submissions.sessionRegistrations?.length || 0)}
+                  </span>
                 )}
               </>
             )}
@@ -2952,10 +2968,13 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
               <div className="filter-controls-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div className="segmented-tabs">
                   <button className={subsTab === 'applications' ? 'active' : ''} onClick={() => { setSubsTab('applications'); setSubsPage(1); }}>
-                    Applications ({submissions.applications.length})
+                    Applications ({submissions.applications?.length || 0})
                   </button>
                   <button className={subsTab === 'contacts' ? 'active' : ''} onClick={() => { setSubsTab('contacts'); setSubsPage(1); }}>
-                    Contact Queries ({submissions.contacts.length})
+                    Contact Queries ({submissions.contacts?.length || 0})
+                  </button>
+                  <button className={subsTab === 'registrations' ? 'active' : ''} onClick={() => { setSubsTab('registrations'); setSubsPage(1); }}>
+                    Session Registrations ({submissions.sessionRegistrations?.length || 0})
                   </button>
                 </div>
 
@@ -3031,7 +3050,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                     </tbody>
                   </table>
                 </div>
-              ) : (
+              ) : subsTab === 'contacts' ? (
                 <div className="table-responsive">
                   <table className="admin-table">
                     <thead>
@@ -3071,6 +3090,66 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         <tr>
                           <td colSpan="5" style={{ textAlign: 'center', color: '#718096', padding: '30px' }}>
                             No contact queries match your search.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Attendee Name</th>
+                        <th>Email Address</th>
+                        <th>Phone / WhatsApp</th>
+                        <th>Session Title</th>
+                        <th>Registered Date</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedSubs.map(r => (
+                        <tr key={r.id}>
+                          <td><strong>{r.name}</strong></td>
+                          <td>
+                            <a href={`mailto:${r.email}`} style={{ color: 'var(--primary-color)', textDecoration: 'none' }}>
+                              {r.email}
+                            </a>
+                          </td>
+                          <td>
+                            {r.mobileNumber ? (
+                              <a 
+                                href={`https://wa.me/${r.mobileNumber.replace(/[^0-9]/g, '')}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                style={{ color: '#25D366', fontWeight: 500, textDecoration: 'none' }}
+                              >
+                                {r.mobileNumber}
+                              </a>
+                            ) : 'N/A'}
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                              {r.sessionTitle || 'Featured Session'}
+                            </span>
+                          </td>
+                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : 'N/A'}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button 
+                              onClick={() => handleDeleteSubmission('sessionRegistrations', r.id)} 
+                              className="btn-table delete"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredSubs.length === 0 && (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: 'center', color: '#718096', padding: '30px' }}>
+                            No session registrations found.
                           </td>
                         </tr>
                       )}
@@ -3343,6 +3422,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <button type="button" onClick={() => triggerMediaPicker(url => setSessionForm(prev => ({ ...prev, photo: url })))} className="btn-select-media">Library</button>
                         </div>
                       </div>
+                      <div className="form-group">
+                        <label className="form-label">Google Meet Link (Optional)</label>
+                        <input
+                          type="url"
+                          className="form-input"
+                          placeholder="https://meet.google.com/xxx-yyyy-zzz"
+                          value={sessionForm.google_meet_link || ''}
+                          onChange={(e) => setSessionForm({ ...sessionForm, google_meet_link: e.target.value })}
+                        />
+                      </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Description</label>
                         <textarea
@@ -3413,6 +3502,27 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             }}>
                               {s.status === 'upcoming' ? 'Upcoming' : (s.status === 'cancelled' ? 'Cancelled' : 'Completed')}
                             </span>
+                            {(s.googleMeetLink || s.meetLink) && (
+                              <a
+                                href={s.googleMeetLink || s.meetLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-block',
+                                  marginLeft: '6px',
+                                  padding: '2px 6px',
+                                  borderRadius: '6px',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  background: '#EFF6FF',
+                                  color: '#1D4ED8',
+                                  textDecoration: 'none'
+                                }}
+                                title="Google Meet Link Attached"
+                              >
+                                Meet Link ↗
+                              </a>
+                            )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
