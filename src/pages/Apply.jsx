@@ -218,8 +218,61 @@ function Apply({ data, submitApplication }) {
             }}>
               <span style={{ fontSize: '1.5rem' }}>📧</span>
               <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '500', color: 'var(--text-color)', lineHeight: '1.5' }}>
-                Please check your <strong>spam or junk folder</strong> for the confirmation email.
+                Please check your <strong>spam or junk folder</strong> for the confirmation email containing your details and community link.
               </p>
+            </div>
+
+            {/* WhatsApp Community Invitation Card */}
+            <div style={{
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '12px',
+              padding: '24px 20px',
+              marginBottom: '25px',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(37, 211, 102, 0.15)',
+                color: '#25D366',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 12px'
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.694.062-2.148-.54-1.859-.769-3.048-2.67-3.14-2.793-.093-.124-.755-.999-.755-1.908 0-.908.477-1.353.647-1.539.171-.186.373-.232.497-.232.125 0 .25 0 .358.006.115.006.269-.044.421.32.156.373.535 1.306.582 1.4.047.094.078.203.016.326-.063.124-.094.202-.187.311-.093.11-.196.244-.28.327-.093.093-.19.195-.082.381.109.186.483.797 1.037 1.289.712.634 1.312.831 1.498.924.187.093.296.078.405-.047.109-.124.468-.544.593-.73.125-.187.25-.156.421-.093.171.063 1.09.514 1.277.607.187.094.312.14.358.219.047.078.047.452-.097.857z"/>
+                </svg>
+              </div>
+              <h4 style={{ margin: '0 0 6px', color: '#166534', fontSize: '1.2rem', fontWeight: '700' }}>
+                Join the WhatsApp Community
+              </h4>
+              <p style={{ margin: '0 0 16px', color: '#15803d', fontSize: '0.92rem', lineHeight: '1.5' }}>
+                Connect with members, receive session updates, and start engaging with the network right away.
+              </p>
+              <a
+                href="https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn"
+                style={{
+                  backgroundColor: '#25D366',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '0.98rem',
+                  padding: '12px 26px',
+                  borderRadius: '8px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)'
+                }}
+              >
+                Join WhatsApp Community Now →
+              </a>
             </div>
             <div style={{ backgroundColor: 'var(--primary-light)', padding: '20px', borderRadius: 'var(--radius-md)', textAlign: 'left', marginBottom: '30px', fontSize: '0.95rem' }}>
               <h4 style={{ fontFamily: 'var(--font-sans)', fontWeight: '600', marginBottom: '8px', color: 'var(--primary-color)' }}>Next Steps:</h4>

@@ -67,12 +67,129 @@ async function sendReceiptEmailLocal({ name, email }) {
   const mailSubject = `Application Received - Intellect Circle`;
   const mailText = `Dear ${name},
 
-Thank you for your application to join Intellect Circle. We have received your submission, and our team is currently reviewing it.
+Thank you for your application to join Intellect Circle! We have successfully received your submission, and our review committee is currently reviewing your profile.
 
-Our weekly review process ensures we maintain a focused and high-signal community. We will be in touch with you shortly regarding the next steps, which may include a brief introductory call.
+What Happens Next:
+1. Weekly Review: We evaluate each application to maintain a focused, high-signal peer learning network.
+2. Introductory Call: Shortlisted applicants receive an invite for a brief 10-minute online introductory call.
+3. Circle Induction: Accepted members are introduced in our bi-weekly meetings, joined to local chapters, and scheduled for their first presentation.
 
-Please check your spam folder if you do not receive further updates from us, and ensure to mark our emails as safe.
+While your application is being processed, you are warmly invited to join our official WhatsApp Community:
+https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
 
+Stay connected and follow our social media pages:
+- Instagram: https://instagram.com/intellectcircle
+- LinkedIn: https://www.linkedin.com/company/intellect-circle/
+- Facebook: https://www.facebook.com/profile.php?id=61590726385267
+
+Please check your spam or junk folder if you do not receive further updates, and ensure to mark our address as safe.
+
+Best regards,
+Intellect Circle Team
+https://intellectcircle.dpdns.org`;
+
+  const mailHtml = `
+  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+    <div style="background-color: #0b132b; padding: 28px 24px; text-align: center; border-bottom: 3px solid #c9a84c;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">Intellect Circle</h1>
+      <p style="color: #c9a84c; margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Application Received</p>
+    </div>
+    <div style="padding: 30px 24px; color: #1e293b; line-height: 1.6;">
+      <p style="font-size: 16px; margin-top: 0;">Dear <strong>${name}</strong>,</p>
+      <p style="font-size: 15px; color: #475569;">Thank you for applying to join Intellect Circle. We have received your application, and our selection committee is currently reviewing your profile.</p>
+
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #c9a84c; border-radius: 6px; padding: 18px 20px; margin: 24px 0;">
+        <h3 style="margin: 0 0 10px; color: #0b132b; font-size: 16px;">What Happens Next</h3>
+        <ul style="margin: 0; padding-left: 18px; color: #475569; font-size: 14px; line-height: 1.6;">
+          <li style="margin-bottom: 6px;"><strong>Weekly Review:</strong> We verify background and motivation to maintain a high-signal environment.</li>
+          <li style="margin-bottom: 6px;"><strong>Brief Call:</strong> Qualified candidates receive an invitation for a 10-minute online introductory chat.</li>
+          <li><strong>Circle Induction:</strong> Accepted members get access to internal bi-weekly sessions and regional chapters.</li>
+        </ul>
+      </div>
+
+      <div style="text-align: center; margin: 30px 0; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 22px 18px;">
+        <p style="font-size: 16px; font-weight: 700; color: #166534; margin: 0 0 6px;">Join Our WhatsApp Community</p>
+        <p style="font-size: 13px; color: #15803d; margin: 0 0 16px; line-height: 1.5;">
+          While your application is reviewed, connect with members and get instant alerts for upcoming knowledge talks.
+        </p>
+        <a href="https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1" style="display: inline-block; background-color: #25D366; color: #ffffff; text-decoration: none; font-weight: 600; padding: 12px 26px; border-radius: 6px; font-size: 15px; box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);">
+          Join WhatsApp Community →
+        </a>
+      </div>
+
+      <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 12px 16px; margin: 20px 0; font-size: 13px; color: #92400e;">
+        <strong>Tip:</strong> Please check your spam or junk folder if you do not receive further updates, and add our email to your safe contacts.
+      </div>
+
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;" />
+      <p style="font-size: 13px; color: #94a3b8; margin: 0;">
+        Intellect Circle — A structured peer-to-peer knowledge sharing community.<br />
+        Visit us at <a href="https://intellectcircle.dpdns.org" style="color: #c9a84c;">intellectcircle.dpdns.org</a>
+      </p>
+    </div>
+  </div>
+  `;
+
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
+
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Intellect Circle" <${smtpFrom}>`,
+        to: email,
+        subject: mailSubject,
+        text: mailText,
+        html: mailHtml
+      });
+      console.log(`[Local Receipt Email] Sent application receipt email to ${email}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[Local Receipt Email] SMTP error sending to ${email}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  } else {
+    const msg = `[Local Receipt Email Simulation] SMTP not configured. Acknowledged application for ${name} (${email}).`;
+    console.log(msg);
+    return { success: true, simulated: true };
+  }
+}
+
+async function sendSessionRegistrationEmailLocal({ name, email, sessionTitle, presenter, date, time, format, meetLink }) {
+  const mailSubject = `Registration Confirmed: ${sessionTitle} | Intellect Circle`;
+  let mailText = `Dear ${name},
+
+Thank you for registering for our upcoming session: "${sessionTitle}". We are excited to have you join us!
+
+Session Details:
+- Title: ${sessionTitle}
+${presenter ? `- Presenter: ${presenter}\n` : ''}${date ? `- Date: ${date} ${time ? `at ${time}` : ''}\n` : ''}${format ? `- Format: ${format}\n` : ''}
+To receive session reminders, agenda files, and participate in post-session discussions, please join our official WhatsApp Community:
+https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
+`;
+
+  if (meetLink) {
+    mailText += `
+Online Meeting Link (Google Meet):
+${meetLink}
+`;
+  }
+
+  mailText += `
 Best regards,
 Intellect Circle Team
 https://intellectcircle.dpdns.org`;
@@ -102,14 +219,14 @@ https://intellectcircle.dpdns.org`;
         subject: mailSubject,
         text: mailText
       });
-      console.log(`[Local Receipt Email] Sent application receipt email to ${email}`);
+      console.log(`[Local Session Email] Sent session registration confirmation to ${email}`);
       return { success: true };
     } catch (error) {
-      console.error(`[Local Receipt Email] SMTP error sending to ${email}:`, error.message);
+      console.error(`[Local Session Email] SMTP error sending to ${email}:`, error.message);
       return { success: false, error: error.message };
     }
   } else {
-    const msg = `[Local Receipt Email Simulation] SMTP not configured. Acknowledged application for ${name} (${email}).`;
+    const msg = `[Local Session Email Simulation] SMTP not configured. Registered ${name} (${email}) for ${sessionTitle}. WhatsApp link sent.`;
     console.log(msg);
     return { success: true, simulated: true };
   }
@@ -205,6 +322,8 @@ const localDbPlugin = () => ({
               item.id = `${type}-` + Date.now();
               if (type === 'sessions') {
                 item.isUpcoming = item.status === 'upcoming';
+                if (item.google_meet_link !== undefined) item.googleMeetLink = item.google_meet_link;
+                if (item.googleMeetLink !== undefined) item.google_meet_link = item.googleMeetLink;
               }
               data[type].push(item);
               fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
@@ -218,6 +337,8 @@ const localDbPlugin = () => ({
               } else {
                 if (type === 'sessions') {
                   payload.isUpcoming = payload.status === 'upcoming';
+                  if (payload.google_meet_link !== undefined) payload.googleMeetLink = payload.google_meet_link;
+                  if (payload.googleMeetLink !== undefined) payload.google_meet_link = payload.googleMeetLink;
                 }
                 data[type] = data[type].map(t => t.id === payload.id ? { ...t, ...payload } : t);
               }
@@ -243,7 +364,7 @@ const localDbPlugin = () => ({
           try {
             const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
             const action = parsedUrl.searchParams.get('action');
-            if (!action || !['submit-application', 'submit-contact', 'delete-submission'].includes(action)) {
+            if (!action || !['submit-application', 'submit-contact', 'register-session', 'delete-submission'].includes(action)) {
               res.writeHead(400, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ error: 'Invalid or missing action parameter.' }));
               return;
@@ -251,7 +372,8 @@ const localDbPlugin = () => ({
 
             const dataPath = path.resolve(__dirname, 'src/data.json');
             const dataContent = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-            if (!dataContent.submissions) dataContent.submissions = { applications: [], contacts: [] };
+            if (!dataContent.submissions) dataContent.submissions = { applications: [], contacts: [], sessionRegistrations: [] };
+            if (!dataContent.submissions.sessionRegistrations) dataContent.submissions.sessionRegistrations = [];
 
             if (action === 'submit-application') {
               const application = JSON.parse(body);
@@ -293,6 +415,39 @@ const localDbPlugin = () => ({
               fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ success: true, message: 'Contact inquiry submitted successfully' }));
+            } else if (action === 'register-session') {
+              const reg = JSON.parse(body);
+              if (!dataContent.submissions.sessionRegistrations) dataContent.submissions.sessionRegistrations = [];
+              const newReg = {
+                id: 'reg-' + Date.now(),
+                name: reg.name,
+                email: reg.email,
+                mobileNumber: reg.phone || reg.mobileNumber || '',
+                sessionId: reg.sessionId || '',
+                sessionTitle: reg.sessionTitle || '',
+                presenter: reg.presenter || '',
+                date: reg.date || '',
+                time: reg.time || '',
+                format: reg.format || '',
+                meetLink: reg.meetLink || reg.googleMeetLink || '',
+                submittedAt: new Date().toISOString()
+              };
+              dataContent.submissions.sessionRegistrations.unshift(newReg);
+              fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
+
+              sendSessionRegistrationEmailLocal({
+                name: reg.name,
+                email: reg.email,
+                sessionTitle: reg.sessionTitle || 'Intellect Circle Knowledge Session',
+                presenter: reg.presenter,
+                date: reg.date,
+                time: reg.time,
+                format: reg.format,
+                meetLink: reg.meetLink || reg.googleMeetLink
+              }).catch(console.error);
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ success: true, message: 'Registration confirmed. WhatsApp community link sent to email.' }));
             } else if (action === 'delete-submission') {
               const { id } = JSON.parse(body);
               if (dataContent.submissions.applications) {
@@ -300,6 +455,9 @@ const localDbPlugin = () => ({
               }
               if (dataContent.submissions.contacts) {
                 dataContent.submissions.contacts = dataContent.submissions.contacts.filter(c => c.id !== id);
+              }
+              if (dataContent.submissions.sessionRegistrations) {
+                dataContent.submissions.sessionRegistrations = dataContent.submissions.sessionRegistrations.filter(r => r.id !== id);
               }
               fs.writeFileSync(dataPath, JSON.stringify(dataContent, null, 2), 'utf-8');
               res.writeHead(200, { 'Content-Type': 'application/json' });

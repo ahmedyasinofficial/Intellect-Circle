@@ -297,7 +297,8 @@
       "photo": "/uploads/1221.png",
       "scheduled_at": "2026-09-09T09:20",
       "status": "upcoming",
-      "registration_link": ""
+      "registration_link": "",
+      "googleMeetLink": ""
     },
     {
       "id": "session-2",
@@ -1560,6 +1561,22 @@
   "submissions": {
     "applications": [
       {
+        "id": "app-1789805842437",
+        "name": "wertwert",
+        "email": "wertwer@gmail.com",
+        "mobileNumber": "02342343223",
+        "age": "23",
+        "city": "dljfasle",
+        "occupation": "ksdfjasej",
+        "whyJoin": "If you have something to share, something to solve, or just a hunger to be around people who think - this is your place.",
+        "heardAbout": "Instagram",
+        "heardAboutOther": "",
+        "heardAboutCombined": "Instagram",
+        "submittedAt": "2026-09-19T08:17:22.437Z",
+        "welcome_email_status": "pending",
+        "welcome_email_send_after": "2026-09-19T09:17:22.446Z"
+      },
+      {
         "id": "app-1786357246922",
         "name": "Ahmed",
         "email": "asdf@gmail.com",
@@ -1577,6 +1594,7 @@
         "welcome_email_sent_at": "2026-08-10T11:20:47.079Z"
       }
     ],
-    "contacts": []
+    "contacts": [],
+    "sessionRegistrations": []
   }
 }
