@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getAuthenticatedUser, logActivity } from '../lib/_auth-middleware.js';
+import { broadcastSessionAnnouncementToMembers, processScheduledSessionEmails } from '../lib/email-service.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -39,12 +40,42 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
     } else {
       // Modifying methods mock success
-      if (req.method === 'POST') return res.status(200).json({ success: true, data: { id: `mock-${Date.now()}`, ...req.body } });
+      if (req.method === 'POST') {
+        const item = { id: `mock-${Date.now()}`, ...req.body };
+        let emailStats = null;
+        if (type === 'sessions') {
+          const isEnabled = item.notify_enabled !== undefined ? Boolean(item.notify_enabled) : (item.notifyMembers !== false);
+          const isScheduled = isEnabled && item.notify_timing === 'scheduled' && item.notify_send_at && new Date(item.notify_send_at) > new Date();
+          item.notify_enabled = isEnabled;
+          item.notify_send_at = isScheduled ? new Date(item.notify_send_at).toISOString() : null;
+          item.notify_status = !isEnabled ? 'disabled' : (isScheduled ? 'scheduled' : 'sent');
+
+          if (isEnabled && !isScheduled) {
+            const siteBaseUrl = process.env.SITE_URL || (req.headers.host ? `${req.headers.referer?.split('://')[0] || 'https'}://${req.headers.host}` : 'https://intellectcircle.dpdns.org');
+            const dataFilePath = join(__dirname, '..', 'src', 'data.json');
+            try {
+              emailStats = await broadcastSessionAnnouncementToMembers({
+                session: req.body.sessionData || item,
+                localDataPath: dataFilePath,
+                siteBaseUrl
+              });
+            } catch (e) {
+              console.warn('[Mock Session Broadcast]', e.message);
+            }
+          } else if (isScheduled) {
+            emailStats = { scheduled: true, sendAt: item.notify_send_at };
+          }
+        }
+        return res.status(200).json({ success: true, data: item, emailStats });
+      }
       return res.status(200).json({ success: true, message: 'Mock action succeeded' });
     }
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
+  // Process scheduled session emails lazily in background
+  processScheduledSessionEmails({ supabase }).catch(console.error);
 
   // 1. GET requests are public
   if (req.method === 'GET') {
@@ -141,13 +172,45 @@ export default async function handler(req, res) {
     }
 
     if (type === 'sessions') {
+      const { action } = req.query;
+
+      // Dedicated action for manually sending session reminder / announcement emails to all members
+      if (req.method === 'POST' && action === 'notify-members') {
+        const { sessionId, sessionData } = req.body || {};
+        let targetSession = sessionData;
+        if (!targetSession && sessionId) {
+          const { data: dbSession, error: sErr } = await supabase.from('sessions').select('*').eq('id', sessionId).single();
+          if (sErr) throw sErr;
+          targetSession = dbSession;
+        }
+        if (!targetSession) {
+          return res.status(400).json({ error: 'Session not found for notification.' });
+        }
+
+        const siteBaseUrl = process.env.SITE_URL || (req.headers.host ? `${req.headers.referer?.split('://')[0] || 'https'}://${req.headers.host}` : 'https://intellectcircle.dpdns.org');
+        const emailStats = await broadcastSessionAnnouncementToMembers({
+          session: targetSession,
+          supabase,
+          siteBaseUrl
+        });
+
+        await logActivity(user.email, 'Broadcast Session Reminder', `Sent reminder for "${targetSession.title}" to ${emailStats.sent} members.`);
+        return res.status(200).json({ success: true, emailStats });
+      }
+
       if (req.method === 'POST') {
-        const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink } = req.body;
+        const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notifyMembers, notify_enabled, notify_timing, notify_send_at } = req.body;
         if (!title || !presenter || !scheduled_at) {
           return res.status(400).json({ error: 'Title, Presenter, and Scheduled Date are required.' });
         }
         const computedStatus = status || 'upcoming';
         const meetUrl = google_meet_link || meet_link || meetLink || null;
+
+        // Resolve notification settings
+        const isNotifyEnabled = notify_enabled !== undefined ? Boolean(notify_enabled) : (notifyMembers !== false);
+        const isScheduled = isNotifyEnabled && notify_timing === 'scheduled' && notify_send_at && new Date(notify_send_at) > new Date();
+        const notifyStatus = !isNotifyEnabled ? 'disabled' : (isScheduled ? 'scheduled' : 'pending');
+
         const { data, error } = await supabase.from('sessions').insert({
           title,
           presenter,
@@ -159,11 +222,37 @@ export default async function handler(req, res) {
           photo,
           takeaways: takeaways || [],
           registration_link,
-          google_meet_link: meetUrl
+          google_meet_link: meetUrl,
+          notify_enabled: isNotifyEnabled,
+          notify_timing: isNotifyEnabled ? (notify_timing || 'immediate') : null,
+          notify_send_at: isScheduled ? new Date(notify_send_at).toISOString() : null,
+          notify_status: notifyStatus
         }).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Create Session', `Scheduled session: ${title} by ${presenter}`);
-        return res.status(200).json({ success: true, data });
+
+        // Broadcast email announcement to all members if session is upcoming and notification is immediate
+        let emailStats = null;
+        if (computedStatus === 'upcoming' && isNotifyEnabled && !isScheduled) {
+          try {
+            const siteBaseUrl = process.env.SITE_URL || (req.headers.host ? `${req.headers.referer?.split('://')[0] || 'https'}://${req.headers.host}` : 'https://intellectcircle.dpdns.org');
+            emailStats = await broadcastSessionAnnouncementToMembers({
+              session: data,
+              supabase,
+              siteBaseUrl
+            });
+            // Mark as sent in DB
+            await supabase.from('sessions').update({ notify_status: 'sent', notify_sent_at: new Date().toISOString() }).eq('id', data.id);
+            await logActivity(user.email, 'Broadcast Session Announcement', `Sent announcement for "${title}" to ${emailStats.sent} members.`);
+          } catch (emailErr) {
+            console.error('[Create Session] Error broadcasting session emails:', emailErr);
+          }
+        } else if (isScheduled) {
+          emailStats = { scheduled: true, sendAt: new Date(notify_send_at).toISOString() };
+          await logActivity(user.email, 'Schedule Session Announcement', `Scheduled email for "${title}" to send at ${notify_send_at}.`);
+        }
+
+        return res.status(200).json({ success: true, data, emailStats });
       }
 
       if (req.method === 'PUT') {

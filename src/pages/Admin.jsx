@@ -242,6 +242,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [sessionSearch, setSessionSearch] = useState('');
   const [sessionFilter, setSessionFilter] = useState('all');
   const [sessionPage, setSessionPage] = useState(1);
+  const [notifyingSessionId, setNotifyingSessionId] = useState(null);
   const itemsPerPage = 6;
 
   const [blogSearch, setBlogSearch] = useState('');
@@ -260,7 +261,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [editingMember, setEditingMember] = useState(null);
 
   // Form Fields
-  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '', google_meet_link: '' });
+  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '', google_meet_link: '', notify_members: true, notify_timing: 'immediate', notify_send_at: '' });
   const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '', cover_image: '' });
   const [memberForm, setMemberForm] = useState({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
 
@@ -1640,7 +1641,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     setSessionForm({
       title: '',
       presenter: '',
-      scheduled_at: new Date().toISOString().substring(0, 16),
+      scheduled_at: new Date(Date.now() + 86400000).toISOString().substring(0, 16),
       time: '18:00 PKT',
       format: '30min talk + Q&A',
       summary: '',
@@ -1648,7 +1649,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       photo: '',
       takeaways: [],
       registration_link: '',
-      google_meet_link: ''
+      google_meet_link: '',
+      notify_members: true,
+      notify_timing: 'immediate',
+      notify_send_at: ''
     });
     setSessionSubTab('create');
   };
@@ -1665,10 +1669,53 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       status: s.status || 'upcoming',
       photo: s.photo || '',
       takeaways: s.takeaways || [],
-      registration_link: s.registrationLink || '',
-      google_meet_link: s.googleMeetLink || s.meetLink || s.google_meet_link || ''
+      registration_link: s.registrationLink || s.registration_link || '',
+      google_meet_link: s.googleMeetLink || s.meetLink || s.google_meet_link || '',
+      notify_members: false
     });
     setSessionSubTab('create');
+  };
+
+  const handleNotifySessionMembers = async (s) => {
+    const sessionTitle = s.title || 'this session';
+    if (!window.confirm(`Send an email announcement for "${sessionTitle}" to all members and applicants who submitted their email?`)) {
+      return;
+    }
+
+    setNotifyingSessionId(s.id);
+    triggerNotification('Sending session announcement emails to community members...', 'info');
+
+    try {
+      const res = await fetch('/api/content?type=sessions&action=notify-members', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          sessionId: s.id,
+          sessionData: s
+        })
+      });
+
+      const resData = await res.json().catch(() => ({}));
+      if (res.ok && resData.success) {
+        const sent = resData.emailStats?.sent ?? 0;
+        const total = resData.emailStats?.total ?? 0;
+        const simulated = resData.emailStats?.simulated;
+        let msg = `Session email sent to ${sent}${total > 0 ? ` of ${total}` : ''} member${sent === 1 ? '' : 's'}!`;
+        if (simulated) {
+          msg += ' (SMTP simulated in development)';
+        }
+        triggerNotification(msg, 'success');
+      } else {
+        triggerNotification(resData.error || 'Failed to send session announcement emails.', 'error');
+      }
+    } catch {
+      triggerNotification('Failed to send session announcement emails.', 'error');
+    } finally {
+      setNotifyingSessionId(null);
+    }
   };
 
   const handleSessionSubmit = async (e) => {
@@ -1681,8 +1728,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     const isNew = editingSession ? editingSession.isNew : true;
     const url = '/api/content?type=sessions';
     const method = isNew ? 'POST' : 'PUT';
+    const notifyEnabled = sessionForm.notify_members !== false;
+    const notifyScheduled = notifyEnabled && sessionForm.notify_timing === 'scheduled' && sessionForm.notify_send_at;
     const body = isNew
-      ? { ...sessionForm }
+      ? {
+          ...sessionForm,
+          notifyMembers: notifyEnabled,
+          notify_enabled: notifyEnabled,
+          notify_timing: sessionForm.notify_timing || 'immediate',
+          notify_send_at: notifyScheduled ? new Date(sessionForm.notify_send_at).toISOString() : null
+        }
       : { id: editingSession.id, ...sessionForm };
 
     try {
@@ -1696,7 +1751,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       });
 
       if (res.ok) {
-        triggerNotification(isNew ? 'Added session successfully.' : 'Updated session details.', 'success');
+        const resData = await res.json().catch(() => ({}));
+        let successMsg = isNew ? 'Session added successfully.' : 'Session details updated.';
+        if (isNew && resData.emailStats) {
+          const es = resData.emailStats;
+          if (es.scheduled) {
+            const sendAtStr = es.sendAt ? new Date(es.sendAt).toLocaleString() : 'the scheduled time';
+            successMsg += ` Email announcement is scheduled to send at ${sendAtStr}.`;
+          } else if (es.sent > 0) {
+            successMsg += ` Notified ${es.sent} member${es.sent === 1 ? '' : 's'} via email.`;
+            if (es.simulated) successMsg += ' (SMTP simulated)';
+          }
+        }
+        triggerNotification(successMsg, 'success');
         setEditingSession(null);
         setSessionSubTab('list');
         fetchSubmissionsAndLogs();
@@ -3432,6 +3499,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           onChange={(e) => setSessionForm({ ...sessionForm, google_meet_link: e.target.value })}
                         />
                       </div>
+                      <div className="form-group">
+                        <label className="form-label">Registration Link (Optional)</label>
+                        <input
+                          type="url"
+                          className="form-input"
+                          placeholder="Leave blank to use default: /sessions page"
+                          value={sessionForm.registration_link || ''}
+                          onChange={(e) => setSessionForm({ ...sessionForm, registration_link: e.target.value })}
+                        />
+                      </div>
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label className="form-label">Description</label>
                         <textarea
@@ -3442,10 +3519,111 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           onChange={(e) => setSessionForm({ ...sessionForm, summary: e.target.value })}
                         />
                       </div>
+                      {(!editingSession || editingSession.isNew) && (
+                        <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: '4px' }}>
+                          {/* ── Email Notification Toggle ── */}
+                          <label style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '12px',
+                            cursor: 'pointer',
+                            padding: '14px 16px',
+                            background: sessionForm.notify_members !== false ? '#fffbeb' : '#f8fafc',
+                            border: `1px solid ${sessionForm.notify_members !== false ? '#c9a84c' : '#cbd5e1'}`,
+                            borderRadius: sessionForm.notify_members !== false ? '8px 8px 0 0' : '8px',
+                            transition: 'background 0.2s, border-color 0.2s'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={sessionForm.notify_members !== false}
+                              onChange={(e) => setSessionForm({ ...sessionForm, notify_members: e.target.checked })}
+                              style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#c9a84c', flexShrink: 0 }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <strong style={{ display: 'block', fontSize: '0.92rem', color: '#0b132b' }}>
+                                Send email announcement to all community members &amp; applicants
+                              </strong>
+                              <span style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.45, display: 'block', marginTop: '2px' }}>
+                                Automatically delivers a professional announcement email with session topic, speaker, date, time, and registration link to every member who has submitted their email.
+                              </span>
+                            </div>
+                          </label>
+
+                          {/* ── Timing Controls (only visible when notifications are enabled) ── */}
+                          {sessionForm.notify_members !== false && (
+                            <div style={{
+                              padding: '14px 16px',
+                              background: '#f0f9ff',
+                              border: '1px solid #bae6fd',
+                              borderTop: 'none',
+                              borderRadius: '0 0 8px 8px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '12px'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0369a1', whiteSpace: 'nowrap' }}>📅 Send timing:</span>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.88rem', color: '#1e293b' }}>
+                                  <input
+                                    type="radio"
+                                    name="notify_timing"
+                                    value="immediate"
+                                    checked={sessionForm.notify_timing !== 'scheduled'}
+                                    onChange={() => setSessionForm({ ...sessionForm, notify_timing: 'immediate', notify_send_at: '' })}
+                                    style={{ accentColor: '#c9a84c' }}
+                                  />
+                                  Send immediately on save
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.88rem', color: '#1e293b' }}>
+                                  <input
+                                    type="radio"
+                                    name="notify_timing"
+                                    value="scheduled"
+                                    checked={sessionForm.notify_timing === 'scheduled'}
+                                    onChange={() => setSessionForm({ ...sessionForm, notify_timing: 'scheduled' })}
+                                    style={{ accentColor: '#c9a84c' }}
+                                  />
+                                  Schedule for a specific date &amp; time
+                                </label>
+                              </div>
+
+                              {sessionForm.notify_timing === 'scheduled' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0369a1', whiteSpace: 'nowrap' }}>🕐 Send at:</span>
+                                  <input
+                                    type="datetime-local"
+                                    className="form-input"
+                                    style={{ flex: 1, minWidth: '200px', maxWidth: '300px' }}
+                                    value={sessionForm.notify_send_at || ''}
+                                    min={new Date().toISOString().substring(0, 16)}
+                                    onChange={(e) => setSessionForm({ ...sessionForm, notify_send_at: e.target.value })}
+                                  />
+                                  {sessionForm.notify_send_at && (
+                                    <span style={{ fontSize: '0.8rem', color: '#0369a1' }}>
+                                      Emails will be queued and dispatched automatically at this time.
+                                    </span>
+                                  )}
+                                  {!sessionForm.notify_send_at && (
+                                    <span style={{ fontSize: '0.8rem', color: '#dc2626' }}>
+                                      Please select a future date and time.
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {sessionForm.notify_timing !== 'scheduled' && (
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#0369a1' }}>
+                                  ✉️ Emails will be sent to all members immediately when you click &quot;Save Session &amp; Announce&quot;.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                       <button type="submit" className="btn btn-accent">
-                        {editingSession && !editingSession.isNew ? 'Update Session' : 'Save Session'}
+                        {editingSession && !editingSession.isNew ? 'Update Session' : 'Save Session & Announce'}
                       </button>
                       <button type="button" className="btn btn-outline" onClick={() => { setEditingSession(null); setSessionSubTab('list'); }}>
                         Cancel
@@ -3525,7 +3703,24 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             )}
                           </td>
                           <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleNotifySessionMembers(s)}
+                                disabled={notifyingSessionId === s.id}
+                                className="btn-table"
+                                style={{
+                                  backgroundColor: '#0b132b',
+                                  color: '#c9a84c',
+                                  border: '1px solid #c9a84c',
+                                  fontWeight: 600,
+                                  opacity: notifyingSessionId === s.id ? 0.6 : 1,
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Send email reminder to all community members & applicants"
+                              >
+                                {notifyingSessionId === s.id ? 'Sending...' : '✉ Notify Members'}
+                              </button>
                               <button onClick={() => startEditSession(s)} className="btn-table edit">Edit</button>
                               <button onClick={() => handleDeleteSession(s.id)} className="btn-table delete">Delete</button>
                             </div>

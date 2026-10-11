@@ -20,6 +20,22 @@ function Sessions({ data, navigateTo }) {
     setCurrentPage(1);
   }, [searchTerm]);
 
+  // Auto-open registration modal if URL query param ?register=sessionId is present
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const registerId = params.get('register');
+      if (registerId && sessions.length > 0) {
+        const targetSession = sessions.find(s => String(s.id) === String(registerId));
+        if (targetSession) {
+          setRegisterModalSession(targetSession);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse register query param:', e);
+    }
+  }, [sessions]);
+
   const filteredPastSessions = pastSessions.filter(s => {
     const term = searchTerm.toLowerCase();
     return (

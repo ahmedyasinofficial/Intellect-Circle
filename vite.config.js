@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { broadcastSessionAnnouncementToMembers } from './lib/email-service.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -300,7 +301,7 @@ const localDbPlugin = () => ({
       } else if (url === '/api/content') {
         let body = '';
         req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
+        req.on('end', async () => {
           try {
             const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
             const type = parsedUrl.searchParams.get('type');
@@ -318,8 +319,29 @@ const localDbPlugin = () => ({
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify(data[type]));
             } else if (req.method === 'POST') {
+              const action = parsedUrl.searchParams.get('action');
+              if (type === 'sessions' && action === 'notify-members') {
+                const payload = JSON.parse(body);
+                const targetSession = payload.sessionData || (data.sessions && data.sessions.find(s => s.id === payload.sessionId));
+                if (!targetSession) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Session not found.' }));
+                  return;
+                }
+                const siteBaseUrl = `http://${req.headers.host || 'localhost:5173'}`;
+                const emailStats = await broadcastSessionAnnouncementToMembers({
+                  session: targetSession,
+                  localDataPath: dataPath,
+                  siteBaseUrl
+                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true, emailStats }));
+                return;
+              }
+
               const item = JSON.parse(body);
               item.id = `${type}-` + Date.now();
+              let emailStats = null;
               if (type === 'sessions') {
                 item.isUpcoming = item.status === 'upcoming';
                 if (item.google_meet_link !== undefined) item.googleMeetLink = item.google_meet_link;
@@ -327,8 +349,22 @@ const localDbPlugin = () => ({
               }
               data[type].push(item);
               fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
+
+              if (type === 'sessions' && item.isUpcoming && item.notifyMembers !== false) {
+                const siteBaseUrl = `http://${req.headers.host || 'localhost:5173'}`;
+                try {
+                  emailStats = await broadcastSessionAnnouncementToMembers({
+                    session: item,
+                    localDataPath: dataPath,
+                    siteBaseUrl
+                  });
+                } catch (e) {
+                  console.warn('[Vite Local Session Broadcast Error]:', e.message);
+                }
+              }
+
               res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ success: true, data: item }));
+              res.end(JSON.stringify({ success: true, data: item, emailStats }));
             } else if (req.method === 'PUT') {
               const payload = JSON.parse(body);
               if (type === 'team' && payload.reorder) {

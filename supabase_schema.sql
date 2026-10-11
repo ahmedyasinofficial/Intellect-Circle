@@ -587,4 +587,13 @@ ALTER TABLE IF EXISTS public.submissions ADD COLUMN IF NOT EXISTS session_title 
 -- Reload Supabase PostgREST API schema cache
 NOTIFY pgrst, 'reload schema';
 
+-- Migration: Add email notification scheduling fields to sessions
+ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS notify_enabled BOOLEAN DEFAULT true;
+ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS notify_timing TEXT DEFAULT 'immediate'; -- 'immediate' | 'scheduled'
+ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS notify_send_at TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS notify_status TEXT DEFAULT 'pending'; -- 'pending' | 'sent' | 'scheduled' | 'failed' | 'disabled'
+ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS notify_sent_at TIMESTAMPTZ DEFAULT NULL;
+
+-- Reload again after migration
+NOTIFY pgrst, 'reload schema';
 
