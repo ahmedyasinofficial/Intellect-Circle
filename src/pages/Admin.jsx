@@ -243,6 +243,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [sessionFilter, setSessionFilter] = useState('all');
   const [sessionPage, setSessionPage] = useState(1);
   const [notifyingSessionId, setNotifyingSessionId] = useState(null);
+  const [notifyModal, setNotifyModal] = useState(null); // { session, timing: 'immediate'|'scheduled', sendAt: '' }
   const itemsPerPage = 6;
 
   const [blogSearch, setBlogSearch] = useState('');
@@ -1676,15 +1677,59 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     setSessionSubTab('create');
   };
 
-  const handleNotifySessionMembers = async (s) => {
-    const sessionTitle = s.title || 'this session';
-    if (!window.confirm(`Send an email announcement for "${sessionTitle}" to all members and applicants who submitted their email?`)) {
+  // Opens the notify modal for an existing session
+  const handleNotifySessionMembers = (s) => {
+    setNotifyModal({ session: s, timing: 'immediate', sendAt: '' });
+  };
+
+  // Called when admin confirms the notify modal
+  const handleNotifySubmit = async () => {
+    if (!notifyModal) return;
+    const { session, timing, sendAt } = notifyModal;
+    const isScheduled = timing === 'scheduled' && sendAt;
+
+    if (timing === 'scheduled' && !sendAt) {
+      alert('Please select a date and time to schedule the email.');
       return;
     }
 
-    setNotifyingSessionId(s.id);
-    triggerNotification('Sending session announcement emails to community members...', 'info');
+    setNotifyModal(null);
+    setNotifyingSessionId(session.id);
 
+    if (isScheduled) {
+      // Update the session in DB with scheduled notify fields, then let processScheduledSessionEmails handle it
+      try {
+        const res = await fetch('/api/content?type=sessions', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({
+            id: session.id,
+            notify_enabled: true,
+            notify_timing: 'scheduled',
+            notify_send_at: new Date(sendAt).toISOString(),
+            notify_status: 'scheduled'
+          })
+        });
+        const resData = await res.json().catch(() => ({}));
+        if (res.ok && resData.success) {
+          const sendAtStr = new Date(sendAt).toLocaleString();
+          triggerNotification(`Email announcement for "${session.title}" scheduled for ${sendAtStr}.`, 'success');
+        } else {
+          triggerNotification(resData.error || 'Failed to schedule the announcement.', 'error');
+        }
+      } catch {
+        triggerNotification('Failed to schedule the announcement.', 'error');
+      } finally {
+        setNotifyingSessionId(null);
+      }
+      return;
+    }
+
+    // Immediate send
+    triggerNotification('Sending session announcement emails to community members...', 'info');
     try {
       const res = await fetch('/api/content?type=sessions&action=notify-members', {
         method: 'POST',
@@ -1693,8 +1738,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           ...(token && { 'Authorization': `Bearer ${token}` })
         },
         body: JSON.stringify({
-          sessionId: s.id,
-          sessionData: s
+          sessionId: session.id,
+          sessionData: session
         })
       });
 
@@ -1704,9 +1749,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         const total = resData.emailStats?.total ?? 0;
         const simulated = resData.emailStats?.simulated;
         let msg = `Session email sent to ${sent}${total > 0 ? ` of ${total}` : ''} member${sent === 1 ? '' : 's'}!`;
-        if (simulated) {
-          msg += ' (SMTP simulated in development)';
-        }
+        if (simulated) msg += ' (SMTP simulated in development)';
         triggerNotification(msg, 'success');
       } else {
         triggerNotification(resData.error || 'Failed to send session announcement emails.', 'error');
@@ -3630,6 +3673,111 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       </button>
                     </div>
                   </form>
+                </div>
+              )}
+
+              {/* ── Notify Members Modal ── */}
+              {notifyModal && (
+                <div style={{
+                  position: 'fixed', inset: 0, zIndex: 1000,
+                  background: 'rgba(11,19,43,0.65)', backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+                }}>
+                  <div style={{
+                    background: '#ffffff', borderRadius: '14px', width: '100%', maxWidth: '520px',
+                    boxShadow: '0 24px 60px rgba(11,19,43,0.3)', overflow: 'hidden'
+                  }}>
+                    {/* Modal Header */}
+                    <div style={{ background: '#0b132b', padding: '20px 24px', borderBottom: '3px solid #c9a84c' }}>
+                      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.05rem', fontWeight: 700 }}>✉ Notify Members</h3>
+                      <p style={{ margin: '4px 0 0', color: '#c9a84c', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {notifyModal.session.title}
+                      </p>
+                    </div>
+
+                    {/* Modal Body */}
+                    <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.6 }}>
+                        Send a professional email announcement for this session to all community members and applicants who submitted their email address.
+                      </p>
+
+                      {/* Timing Selection */}
+                      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#0b132b' }}>📅 When should the emails be sent?</p>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 12px', borderRadius: '8px', border: `2px solid ${notifyModal.timing !== 'scheduled' ? '#c9a84c' : '#e2e8f0'}`, background: notifyModal.timing !== 'scheduled' ? '#fffbeb' : '#fff', transition: 'all 0.15s' }}>
+                          <input
+                            type="radio"
+                            name="modal_notify_timing"
+                            checked={notifyModal.timing !== 'scheduled'}
+                            onChange={() => setNotifyModal(m => ({ ...m, timing: 'immediate', sendAt: '' }))}
+                            style={{ accentColor: '#c9a84c', width: '16px', height: '16px' }}
+                          />
+                          <div>
+                            <strong style={{ fontSize: '0.88rem', color: '#0b132b', display: 'block' }}>Send immediately</strong>
+                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Emails will go out right now to all members</span>
+                          </div>
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 12px', borderRadius: '8px', border: `2px solid ${notifyModal.timing === 'scheduled' ? '#c9a84c' : '#e2e8f0'}`, background: notifyModal.timing === 'scheduled' ? '#fffbeb' : '#fff', transition: 'all 0.15s' }}>
+                          <input
+                            type="radio"
+                            name="modal_notify_timing"
+                            checked={notifyModal.timing === 'scheduled'}
+                            onChange={() => setNotifyModal(m => ({ ...m, timing: 'scheduled' }))}
+                            style={{ accentColor: '#c9a84c', width: '16px', height: '16px' }}
+                          />
+                          <div>
+                            <strong style={{ fontSize: '0.88rem', color: '#0b132b', display: 'block' }}>Schedule for later</strong>
+                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Choose a specific date and time to send</span>
+                          </div>
+                        </label>
+
+                        {/* Date-time picker — only when scheduled */}
+                        {notifyModal.timing === 'scheduled' && (
+                          <div style={{ paddingTop: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#0369a1' }}>🕐 Send at (your local time):</label>
+                            <input
+                              type="datetime-local"
+                              className="form-input"
+                              value={notifyModal.sendAt || ''}
+                              min={new Date().toISOString().substring(0, 16)}
+                              onChange={(e) => setNotifyModal(m => ({ ...m, sendAt: e.target.value }))}
+                              style={{ fontSize: '0.9rem' }}
+                            />
+                            {notifyModal.sendAt && (
+                              <p style={{ margin: 0, fontSize: '0.78rem', color: '#0369a1' }}>
+                                ✅ Emails will be queued and automatically dispatched at this time.
+                              </p>
+                            )}
+                            {!notifyModal.sendAt && (
+                              <p style={{ margin: 0, fontSize: '0.78rem', color: '#dc2626' }}>
+                                ⚠ Please pick a future date and time.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn btn-outline"
+                        onClick={() => setNotifyModal(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="btn btn-accent"
+                        onClick={handleNotifySubmit}
+                        disabled={notifyModal.timing === 'scheduled' && !notifyModal.sendAt}
+                        style={{ opacity: notifyModal.timing === 'scheduled' && !notifyModal.sendAt ? 0.5 : 1 }}
+                      >
+                        {notifyModal.timing === 'scheduled' ? '📅 Schedule Email' : '✉ Send Now'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 

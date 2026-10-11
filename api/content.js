@@ -256,7 +256,7 @@ export default async function handler(req, res) {
       }
 
       if (req.method === 'PUT') {
-        const { id, title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink } = req.body;
+        const { id, title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notify_enabled, notify_timing, notify_send_at, notify_status } = req.body;
         if (!id) {
           return res.status(400).json({ error: 'Missing session ID.' });
         }
@@ -273,6 +273,11 @@ export default async function handler(req, res) {
         const meetUrl = google_meet_link !== undefined ? google_meet_link : (meet_link !== undefined ? meet_link : meetLink);
         if (meetUrl !== undefined) updateData.google_meet_link = meetUrl;
         if (status !== undefined) updateData.status = status;
+        // Notify scheduling fields
+        if (notify_enabled !== undefined) updateData.notify_enabled = Boolean(notify_enabled);
+        if (notify_timing !== undefined) updateData.notify_timing = notify_timing;
+        if (notify_send_at !== undefined) updateData.notify_send_at = notify_send_at;
+        if (notify_status !== undefined) updateData.notify_status = notify_status;
         const { data, error } = await supabase.from('sessions').update(updateData).eq('id', id).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Update Session', `Updated session: ${data.title}`);
