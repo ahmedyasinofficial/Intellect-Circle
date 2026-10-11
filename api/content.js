@@ -176,7 +176,7 @@ export default async function handler(req, res) {
 
       // Dedicated action for manually sending session reminder / announcement emails to all members
       if (req.method === 'POST' && action === 'notify-members') {
-        const { sessionId, sessionData } = req.body || {};
+        const { sessionId, sessionData, recipients } = req.body || {};
         let targetSession = sessionData;
         if (!targetSession && sessionId) {
           const { data: dbSession, error: sErr } = await supabase.from('sessions').select('*').eq('id', sessionId).single();
@@ -191,12 +191,18 @@ export default async function handler(req, res) {
         const emailStats = await broadcastSessionAnnouncementToMembers({
           session: targetSession,
           supabase,
-          siteBaseUrl
+          siteBaseUrl,
+          // Pass specific recipients if admin chose selective mode; null = send to all
+          recipients: Array.isArray(recipients) && recipients.length > 0 ? recipients : null
         });
 
-        await logActivity(user.email, 'Broadcast Session Reminder', `Sent reminder for "${targetSession.title}" to ${emailStats.sent} members.`);
+        const recipientDesc = Array.isArray(recipients) && recipients.length > 0
+          ? `${emailStats.sent} of ${recipients.length} selected recipients`
+          : `${emailStats.sent} members`;
+        await logActivity(user.email, 'Broadcast Session Reminder', `Sent reminder for "${targetSession.title}" to ${recipientDesc}.`);
         return res.status(200).json({ success: true, emailStats });
       }
+
 
       if (req.method === 'POST') {
         const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notifyMembers, notify_enabled, notify_timing, notify_send_at } = req.body;

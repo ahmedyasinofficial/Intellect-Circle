@@ -243,7 +243,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [sessionFilter, setSessionFilter] = useState('all');
   const [sessionPage, setSessionPage] = useState(1);
   const [notifyingSessionId, setNotifyingSessionId] = useState(null);
-  const [notifyModal, setNotifyModal] = useState(null); // { session, timing: 'immediate'|'scheduled', sendAt: '' }
+  const [notifyModal, setNotifyModal] = useState(null);
+  // notifyModal shape: { session, timing, sendAt, recipientMode, members, selectedEmails(Set), customEmailsInput, memberSearch }
   const itemsPerPage = 6;
 
   const [blogSearch, setBlogSearch] = useState('');
@@ -1677,15 +1678,39 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     setSessionSubTab('create');
   };
 
-  // Opens the notify modal for an existing session
+  // Opens the notify modal — builds a unique deduplicated member list from all submissions
   const handleNotifySessionMembers = (s) => {
-    setNotifyModal({ session: s, timing: 'immediate', sendAt: '' });
+    const allSubs = [
+      ...(submissions.applications || []),
+      ...(submissions.contacts || []),
+      ...(submissions.sessionRegistrations || [])
+    ];
+    const memberMap = new Map();
+    allSubs.forEach(sub => {
+      if (sub.email && sub.email.includes('@')) {
+        const key = sub.email.trim().toLowerCase();
+        if (!memberMap.has(key)) {
+          memberMap.set(key, { email: key, name: (sub.name || sub.fullName || '').trim() || 'Member', source: sub.type || 'submission' });
+        }
+      }
+    });
+    const members = Array.from(memberMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    setNotifyModal({
+      session: s,
+      timing: 'immediate',
+      sendAt: '',
+      recipientMode: 'all',   // 'all' | 'selected'
+      members,
+      selectedEmails: new Set(),
+      customEmailsInput: '',
+      memberSearch: ''
+    });
   };
 
   // Called when admin confirms the notify modal
   const handleNotifySubmit = async () => {
     if (!notifyModal) return;
-    const { session, timing, sendAt } = notifyModal;
+    const { session, timing, sendAt, recipientMode, members, selectedEmails, customEmailsInput } = notifyModal;
     const isScheduled = timing === 'scheduled' && sendAt;
 
     if (timing === 'scheduled' && !sendAt) {
@@ -1693,18 +1718,32 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       return;
     }
 
+    // Build recipients list
+    let recipients = null; // null = send to all
+    if (recipientMode === 'selected') {
+      // Start from checked members
+      const picked = members.filter(m => selectedEmails.has(m.email));
+      // Add any custom emails the admin typed
+      const customParsed = customEmailsInput
+        .split(/[,\n;]+/)
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e.includes('@') && !selectedEmails.has(e))
+        .map(e => ({ email: e, name: 'Guest' }));
+      recipients = [...picked, ...customParsed];
+      if (recipients.length === 0) {
+        alert('Please select at least one recipient or add a custom email.');
+        return;
+      }
+    }
+
     setNotifyModal(null);
     setNotifyingSessionId(session.id);
 
     if (isScheduled) {
-      // Update the session in DB with scheduled notify fields, then let processScheduledSessionEmails handle it
       try {
         const res = await fetch('/api/content?type=sessions', {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { 'Authorization': `Bearer ${token}` })
-          },
+          headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
           body: JSON.stringify({
             id: session.id,
             notify_enabled: true,
@@ -1715,8 +1754,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         });
         const resData = await res.json().catch(() => ({}));
         if (res.ok && resData.success) {
-          const sendAtStr = new Date(sendAt).toLocaleString();
-          triggerNotification(`Email announcement for "${session.title}" scheduled for ${sendAtStr}.`, 'success');
+          const recStr = recipients ? `${recipients.length} selected recipient${recipients.length === 1 ? '' : 's'}` : 'all members';
+          triggerNotification(`Email for "${session.title}" scheduled for ${new Date(sendAt).toLocaleString()} → ${recStr}.`, 'success');
         } else {
           triggerNotification(resData.error || 'Failed to schedule the announcement.', 'error');
         }
@@ -1729,27 +1768,21 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
 
     // Immediate send
-    triggerNotification('Sending session announcement emails to community members...', 'info');
+    const recLabel = recipients ? `${recipients.length} recipient${recipients.length === 1 ? '' : 's'}` : 'all members';
+    triggerNotification(`Sending session announcement to ${recLabel}...`, 'info');
     try {
       const res = await fetch('/api/content?type=sessions&action=notify-members', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        },
-        body: JSON.stringify({
-          sessionId: session.id,
-          sessionData: session
-        })
+        headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+        body: JSON.stringify({ sessionId: session.id, sessionData: session, recipients })
       });
-
       const resData = await res.json().catch(() => ({}));
       if (res.ok && resData.success) {
         const sent = resData.emailStats?.sent ?? 0;
         const total = resData.emailStats?.total ?? 0;
         const simulated = resData.emailStats?.simulated;
-        let msg = `Session email sent to ${sent}${total > 0 ? ` of ${total}` : ''} member${sent === 1 ? '' : 's'}!`;
-        if (simulated) msg += ' (SMTP simulated in development)';
+        let msg = `✅ Sent to ${sent}${total > 0 ? ` of ${total}` : ''} recipient${sent === 1 ? '' : 's'}!`;
+        if (simulated) msg += ' (SMTP simulated)';
         triggerNotification(msg, 'success');
       } else {
         triggerNotification(resData.error || 'Failed to send session announcement emails.', 'error');
@@ -3676,110 +3709,318 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </div>
               )}
 
-              {/* ── Notify Members Modal ── */}
-              {notifyModal && (
-                <div style={{
-                  position: 'fixed', inset: 0, zIndex: 1000,
-                  background: 'rgba(11,19,43,0.65)', backdropFilter: 'blur(4px)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
-                }}>
+              {/* ════════════════════════════════════════
+                  NOTIFY MEMBERS — PREMIUM MODAL
+                  ════════════════════════════════════════ */}
+              {notifyModal && (() => {
+                const filteredMembers = (notifyModal.members || []).filter(m =>
+                  !notifyModal.memberSearch ||
+                  m.name.toLowerCase().includes(notifyModal.memberSearch.toLowerCase()) ||
+                  m.email.includes(notifyModal.memberSearch.toLowerCase())
+                );
+                const selectedCount = notifyModal.selectedEmails?.size || 0;
+                const customCount = (notifyModal.customEmailsInput || '')
+                  .split(/[,\n;]+/).map(e => e.trim()).filter(e => e.includes('@')).length;
+                const totalRecipients = notifyModal.recipientMode === 'all'
+                  ? notifyModal.members.length
+                  : selectedCount + customCount;
+                const canSubmit = !(notifyModal.timing === 'scheduled' && !notifyModal.sendAt) &&
+                  !(notifyModal.recipientMode === 'selected' && totalRecipients === 0);
+
+                return (
                   <div style={{
-                    background: '#ffffff', borderRadius: '14px', width: '100%', maxWidth: '520px',
-                    boxShadow: '0 24px 60px rgba(11,19,43,0.3)', overflow: 'hidden'
-                  }}>
-                    {/* Modal Header */}
-                    <div style={{ background: '#0b132b', padding: '20px 24px', borderBottom: '3px solid #c9a84c' }}>
-                      <h3 style={{ margin: 0, color: '#fff', fontSize: '1.05rem', fontWeight: 700 }}>✉ Notify Members</h3>
-                      <p style={{ margin: '4px 0 0', color: '#c9a84c', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {notifyModal.session.title}
-                      </p>
-                    </div>
+                    position: 'fixed', inset: 0, zIndex: 1000,
+                    background: 'rgba(7,14,35,0.72)', backdropFilter: 'blur(6px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+                  }} onClick={(e) => { if (e.target === e.currentTarget) setNotifyModal(null); }}>
 
-                    {/* Modal Body */}
-                    <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', lineHeight: 1.6 }}>
-                        Send a professional email announcement for this session to all community members and applicants who submitted their email address.
-                      </p>
+                    <div style={{
+                      background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '580px',
+                      boxShadow: '0 32px 80px rgba(7,14,35,0.35)', overflow: 'hidden',
+                      maxHeight: '92vh', display: 'flex', flexDirection: 'column'
+                    }}>
 
-                      {/* Timing Selection */}
-                      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#0b132b' }}>📅 When should the emails be sent?</p>
-
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 12px', borderRadius: '8px', border: `2px solid ${notifyModal.timing !== 'scheduled' ? '#c9a84c' : '#e2e8f0'}`, background: notifyModal.timing !== 'scheduled' ? '#fffbeb' : '#fff', transition: 'all 0.15s' }}>
-                          <input
-                            type="radio"
-                            name="modal_notify_timing"
-                            checked={notifyModal.timing !== 'scheduled'}
-                            onChange={() => setNotifyModal(m => ({ ...m, timing: 'immediate', sendAt: '' }))}
-                            style={{ accentColor: '#c9a84c', width: '16px', height: '16px' }}
-                          />
+                      {/* ── Header ── */}
+                      <div style={{ background: 'linear-gradient(135deg, #0b132b 0%, #1a2744 100%)', padding: '22px 26px 18px', borderBottom: '3px solid #c9a84c', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
-                            <strong style={{ fontSize: '0.88rem', color: '#0b132b', display: 'block' }}>Send immediately</strong>
-                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Emails will go out right now to all members</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '1.1rem' }}>✉️</span>
+                              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.08rem', fontWeight: 700 }}>Send Session Invitation</h3>
+                            </div>
+                            <p style={{ margin: 0, color: '#c9a84c', fontSize: '0.78rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', lineHeight: 1.4 }}>
+                              {notifyModal.session.title}
+                            </p>
                           </div>
-                        </label>
-
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 12px', borderRadius: '8px', border: `2px solid ${notifyModal.timing === 'scheduled' ? '#c9a84c' : '#e2e8f0'}`, background: notifyModal.timing === 'scheduled' ? '#fffbeb' : '#fff', transition: 'all 0.15s' }}>
-                          <input
-                            type="radio"
-                            name="modal_notify_timing"
-                            checked={notifyModal.timing === 'scheduled'}
-                            onChange={() => setNotifyModal(m => ({ ...m, timing: 'scheduled' }))}
-                            style={{ accentColor: '#c9a84c', width: '16px', height: '16px' }}
-                          />
-                          <div>
-                            <strong style={{ fontSize: '0.88rem', color: '#0b132b', display: 'block' }}>Schedule for later</strong>
-                            <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Choose a specific date and time to send</span>
-                          </div>
-                        </label>
-
-                        {/* Date-time picker — only when scheduled */}
-                        {notifyModal.timing === 'scheduled' && (
-                          <div style={{ paddingTop: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '0.83rem', fontWeight: 600, color: '#0369a1' }}>🕐 Send at (your local time):</label>
-                            <input
-                              type="datetime-local"
-                              className="form-input"
-                              value={notifyModal.sendAt || ''}
-                              min={new Date().toISOString().substring(0, 16)}
-                              onChange={(e) => setNotifyModal(m => ({ ...m, sendAt: e.target.value }))}
-                              style={{ fontSize: '0.9rem' }}
-                            />
-                            {notifyModal.sendAt && (
-                              <p style={{ margin: 0, fontSize: '0.78rem', color: '#0369a1' }}>
-                                ✅ Emails will be queued and automatically dispatched at this time.
-                              </p>
-                            )}
-                            {!notifyModal.sendAt && (
-                              <p style={{ margin: 0, fontSize: '0.78rem', color: '#dc2626' }}>
-                                ⚠ Please pick a future date and time.
-                              </p>
-                            )}
-                          </div>
-                        )}
+                          <button onClick={() => setNotifyModal(null)} style={{
+                            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                            color: '#fff', borderRadius: '8px', width: '32px', height: '32px',
+                            cursor: 'pointer', fontSize: '1rem', lineHeight: 1, flexShrink: 0
+                          }}>✕</button>
+                        </div>
+                        {/* Recipient count badge */}
+                        <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '5px',
+                            background: totalRecipients > 0 ? 'rgba(201,168,76,0.2)' : 'rgba(255,255,255,0.08)',
+                            border: `1px solid ${totalRecipients > 0 ? '#c9a84c' : 'rgba(255,255,255,0.15)'}`,
+                            color: totalRecipients > 0 ? '#f6d887' : '#94a3b8',
+                            fontSize: '0.78rem', fontWeight: 700, padding: '4px 10px', borderRadius: '20px'
+                          }}>
+                            👥 {totalRecipients} recipient{totalRecipients !== 1 ? 's' : ''} selected
+                          </span>
+                          {notifyModal.timing === 'scheduled' && notifyModal.sendAt && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '5px',
+                              background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)',
+                              color: '#a5b4fc', fontSize: '0.78rem', fontWeight: 700, padding: '4px 10px', borderRadius: '20px'
+                            }}>
+                              🕐 Scheduled
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Modal Footer */}
-                    <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                      <button
-                        className="btn btn-outline"
-                        onClick={() => setNotifyModal(null)}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        className="btn btn-accent"
-                        onClick={handleNotifySubmit}
-                        disabled={notifyModal.timing === 'scheduled' && !notifyModal.sendAt}
-                        style={{ opacity: notifyModal.timing === 'scheduled' && !notifyModal.sendAt ? 0.5 : 1 }}
-                      >
-                        {notifyModal.timing === 'scheduled' ? '📅 Schedule Email' : '✉ Send Now'}
-                      </button>
+                      {/* ── Scrollable Body ── */}
+                      <div style={{ overflowY: 'auto', flex: 1, padding: '22px 26px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                        {/* ─ Section 1: Who to send to ─ */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                            <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#0b132b', color: '#c9a84c', fontSize: '0.72rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</div>
+                            <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0b132b' }}>Choose Recipients</span>
+                          </div>
+
+                          {/* Mode toggle */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                            {[
+                              { mode: 'all', icon: '🌐', label: 'All Members', desc: `Everyone in your community (${notifyModal.members.length} people)` },
+                              { mode: 'selected', icon: '🎯', label: 'Select Recipients', desc: 'Pick specific people or add emails manually' }
+                            ].map(({ mode, icon, label, desc }) => (
+                              <label key={mode} style={{
+                                display: 'flex', flexDirection: 'column', gap: '4px',
+                                cursor: 'pointer', padding: '12px 14px', borderRadius: '10px',
+                                border: `2px solid ${notifyModal.recipientMode === mode ? '#c9a84c' : '#e2e8f0'}`,
+                                background: notifyModal.recipientMode === mode ? '#fffbeb' : '#f8fafc',
+                                transition: 'all 0.15s', boxShadow: notifyModal.recipientMode === mode ? '0 0 0 3px rgba(201,168,76,0.12)' : 'none'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <input type="radio" name="recipient_mode" value={mode}
+                                    checked={notifyModal.recipientMode === mode}
+                                    onChange={() => setNotifyModal(m => ({ ...m, recipientMode: mode }))}
+                                    style={{ accentColor: '#c9a84c' }} />
+                                  <span style={{ fontSize: '0.9rem' }}>{icon}</span>
+                                  <strong style={{ fontSize: '0.85rem', color: '#0b132b' }}>{label}</strong>
+                                </div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', paddingLeft: '22px', lineHeight: 1.4 }}>{desc}</span>
+                              </label>
+                            ))}
+                          </div>
+
+                          {/* Selected mode: member list + custom emails */}
+                          {notifyModal.recipientMode === 'selected' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+                              {/* Search + checklist */}
+                              {notifyModal.members.length > 0 && (
+                                <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                                  {/* Search bar */}
+                                  <div style={{ padding: '10px 12px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>🔍</span>
+                                    <input
+                                      type="text"
+                                      placeholder="Search by name or email…"
+                                      value={notifyModal.memberSearch || ''}
+                                      onChange={e => setNotifyModal(m => ({ ...m, memberSearch: e.target.value }))}
+                                      style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: '0.84rem', color: '#1e293b' }}
+                                    />
+                                    {selectedCount > 0 && (
+                                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#c9a84c', background: '#fffbeb', padding: '2px 8px', borderRadius: '12px', border: '1px solid #c9a84c', whiteSpace: 'nowrap' }}>
+                                        {selectedCount} selected
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Select all / deselect all row */}
+                                  <div style={{ padding: '8px 12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '12px' }}>
+                                    <button type="button" onClick={() => setNotifyModal(m => ({ ...m, selectedEmails: new Set(m.members.map(mb => mb.email)) }))}
+                                      style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0369a1', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                                      ✅ Select all ({notifyModal.members.length})
+                                    </button>
+                                    <span style={{ color: '#cbd5e1' }}>|</span>
+                                    <button type="button" onClick={() => setNotifyModal(m => ({ ...m, selectedEmails: new Set() }))}
+                                      style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                                      ✕ Clear all
+                                    </button>
+                                  </div>
+
+                                  {/* Member rows */}
+                                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                    {filteredMembers.length === 0 ? (
+                                      <p style={{ margin: 0, padding: '14px 12px', color: '#94a3b8', fontSize: '0.83rem', textAlign: 'center' }}>No members match your search.</p>
+                                    ) : filteredMembers.map(member => {
+                                      const checked = notifyModal.selectedEmails?.has(member.email);
+                                      return (
+                                        <label key={member.email} style={{
+                                          display: 'flex', alignItems: 'center', gap: '10px',
+                                          padding: '9px 12px', cursor: 'pointer',
+                                          background: checked ? '#fffbeb' : 'transparent',
+                                          borderBottom: '1px solid #f1f5f9',
+                                          transition: 'background 0.1s'
+                                        }}>
+                                          <input type="checkbox" checked={!!checked}
+                                            onChange={() => setNotifyModal(m => {
+                                              const next = new Set(m.selectedEmails);
+                                              checked ? next.delete(member.email) : next.add(member.email);
+                                              return { ...m, selectedEmails: next };
+                                            })}
+                                            style={{ accentColor: '#c9a84c', width: '15px', height: '15px', flexShrink: 0 }}
+                                          />
+                                          {/* Avatar initial */}
+                                          <div style={{
+                                            width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0,
+                                            background: checked ? '#c9a84c' : '#e2e8f0',
+                                            color: checked ? '#0b132b' : '#64748b',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '0.72rem', fontWeight: 800, transition: 'all 0.15s'
+                                          }}>
+                                            {member.name.charAt(0).toUpperCase()}
+                                          </div>
+                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 600, fontSize: '0.84rem', color: '#0b132b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.name}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.email}</div>
+                                          </div>
+                                          <span style={{ fontSize: '0.68rem', color: '#94a3b8', background: '#f1f5f9', padding: '2px 6px', borderRadius: '8px', flexShrink: 0, textTransform: 'capitalize' }}>
+                                            {member.source?.replace('_', ' ') || 'member'}
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {notifyModal.members.length === 0 && (
+                                <div style={{ padding: '14px', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '0.83rem', color: '#92400e' }}>
+                                  ⚠️ No submission data found. You can still add emails manually below.
+                                </div>
+                              )}
+
+                              {/* Custom email input */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#0b132b', marginBottom: '6px' }}>
+                                  ✏️ Add Custom Emails
+                                  <span style={{ fontWeight: 400, color: '#64748b', marginLeft: '6px' }}>(comma, semicolon, or new line separated)</span>
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  placeholder={'john@example.com\naisha@company.org, ali@email.com'}
+                                  value={notifyModal.customEmailsInput || ''}
+                                  onChange={e => setNotifyModal(m => ({ ...m, customEmailsInput: e.target.value }))}
+                                  className="form-input"
+                                  style={{ width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.82rem', boxSizing: 'border-box' }}
+                                />
+                                {customCount > 0 && (
+                                  <p style={{ margin: '4px 0 0', fontSize: '0.76rem', color: '#0369a1', fontWeight: 600 }}>
+                                    ✅ {customCount} valid email{customCount !== 1 ? 's' : ''} detected
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ─ Divider ─ */}
+                        <div style={{ borderTop: '1px dashed #e2e8f0' }} />
+
+                        {/* ─ Section 2: When to send ─ */}
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                            <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#0b132b', color: '#c9a84c', fontSize: '0.72rem', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</div>
+                            <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0b132b' }}>Choose Send Time</span>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            {[
+                              { val: 'immediate', icon: '⚡', label: 'Send Now', desc: 'Emails go out immediately' },
+                              { val: 'scheduled', icon: '🗓️', label: 'Schedule', desc: 'Pick a future date & time' }
+                            ].map(({ val, icon, label, desc }) => (
+                              <label key={val} style={{
+                                display: 'flex', flexDirection: 'column', gap: '3px',
+                                cursor: 'pointer', padding: '11px 13px', borderRadius: '10px',
+                                border: `2px solid ${notifyModal.timing === val ? '#c9a84c' : '#e2e8f0'}`,
+                                background: notifyModal.timing === val ? '#fffbeb' : '#f8fafc',
+                                transition: 'all 0.15s', boxShadow: notifyModal.timing === val ? '0 0 0 3px rgba(201,168,76,0.12)' : 'none'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                  <input type="radio" name="notify_timing_modal" value={val}
+                                    checked={notifyModal.timing === val}
+                                    onChange={() => setNotifyModal(m => ({ ...m, timing: val, sendAt: val === 'immediate' ? '' : m.sendAt }))}
+                                    style={{ accentColor: '#c9a84c' }} />
+                                  <span style={{ fontSize: '0.9rem' }}>{icon}</span>
+                                  <strong style={{ fontSize: '0.84rem', color: '#0b132b' }}>{label}</strong>
+                                </div>
+                                <span style={{ fontSize: '0.74rem', color: '#64748b', paddingLeft: '20px' }}>{desc}</span>
+                              </label>
+                            ))}
+                          </div>
+
+                          {notifyModal.timing === 'scheduled' && (
+                            <div style={{ marginTop: '12px', padding: '14px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0369a1' }}>🕐 Send at (your local time):</label>
+                              <input
+                                type="datetime-local"
+                                className="form-input"
+                                value={notifyModal.sendAt || ''}
+                                min={new Date().toISOString().substring(0, 16)}
+                                onChange={e => setNotifyModal(m => ({ ...m, sendAt: e.target.value }))}
+                                style={{ fontSize: '0.88rem' }}
+                              />
+                              {notifyModal.sendAt ? (
+                                <p style={{ margin: 0, fontSize: '0.76rem', color: '#0369a1', fontWeight: 600 }}>
+                                  ✅ Will be dispatched automatically on {new Date(notifyModal.sendAt).toLocaleString()}
+                                </p>
+                              ) : (
+                                <p style={{ margin: 0, fontSize: '0.76rem', color: '#dc2626', fontWeight: 600 }}>
+                                  ⚠️ Please select a future date and time.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── Footer ── */}
+                      <div style={{ padding: '16px 26px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
+                          {canSubmit
+                            ? `📨 Ready to send to ${totalRecipients} recipient${totalRecipients !== 1 ? 's' : ''}`
+                            : notifyModal.recipientMode === 'selected' && totalRecipients === 0
+                              ? '⚠️ Select at least one recipient'
+                              : '⚠️ Select a scheduled time'}
+                        </span>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button className="btn btn-outline" onClick={() => setNotifyModal(null)}>Cancel</button>
+                          <button
+                            className="btn btn-accent"
+                            onClick={handleNotifySubmit}
+                            disabled={!canSubmit}
+                            style={{
+                              opacity: canSubmit ? 1 : 0.45,
+                              cursor: canSubmit ? 'pointer' : 'not-allowed',
+                              display: 'flex', alignItems: 'center', gap: '6px'
+                            }}
+                          >
+                            {notifyModal.timing === 'scheduled' ? '📅 Schedule Email' : '✉️ Send Now'}
+                          </button>
+                        </div>
+                      </div>
+
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
 
               {/* Sessions Table */}
               {sessionSubTab === 'list' && (
