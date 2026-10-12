@@ -191,7 +191,15 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, message: 'Settings saved (mocked fallback)' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  const clientOptions = { auth: { persistSession: false } };
+  const authHeader = req.headers.authorization;
+  if (authHeader && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    clientOptions.global = {
+      headers: { Authorization: authHeader }
+    };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey, clientOptions);
 
   const payload = req.body;
   if (!payload) {
@@ -282,91 +290,115 @@ export default async function handler(req, res) {
       }
 
       if (aboutTeaser?.columns && Array.isArray(aboutTeaser.columns)) {
-        await supabase.from('about_teaser_columns').delete().gt('sort_order', -1);
-        for (let i = 0; i < aboutTeaser.columns.length; i++) {
-          const col = aboutTeaser.columns[i];
-          await supabase.from('about_teaser_columns').insert({
-            title: col.title,
-            description: col.description,
-            sort_order: i
-          });
+        await supabase.from('about_teaser_columns').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const cols = aboutTeaser.columns.map((col, i) => ({
+          title: col.title,
+          description: col.description || '',
+          sort_order: i
+        }));
+        if (cols.length > 0) {
+          await supabase.from('about_teaser_columns').insert(cols);
         }
       }
 
       if (payload.home.howItWorks?.steps && Array.isArray(payload.home.howItWorks.steps)) {
-        await supabase.from('how_it_works_steps').delete().gt('sort_order', -1);
-        for (let i = 0; i < payload.home.howItWorks.steps.length; i++) {
-          const step = payload.home.howItWorks.steps[i];
-          await supabase.from('how_it_works_steps').insert({
-            number: step.number,
-            text: step.text,
-            sort_order: i
-          });
+        await supabase.from('how_it_works_steps').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const steps = payload.home.howItWorks.steps.map((step, i) => ({
+          number: step.number,
+          text: step.text || '',
+          sort_order: i
+        }));
+        if (steps.length > 0) {
+          await supabase.from('how_it_works_steps').insert(steps);
         }
       }
 
       if (payload.home.geographicModel?.levels && Array.isArray(payload.home.geographicModel.levels)) {
-        await supabase.from('geographic_levels').delete().gt('sort_order', -1);
+        await supabase.from('geographic_levels').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const seenGeo = new Set();
+        const cleanGeo = [];
         for (let i = 0; i < payload.home.geographicModel.levels.length; i++) {
           const lvl = payload.home.geographicModel.levels[i];
-          await supabase.from('geographic_levels').insert({
-            label: lvl.label,
-            active: lvl.active,
-            sort_order: i
-          });
+          const label = (lvl.label || '').trim();
+          if (!label) continue;
+          const k = label.toLowerCase();
+          if (!seenGeo.has(k)) {
+            seenGeo.add(k);
+            cleanGeo.push({
+              label,
+              active: Boolean(lvl.active),
+              sort_order: cleanGeo.length
+            });
+          }
+        }
+        if (cleanGeo.length > 0) {
+          const { error: insErr } = await supabase.from('geographic_levels').insert(cleanGeo);
+          if (insErr) console.error('[Settings] Error inserting geographic_levels:', insErr);
         }
       }
 
       if (payload.home.pillars?.items && Array.isArray(payload.home.pillars.items)) {
-        await supabase.from('pillars').delete().gt('sort_order', -1);
+        await supabase.from('pillars').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const seenPillars = new Set();
+        const cleanPillars = [];
         for (let i = 0; i < payload.home.pillars.items.length; i++) {
           const p = payload.home.pillars.items[i];
-          await supabase.from('pillars').insert({
-            name: p.name,
-            description: p.description,
-            status: p.status,
-            sort_order: i
-          });
+          const name = (p.name || '').trim();
+          if (!name) continue;
+          const k = name.toLowerCase();
+          if (!seenPillars.has(k)) {
+            seenPillars.add(k);
+            cleanPillars.push({
+              name,
+              description: p.description || '',
+              status: p.status || 'Coming Soon',
+              sort_order: cleanPillars.length
+            });
+          }
+        }
+        if (cleanPillars.length > 0) {
+          const { error: insErr } = await supabase.from('pillars').insert(cleanPillars);
+          if (insErr) console.error('[Settings] Error inserting pillars:', insErr);
         }
       }
 
       if (payload.home.collaborations?.partners && Array.isArray(payload.home.collaborations.partners)) {
-        await supabase.from('partners').delete().gt('sort_order', -1);
-        for (let i = 0; i < payload.home.collaborations.partners.length; i++) {
-          const part = payload.home.collaborations.partners[i];
-          await supabase.from('partners').insert({
-            name: part.name,
-            logo_url: part.logoUrl,
-            description: part.description,
-            sort_order: i
-          });
+        await supabase.from('partners').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const partners = payload.home.collaborations.partners.map((part, i) => ({
+          name: part.name,
+          logo_url: part.logoUrl,
+          description: part.description || '',
+          sort_order: i
+        }));
+        if (partners.length > 0) {
+          await supabase.from('partners').insert(partners);
         }
       }
     }
 
     if (payload.about) {
       if (payload.about.values && Array.isArray(payload.about.values)) {
-        await supabase.from('about_values').delete().gt('sort_order', -1);
-        for (let i = 0; i < payload.about.values.length; i++) {
-          const v = payload.about.values[i];
-          await supabase.from('about_values').insert({
-            icon: v.icon,
-            title: v.title,
-            description: v.description,
-            sort_order: i
-          });
+        await supabase.from('about_values').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const vals = payload.about.values.map((v, i) => ({
+          icon: v.icon,
+          title: v.title,
+          description: v.description || '',
+          sort_order: i
+        }));
+        if (vals.length > 0) {
+          await supabase.from('about_values').insert(vals);
         }
       }
 
       if (payload.about.differences && Array.isArray(payload.about.differences)) {
-        await supabase.from('about_differences').delete().gt('sort_order', -1);
-        for (let i = 0; i < payload.about.differences.length; i++) {
-          const d = payload.about.differences[i];
-          await supabase.from('about_differences').insert({
-            title: d.title,
-            description: d.description,
-            sort_order: i
-          });
+        await supabase.from('about_differences').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const diffs = payload.about.differences.map((d, i) => ({
+          title: d.title,
+          description: d.description || '',
+          sort_order: i
+        }));
+        if (diffs.length > 0) {
+          await supabase.from('about_differences').insert(diffs);
         }
       }
     }

@@ -127,13 +127,37 @@ export default async function handler(req, res) {
         steps: (howStepsRes.data || []).map(step => ({ number: step.number, text: step.text }))
       },
       pillars: {
-        title: 'Pillars of Intellect Circle',
-        items: (pillarsRes.data || []).map(p => ({ id: p.id, name: p.name, description: p.description, status: p.status }))
+        title: homeContentRes.data?.pillars_title || 'Pillars of Intellect Circle',
+        items: (() => {
+          const raw = (pillarsRes.data && pillarsRes.data.length > 0) ? pillarsRes.data : (defaultData.home?.pillars?.items || []);
+          const seen = new Set();
+          const clean = [];
+          for (const p of raw) {
+            const k = (p.name || '').trim().toLowerCase();
+            if (k && !seen.has(k)) {
+              seen.add(k);
+              clean.push({ id: p.id, name: p.name, description: p.description, status: p.status });
+            }
+          }
+          return clean;
+        })()
       },
       geographicModel: {
-        title: 'Geographic Model',
-        description: 'A structural scaling strategy beginning on your block.',
-        levels: (geoLevelsRes.data || []).map(l => ({ label: l.label, active: l.active }))
+        title: homeContentRes.data?.geographic_model_title || 'Geographic Model',
+        description: homeContentRes.data?.geographic_model_description || 'A structural scaling strategy beginning on your block.',
+        levels: (() => {
+          const raw = (geoLevelsRes.data && geoLevelsRes.data.length > 0) ? geoLevelsRes.data : (defaultData.home?.geographicModel?.levels || []);
+          const seen = new Set();
+          const clean = [];
+          for (const l of raw) {
+            const k = (l.label || '').trim().toLowerCase();
+            if (k && !seen.has(k)) {
+              seen.add(k);
+              clean.push({ label: l.label, active: Boolean(l.active) });
+            }
+          }
+          return clean;
+        })()
       },
       collaborations: {
         title: 'Collaborations & Networks',

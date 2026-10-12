@@ -754,10 +754,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         saveDatabase(updated);
         triggerNotification('Page content saved successfully.');
       } else {
-        triggerNotification('Failed to save settings.', 'error');
+        const errJson = await response.json().catch(() => ({}));
+        triggerNotification(errJson.error || 'Failed to save settings.', 'error');
       }
     } catch (err) {
-      triggerNotification('API connection error.', 'error');
+      triggerNotification(`API connection error: ${err.message}`, 'error');
     }
   };
 

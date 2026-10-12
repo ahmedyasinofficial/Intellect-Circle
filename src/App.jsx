@@ -233,10 +233,31 @@ function App() {
     localStorage.setItem('ic_website_data', JSON.stringify(toCache));
     localStorage.setItem('ic_data_version', DATA_VERSION);
 
+    // Get auth token if available (Supabase session or custom user)
+    let authToken = null;
+    try {
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) authToken = session.access_token;
+      }
+      if (!authToken) {
+        const stored = localStorage.getItem('ic_admin_active_user_perms');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.userEmail) {
+            authToken = 'custom-token-' + (parsed.userEmail || 'restricted');
+          }
+        }
+      }
+    } catch {}
+
     try {
       const response = await fetch('/api/settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+        },
         body: JSON.stringify(updatedData),
       });
       const resJson = await response.json();
