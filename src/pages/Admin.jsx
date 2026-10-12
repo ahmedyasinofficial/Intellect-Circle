@@ -274,6 +274,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [geoTitle, setGeoTitle] = useState(() => (home.geographicModel?.title || 'Geographic Model'));
   const [geoDescription, setGeoDescription] = useState(() => (home.geographicModel?.description || ''));
 
+  // Sync pillar/geo state if `data` is refreshed externally (e.g. after a full page refresh or refreshData call)
+  useEffect(() => {
+    setPillarItems(data.home?.pillars?.items || []);
+    setPillarTitle(data.home?.pillars?.title || 'Pillars of Intellect Circle');
+    setGeoLevels(data.home?.geographicModel?.levels || []);
+    setGeoTitle(data.home?.geographicModel?.title || 'Geographic Model');
+    setGeoDescription(data.home?.geographicModel?.description || '');
+  }, [data]);
+
+
   // What Is Intellect Circle? Columns State
   const [teaserColumns, setTeaserColumns] = useState(() => (home.aboutTeaser?.columns || [
     { title: 'What We Do', description: '' },
@@ -708,9 +718,16 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           title: 'How It Works',
           steps: howStepsItems
         },
-        // Pass through existing values — these are managed by their own dedicated save handlers
-        pillars:          data.home?.pillars          || { title: 'Pillars of Intellect Circle', items: [] },
-        geographicModel:  data.home?.geographicModel  || { title: 'Geographic Model', description: '', levels: [] },
+        // Pillars & Geographic Model — use current React state (controlled by the UI)
+        pillars: {
+          title: pillarTitle,
+          items: pillarItems
+        },
+        geographicModel: {
+          title: geoTitle,
+          description: geoDescription,
+          levels: geoLevels
+        },
         collaborations:   data.home?.collaborations   || { title: 'Collaborations & Networks', partners: [] }
       },
       about: {
