@@ -129,14 +129,28 @@ export default async function handler(req, res) {
       pillars: {
         title: homeContentRes.data?.pillars_title || 'Pillars of Intellect Circle',
         items: (() => {
-          const raw = (pillarsRes.data && pillarsRes.data.length > 0) ? pillarsRes.data : (defaultData.home?.pillars?.items || []);
+          const dbItems = (pillarsRes.data && Array.isArray(pillarsRes.data)) ? pillarsRes.data : [];
+          const defaultItems = defaultData.home?.pillars?.items || [];
+          const raw = dbItems.length > 0 ? dbItems : defaultItems;
           const seen = new Set();
           const clean = [];
           for (const p of raw) {
             const k = (p.name || '').trim().toLowerCase();
             if (k && !seen.has(k)) {
               seen.add(k);
-              clean.push({ id: p.id, name: p.name, description: p.description, status: p.status });
+              const status = (p.status || '').trim().toLowerCase() === 'live' ? 'Live' : 'Coming Soon';
+              clean.push({ id: p.id || `pillar-${clean.length + 1}`, name: p.name.trim(), description: p.description || '', status });
+            }
+          }
+          // If live database had fewer pillars due to previous deletion bug, ensure core default pillars are preserved
+          if (clean.length < defaultItems.length) {
+            for (const dp of defaultItems) {
+              const k = (dp.name || '').trim().toLowerCase();
+              if (k && !seen.has(k)) {
+                seen.add(k);
+                const status = (dp.status || '').trim().toLowerCase() === 'live' ? 'Live' : 'Coming Soon';
+                clean.push({ id: dp.id || `pillar-${clean.length + 1}`, name: dp.name.trim(), description: dp.description || '', status });
+              }
             }
           }
           return clean;
@@ -146,14 +160,25 @@ export default async function handler(req, res) {
         title: homeContentRes.data?.geographic_model_title || 'Geographic Model',
         description: homeContentRes.data?.geographic_model_description || 'A structural scaling strategy beginning on your block.',
         levels: (() => {
-          const raw = (geoLevelsRes.data && geoLevelsRes.data.length > 0) ? geoLevelsRes.data : (defaultData.home?.geographicModel?.levels || []);
+          const dbLevels = (geoLevelsRes.data && Array.isArray(geoLevelsRes.data)) ? geoLevelsRes.data : [];
+          const defaultLevels = defaultData.home?.geographicModel?.levels || [];
+          const raw = dbLevels.length > 0 ? dbLevels : defaultLevels;
           const seen = new Set();
           const clean = [];
           for (const l of raw) {
             const k = (l.label || '').trim().toLowerCase();
             if (k && !seen.has(k)) {
               seen.add(k);
-              clean.push({ label: l.label, active: Boolean(l.active) });
+              clean.push({ label: l.label.trim(), active: Boolean(l.active) });
+            }
+          }
+          if (clean.length < defaultLevels.length) {
+            for (const dl of defaultLevels) {
+              const k = (dl.label || '').trim().toLowerCase();
+              if (k && !seen.has(k)) {
+                seen.add(k);
+                clean.push({ label: dl.label.trim(), active: Boolean(dl.active) });
+              }
             }
           }
           return clean;

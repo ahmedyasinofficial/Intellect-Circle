@@ -263,19 +263,23 @@ export default async function handler(req, res) {
 
     if (payload.home) {
       const { hero, ctaSection, aboutTeaser } = payload.home;
-      await supabase.from('homepage_content').upsert({
-        id: 1,
-        hero_headline: hero?.headline,
-        hero_tagline: hero?.tagline,
-        hero_description: hero?.description,
-        hero_cta_apply_label: hero?.ctaApplyLabel,
-        hero_cta_learn_label: hero?.ctaLearnLabel,
-        about_teaser_title: aboutTeaser?.title,
-        about_teaser_subtitle: aboutTeaser?.subtitle,
-        cta_headline: ctaSection?.headline,
-        cta_subheadline: ctaSection?.subheadline,
-        cta_button_label: ctaSection?.buttonLabel
-      });
+      if (hero || ctaSection || aboutTeaser || payload.home.pillars?.title || payload.home.geographicModel?.title) {
+        const homeContentPayload = { id: 1 };
+        if (hero?.headline !== undefined) homeContentPayload.hero_headline = hero.headline;
+        if (hero?.tagline !== undefined) homeContentPayload.hero_tagline = hero.tagline;
+        if (hero?.description !== undefined) homeContentPayload.hero_description = hero.description;
+        if (hero?.ctaApplyLabel !== undefined) homeContentPayload.hero_cta_apply_label = hero.ctaApplyLabel;
+        if (hero?.ctaLearnLabel !== undefined) homeContentPayload.hero_cta_learn_label = hero.ctaLearnLabel;
+        if (aboutTeaser?.title !== undefined) homeContentPayload.about_teaser_title = aboutTeaser.title;
+        if (aboutTeaser?.subtitle !== undefined) homeContentPayload.about_teaser_subtitle = aboutTeaser.subtitle;
+        if (ctaSection?.headline !== undefined) homeContentPayload.cta_headline = ctaSection.headline;
+        if (ctaSection?.subheadline !== undefined) homeContentPayload.cta_subheadline = ctaSection.subheadline;
+        if (ctaSection?.buttonLabel !== undefined) homeContentPayload.cta_button_label = ctaSection.buttonLabel;
+        if (payload.home.pillars?.title !== undefined) homeContentPayload.pillars_title = payload.home.pillars.title;
+        if (payload.home.geographicModel?.title !== undefined) homeContentPayload.geographic_model_title = payload.home.geographicModel.title;
+        if (payload.home.geographicModel?.description !== undefined) homeContentPayload.geographic_model_description = payload.home.geographicModel.description;
+        await supabase.from('homepage_content').upsert(homeContentPayload);
+      }
 
       if (payload.home.stats && Array.isArray(payload.home.stats)) {
         for (let i = 0; i < payload.home.stats.length; i++) {
@@ -338,7 +342,6 @@ export default async function handler(req, res) {
       }
 
       if (payload.home.pillars?.items && Array.isArray(payload.home.pillars.items)) {
-        await supabase.from('pillars').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         const seenPillars = new Set();
         const cleanPillars = [];
         for (let i = 0; i < payload.home.pillars.items.length; i++) {
@@ -348,15 +351,17 @@ export default async function handler(req, res) {
           const k = name.toLowerCase();
           if (!seenPillars.has(k)) {
             seenPillars.add(k);
+            const status = (p.status || '').trim().toLowerCase() === 'live' ? 'Live' : 'Coming Soon';
             cleanPillars.push({
               name,
               description: p.description || '',
-              status: p.status || 'Coming Soon',
+              status,
               sort_order: cleanPillars.length
             });
           }
         }
         if (cleanPillars.length > 0) {
+          await supabase.from('pillars').delete().neq('id', '00000000-0000-0000-0000-000000000000');
           const { error: insErr } = await supabase.from('pillars').insert(cleanPillars);
           if (insErr) console.error('[Settings] Error inserting pillars:', insErr);
         }

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import { generateSessionRegistrationConfirmedEmail, sendEmail as sendServiceEmail, processScheduledSessionEmails } from '../lib/email-service.js';
 
 async function sendWelcomeEmail({ name, email }) {
   const mailSubject = `Welcome to the Intellect Circle Community!`;
@@ -161,116 +162,20 @@ https://intellectcircle.dpdns.org`;
   }
 }
 
-async function sendSessionRegistrationEmail({ name, email, sessionTitle, presenter, date, time, format, meetLink }) {
-  const mailSubject = `Registration Confirmed: ${sessionTitle} | Intellect Circle`;
-  let mailText = `Dear ${name},
+async function sendSessionRegistrationEmail({ name, email, sessionTitle, presenter, date, time, format, meetLink, photo, siteUrl }) {
+  const { subject, text, html } = generateSessionRegistrationConfirmedEmail({
+    name,
+    sessionTitle,
+    presenter,
+    date,
+    time,
+    format,
+    meetLink,
+    photo,
+    siteUrl: siteUrl || process.env.SITE_URL || 'https://intellectcircle.dpdns.org'
+  });
 
-Thank you for registering for our upcoming session: "${sessionTitle}". We are excited to have you join us!
-
-Session Details:
-- Title: ${sessionTitle}
-${presenter ? `- Presenter: ${presenter}\n` : ''}${date ? `- Date: ${date} ${time ? `at ${time}` : ''}\n` : ''}${format ? `- Format: ${format}\n` : ''}
-To receive session reminders, agenda files, and participate in post-session discussions, please join our official WhatsApp Community:
-https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1
-`;
-
-  if (meetLink) {
-    mailText += `
-Online Meeting Link (Google Meet):
-${meetLink}
-`;
-  }
-
-  mailText += `
-Stay connected and follow our social media pages:
-- Instagram: https://instagram.com/intellectcircle
-- LinkedIn: https://www.linkedin.com/company/intellect-circle/
-- Facebook: https://www.facebook.com/profile.php?id=61590726385267
-
-Best regards,
-Intellect Circle Team
-https://intellectcircle.dpdns.org`;
-
-  const mailHtml = `
-  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-    <div style="background-color: #0b132b; padding: 28px 24px; text-align: center; border-bottom: 3px solid #c9a84c;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">Intellect Circle</h1>
-      <p style="color: #c9a84c; margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Session Registration Confirmed</p>
-    </div>
-    <div style="padding: 30px 24px; color: #1e293b; line-height: 1.6;">
-      <p style="font-size: 16px; margin-top: 0;">Dear <strong>${name}</strong>,</p>
-      <p style="font-size: 15px; color: #475569;">You are successfully registered for our upcoming session. We look forward to your presence and active participation!</p>
-
-      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #c9a84c; border-radius: 6px; padding: 18px 20px; margin: 24px 0;">
-        <h3 style="margin: 0 0 10px; color: #0b132b; font-size: 16px;">${sessionTitle}</h3>
-        ${presenter ? `<p style="margin: 4px 0; font-size: 14px; color: #475569;"><strong>Presenter:</strong> ${presenter}</p>` : ''}
-        ${date ? `<p style="margin: 4px 0; font-size: 14px; color: #475569;"><strong>Date/Time:</strong> ${date} ${time ? `at ${time}` : ''}</p>` : ''}
-        ${format ? `<p style="margin: 4px 0; font-size: 14px; color: #475569;"><strong>Format:</strong> ${format}</p>` : ''}
-      </div>
-
-      <div style="text-align: center; margin: 30px 0;">
-        <p style="font-size: 15px; font-weight: 600; color: #0b132b; margin-bottom: 12px;">Join Our WhatsApp Community</p>
-        <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Get live meeting reminders, session resources, and connect with fellow attendees.</p>
-        <a href="https://chat.whatsapp.com/GQEEjulFJLJ6FjHfacdQie?s=cl&p=a&ilr=1&amv=1" style="display: inline-block; background-color: #25D366; color: #ffffff; text-decoration: none; font-weight: 600; padding: 12px 26px; border-radius: 6px; font-size: 15px;">
-          Join WhatsApp Community →
-        </a>
-      </div>
-
-      ${meetLink ? `
-      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 16px 20px; margin: 24px 0; text-align: center;">
-        <p style="margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #1e40af;">Online Meeting Link (Google Meet)</p>
-        <a href="${meetLink}" style="display: inline-block; background-color: #1a73e8; color: #ffffff; text-decoration: none; font-weight: 600; padding: 10px 22px; border-radius: 6px; font-size: 14px;">
-          Join Google Meet Session →
-        </a>
-        <p style="margin: 8px 0 0; font-size: 12px; color: #64748b; word-break: break-all;">${meetLink}</p>
-      </div>
-      ` : ''}
-
-      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;" />
-      <p style="font-size: 13px; color: #94a3b8; margin: 0;">
-        Intellect Circle — A structured peer-to-peer knowledge sharing community.<br />
-        Visit us at <a href="https://intellectcircle.dpdns.org" style="color: #c9a84c;">intellectcircle.dpdns.org</a>
-      </p>
-    </div>
-  </div>
-  `;
-
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = parseInt(process.env.SMTP_PORT || '587');
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpFrom = process.env.SMTP_FROM || 'noreply@intellectcircle.dpdns.org';
-
-  if (smtpHost && smtpUser && smtpPass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass
-        }
-      });
-
-      await transporter.sendMail({
-        from: `"Intellect Circle" <${smtpFrom}>`,
-        to: email,
-        subject: mailSubject,
-        text: mailText,
-        html: mailHtml
-      });
-      console.log(`[Session Email] Sent session registration confirmation to ${email}`);
-      return { success: true };
-    } catch (error) {
-      console.error(`[Session Email] SMTP error sending to ${email}:`, error.message);
-      return { success: false, error: error.message };
-    }
-  } else {
-    const msg = `[Session Email Simulation] SMTP not configured. Registered ${name} (${email}) for ${sessionTitle}. WhatsApp link sent.`;
-    console.log(msg);
-    return { success: true, simulated: true };
-  }
+  return await sendServiceEmail({ to: email, subject, text, html });
 }
 
 async function processPendingWelcomeEmails(supabase) {
@@ -424,10 +329,48 @@ export default async function handler(req, res) {
     }
 
     if (action === 'register-session') {
-      const { name, email, phone, mobileNumber, sessionId, sessionTitle, presenter, date, time, format, meetLink } = req.body || {};
+      const { name, email, phone, mobileNumber, sessionId, sessionTitle, presenter, date, time, format, meetLink, photo } = req.body || {};
       const actualPhone = phone || mobileNumber || '';
       if (!name || !email || !actualPhone) {
         return res.status(400).json({ error: 'Name, email, and phone number are required.' });
+      }
+
+      // If photo, meetLink or other details are missing from payload, attempt to look up session from Supabase
+      let sessionPhoto = photo || '';
+      let sessionMeetLink = meetLink || '';
+      let sessionPresenter = presenter || '';
+      let sessionDate = date || '';
+      let sessionTime = time || '';
+      let sessionFormat = format || '';
+      let actualTitle = sessionTitle || '';
+
+      if (sessionId || sessionTitle) {
+        try {
+          let sQuery = supabase.from('sessions').select('*');
+          if (sessionId) {
+            sQuery = sQuery.eq('id', sessionId);
+          } else {
+            sQuery = sQuery.ilike('title', sessionTitle);
+          }
+          const { data: sData } = await sQuery.maybeSingle();
+          if (sData) {
+            if (!sessionPhoto && sData.photo) sessionPhoto = sData.photo;
+            if (!sessionMeetLink && (sData.google_meet_link || sData.meet_link)) sessionMeetLink = sData.google_meet_link || sData.meet_link;
+            if (!sessionPresenter && sData.presenter) sessionPresenter = sData.presenter;
+            if (!actualTitle && sData.title) actualTitle = sData.title;
+            if (!sessionFormat && sData.format) sessionFormat = sData.format;
+            if (!sessionTime && sData.time) sessionTime = sData.time;
+            if (!sessionDate && sData.scheduled_at) {
+              try {
+                sessionDate = new Date(sData.scheduled_at).toLocaleDateString('en-US', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                });
+              } catch {}
+            }
+          }
+        } catch (sErr) {
+          console.warn('[Session Lookup Warning in register-session]:', sErr.message);
+        }
       }
 
       // Insert session registration row
@@ -437,8 +380,8 @@ export default async function handler(req, res) {
         email,
         mobile_number: actualPhone,
         session_id: sessionId || null,
-        session_title: sessionTitle || null,
-        message: `Registered for session: ${sessionTitle || sessionId || 'Featured Session'}`,
+        session_title: actualTitle || sessionTitle || null,
+        message: `Registered for session: ${actualTitle || sessionTitle || sessionId || 'Featured Session'}`,
         created_at: new Date().toISOString()
       };
 
@@ -468,8 +411,8 @@ export default async function handler(req, res) {
             name,
             email,
             mobile_number: actualPhone,
-            why_join: sessionTitle || '',
-            message: `Registered for session: ${sessionTitle || sessionId || 'Featured Session'}`,
+            why_join: actualTitle || sessionTitle || '',
+            message: `Registered for session: ${actualTitle || sessionTitle || sessionId || 'Featured Session'}`,
             created_at: new Date().toISOString()
           })
         });
@@ -480,25 +423,29 @@ export default async function handler(req, res) {
         }
       }
 
-      // Send email containing WhatsApp community link and session details
+      // Send email containing WhatsApp community link, poster image, and session details
       try {
         await sendSessionRegistrationEmail({
           name,
           email,
-          sessionTitle: sessionTitle || 'Intellect Circle Knowledge Session',
-          presenter,
-          date,
-          time,
-          format,
-          meetLink
+          sessionTitle: actualTitle || sessionTitle || 'Intellect Circle Knowledge Session',
+          presenter: sessionPresenter,
+          date: sessionDate,
+          time: sessionTime,
+          format: sessionFormat,
+          meetLink: sessionMeetLink,
+          photo: sessionPhoto
         });
       } catch (emailErr) {
         console.error('[Session Email Error] Email delivery failed:', emailErr.message || emailErr);
       }
 
+      // Trigger background check for scheduled & reminder emails
+      processScheduledSessionEmails({ supabase }).catch(console.error);
+
       return res.status(200).json({
         success: true,
-        message: 'Registration successful! The WhatsApp community link has been sent to your email.'
+        message: 'Registration successful! The WhatsApp community link and session details have been sent to your email.'
       });
     }
 

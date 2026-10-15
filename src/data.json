@@ -172,6 +172,30 @@
           "status": "Live"
         },
         {
+          "id": "pillar-2",
+          "name": "Skill Development",
+          "description": "Workshops and micro-sessions targeting public speaking, research writing, and critical reasoning.",
+          "status": "Live"
+        },
+        {
+          "id": "pillar-3",
+          "name": "Volunteer Projects",
+          "description": "Community-driven initiatives where members apply knowledge to create real-world impact.",
+          "status": "Coming Soon"
+        },
+        {
+          "id": "pillar-4",
+          "name": "Problem Solving Group",
+          "description": "Collaborative problem-solving sessions that tackle complex, multi-disciplinary challenges.",
+          "status": "Coming Soon"
+        },
+        {
+          "id": "pillar-5",
+          "name": "Physical Activities & Sports",
+          "description": "Promoting holistic development through team sports and outdoor activities alongside intellectual growth.",
+          "status": "Coming Soon"
+        },
+        {
           "id": "pillar-6",
           "name": "Voice of Youth",
           "description": "A platform for members to advocate on societal issues, publish opinion pieces, and engage in public discourse.",
@@ -186,6 +210,14 @@
         {
           "label": "Lahore (Flagship)",
           "active": true
+        },
+        {
+          "label": "Islamabad",
+          "active": false
+        },
+        {
+          "label": "Karachi",
+          "active": false
         },
         {
           "label": "National Network",

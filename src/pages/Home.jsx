@@ -468,28 +468,35 @@ function Home({ data, navigateTo }) {
         <section className="section">
           <div className="container">
             <div className="section-header">
-              <h2>{pillars.title}</h2>
+              <h2>{pillars.title || 'Pillars of Intellect Circle'}</h2>
             </div>
             <div className="pillars-grid">
-              {pillarItems.map((pillar) => (
-                <div className={`pillar-card ic-reveal-scale ${pillar.status === 'Coming Soon' ? 'coming-soon' : ''}`} key={pillar.id}>
-                  {pillar.status === 'Coming Soon' && (
-                    <span className="pillar-badge">Coming Soon</span>
-                  )}
-                  {pillar.status === 'Live' && (
-                    <span className="pillar-badge live">Live</span>
-                  )}
-                  <div className="pillar-icon">
-                    {pillarIcons[pillar.name] || (
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                      </svg>
+              {pillarItems.map((pillar, index) => {
+                const isLive = String(pillar.status || '').trim().toLowerCase() === 'live';
+                const isComingSoon = String(pillar.status || '').trim().toLowerCase() === 'coming soon';
+                return (
+                  <div 
+                    className={`pillar-card ic-reveal-scale ${isComingSoon ? 'coming-soon' : ''}`} 
+                    key={pillar.name || pillar.id || `pillar-${index}`}
+                  >
+                    {isComingSoon && (
+                      <span className="pillar-badge">Coming Soon</span>
                     )}
+                    {isLive && (
+                      <span className="pillar-badge live">Live</span>
+                    )}
+                    <div className="pillar-icon">
+                      {pillarIcons[pillar.name] || (
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                      )}
+                    </div>
+                    <h3>{pillar.name}</h3>
+                    <p>{pillar.description}</p>
                   </div>
-                  <h3>{pillar.name}</h3>
-                  <p>{pillar.description}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>

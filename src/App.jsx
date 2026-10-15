@@ -17,7 +17,7 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 function App() {
   // 1. Data State (CMS Database)
-  const DATA_VERSION = 'v2'; // Increment this to bust stale/corrupt localStorage cache
+  const DATA_VERSION = 'v3'; // Increment this to bust stale/corrupt localStorage cache
   const [data, setData] = useState(() => {
     const local = localStorage.getItem('ic_website_data');
     const cachedVersion = localStorage.getItem('ic_data_version');
@@ -101,10 +101,10 @@ function App() {
           }
         });
       },
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+      { threshold: 0.08, rootMargin: '0px 0px -20px 0px' }
     );
 
-    // Observe all current .ic-reveal elements, and re-observe on page change
+    // Observe all current .ic-reveal elements, and re-observe on page change / data load
     const observeAll = () => {
       document.querySelectorAll('.ic-reveal, .ic-reveal-scale, .ic-reveal-slide').forEach((el) => {
         if (!el.classList.contains('revealed')) observer.observe(el);
@@ -112,14 +112,18 @@ function App() {
     };
 
     observeAll();
-    // Re-run briefly after React renders new page content
-    const timer = setTimeout(observeAll, 80);
+    // Re-run after React renders new page content or async cloud data
+    const timer1 = setTimeout(observeAll, 60);
+    const timer2 = setTimeout(observeAll, 250);
+    const timer3 = setTimeout(observeAll, 600);
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
       observer.disconnect();
     };
-  }, [currentPage]);
+  }, [currentPage, data]);
   // Scroll to top on every route/page/article navigation change
   useEffect(() => {
     window.scrollTo(0, 0);

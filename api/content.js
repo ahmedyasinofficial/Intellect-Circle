@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getAuthenticatedUser, logActivity } from '../lib/_auth-middleware.js';
-import { broadcastSessionAnnouncementToMembers, processScheduledSessionEmails } from '../lib/email-service.js';
+import { broadcastSessionAnnouncementToMembers, broadcastSessionStartingSoonReminder, processScheduledSessionEmails } from '../lib/email-service.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const { type } = req.query;
+  const { type, action } = req.query;
   if (!type || !['team', 'sessions', 'blog'].includes(type)) {
     return res.status(400).json({ error: 'Invalid or missing content type parameter.' });
   }
@@ -41,6 +41,21 @@ export default async function handler(req, res) {
     } else {
       // Modifying methods mock success
       if (req.method === 'POST') {
+        if (type === 'sessions' && (action === 'notify-registered-10m' || action === 'notify-starting-soon')) {
+          const { sessionId, sessionData, recipients, minutes } = req.body || {};
+          const targetSession = sessionData || (defaultData.sessions && defaultData.sessions.find(s => s.id === sessionId));
+          const siteBaseUrl = process.env.SITE_URL || (req.headers.host ? `${req.headers.referer?.split('://')[0] || 'https'}://${req.headers.host}` : 'https://intellectcircle.dpdns.org');
+          const dataFilePath = join(__dirname, '..', 'src', 'data.json');
+          const emailStats = await broadcastSessionStartingSoonReminder({
+            session: targetSession || {},
+            localDataPath: dataFilePath,
+            siteBaseUrl,
+            recipients: Array.isArray(recipients) && recipients.length > 0 ? recipients : null,
+            minutes: minutes || 10
+          });
+          return res.status(200).json({ success: true, emailStats });
+        }
+
         const item = { id: `mock-${Date.now()}`, ...req.body };
         let emailStats = null;
         if (type === 'sessions') {
@@ -49,6 +64,9 @@ export default async function handler(req, res) {
           item.notify_enabled = isEnabled;
           item.notify_send_at = isScheduled ? new Date(item.notify_send_at).toISOString() : null;
           item.notify_status = !isEnabled ? 'disabled' : (isScheduled ? 'scheduled' : 'sent');
+          if (item.reminder_10m_enabled === undefined) item.reminder_10m_enabled = true;
+          if (item.reminder_10m_minutes === undefined) item.reminder_10m_minutes = 10;
+          if (item.reminder_10m_status === undefined) item.reminder_10m_status = 'pending';
 
           if (isEnabled && !isScheduled) {
             const siteBaseUrl = process.env.SITE_URL || (req.headers.host ? `${req.headers.referer?.split('://')[0] || 'https'}://${req.headers.host}` : 'https://intellectcircle.dpdns.org');
@@ -174,6 +192,44 @@ export default async function handler(req, res) {
     if (type === 'sessions') {
       const { action } = req.query;
 
+      // Dedicated action for manually sending session starting soon (10m) reminder to registered users
+      if (req.method === 'POST' && (action === 'notify-registered-10m' || action === 'notify-starting-soon')) {
+        const { sessionId, sessionData, recipients, minutes } = req.body || {};
+        let targetSession = sessionData;
+        if (!targetSession && sessionId) {
+          const { data: dbSession, error: sErr } = await supabase.from('sessions').select('*').eq('id', sessionId).single();
+          if (sErr) throw sErr;
+          targetSession = dbSession;
+        }
+        if (!targetSession) {
+          return res.status(400).json({ error: 'Session not found for reminder dispatch.' });
+        }
+
+        const siteBaseUrl = process.env.SITE_URL || (req.headers.host ? `${req.headers.referer?.split('://')[0] || 'https'}://${req.headers.host}` : 'https://intellectcircle.dpdns.org');
+        const reminderMinutes = parseInt(minutes || targetSession.reminder_10m_minutes || '10', 10) || 10;
+        const emailStats = await broadcastSessionStartingSoonReminder({
+          session: targetSession,
+          supabase,
+          siteBaseUrl,
+          recipients: Array.isArray(recipients) && recipients.length > 0 ? recipients : null,
+          minutes: reminderMinutes
+        });
+
+        // Update reminder status
+        if (targetSession.id) {
+          await supabase.from('sessions').update({
+            reminder_10m_status: emailStats.sent > 0 ? 'sent' : (emailStats.total === 0 ? 'sent' : 'failed'),
+            reminder_10m_sent_at: new Date().toISOString()
+          }).eq('id', targetSession.id);
+        }
+
+        const recipientDesc = Array.isArray(recipients) && recipients.length > 0
+          ? `${emailStats.sent} of ${recipients.length} selected recipients`
+          : `${emailStats.sent} registered attendees`;
+        await logActivity(user.email, 'Broadcast Starting Soon Reminder', `Dispatched ${reminderMinutes}m reminder for "${targetSession.title}" to ${recipientDesc}.`);
+        return res.status(200).json({ success: true, emailStats });
+      }
+
       // Dedicated action for manually sending session reminder / announcement emails to all members
       if (req.method === 'POST' && action === 'notify-members') {
         const { sessionId, sessionData, recipients } = req.body || {};
@@ -205,7 +261,7 @@ export default async function handler(req, res) {
 
 
       if (req.method === 'POST') {
-        const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notifyMembers, notify_enabled, notify_timing, notify_send_at } = req.body;
+        const { title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notifyMembers, notify_enabled, notify_timing, notify_send_at, reminder_10m_enabled, reminder_10m_minutes } = req.body;
         if (!title || !presenter || !scheduled_at) {
           return res.status(400).json({ error: 'Title, Presenter, and Scheduled Date are required.' });
         }
@@ -216,6 +272,9 @@ export default async function handler(req, res) {
         const isNotifyEnabled = notify_enabled !== undefined ? Boolean(notify_enabled) : (notifyMembers !== false);
         const isScheduled = isNotifyEnabled && notify_timing === 'scheduled' && notify_send_at && new Date(notify_send_at) > new Date();
         const notifyStatus = !isNotifyEnabled ? 'disabled' : (isScheduled ? 'scheduled' : 'pending');
+
+        const isReminderEnabled = reminder_10m_enabled !== undefined ? Boolean(reminder_10m_enabled) : true;
+        const reminderMinutes = parseInt(reminder_10m_minutes || '10', 10) || 10;
 
         const { data, error } = await supabase.from('sessions').insert({
           title,
@@ -232,7 +291,10 @@ export default async function handler(req, res) {
           notify_enabled: isNotifyEnabled,
           notify_timing: isNotifyEnabled ? (notify_timing || 'immediate') : null,
           notify_send_at: isScheduled ? new Date(notify_send_at).toISOString() : null,
-          notify_status: notifyStatus
+          notify_status: notifyStatus,
+          reminder_10m_enabled: isReminderEnabled,
+          reminder_10m_minutes: reminderMinutes,
+          reminder_10m_status: 'pending'
         }).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Create Session', `Scheduled session: ${title} by ${presenter}`);
@@ -262,7 +324,7 @@ export default async function handler(req, res) {
       }
 
       if (req.method === 'PUT') {
-        const { id, title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notify_enabled, notify_timing, notify_send_at, notify_status } = req.body;
+        const { id, title, presenter, scheduled_at, time, format, summary, status, photo, takeaways, registration_link, google_meet_link, meet_link, meetLink, notify_enabled, notify_timing, notify_send_at, notify_status, reminder_10m_enabled, reminder_10m_minutes, reminder_10m_status, reminder_10m_sent_at } = req.body;
         if (!id) {
           return res.status(400).json({ error: 'Missing session ID.' });
         }
@@ -284,6 +346,11 @@ export default async function handler(req, res) {
         if (notify_timing !== undefined) updateData.notify_timing = notify_timing;
         if (notify_send_at !== undefined) updateData.notify_send_at = notify_send_at;
         if (notify_status !== undefined) updateData.notify_status = notify_status;
+        // 10m reminder fields
+        if (reminder_10m_enabled !== undefined) updateData.reminder_10m_enabled = Boolean(reminder_10m_enabled);
+        if (reminder_10m_minutes !== undefined) updateData.reminder_10m_minutes = parseInt(reminder_10m_minutes, 10) || 10;
+        if (reminder_10m_status !== undefined) updateData.reminder_10m_status = reminder_10m_status;
+        if (reminder_10m_sent_at !== undefined) updateData.reminder_10m_sent_at = reminder_10m_sent_at;
         const { data, error } = await supabase.from('sessions').update(updateData).eq('id', id).select().single();
         if (error) throw error;
         await logActivity(user.email, 'Update Session', `Updated session: ${data.title}`);

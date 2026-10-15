@@ -58,6 +58,7 @@ export default function SessionRegisterModal({ isOpen, onClose, session }) {
           name: form.name.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
+          photo: session.photo || session.poster || '',
           sessionId: session.id || '',
           sessionTitle: session.title || 'Featured Session',
           presenter: session.presenter || '',
