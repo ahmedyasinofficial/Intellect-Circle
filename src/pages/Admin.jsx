@@ -265,7 +265,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [editingMember, setEditingMember] = useState(null);
 
   // Form Fields
-  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '', google_meet_link: '', notify_members: true, notify_timing: 'immediate', notify_send_at: '', reminder_10m_enabled: true, reminder_10m_minutes: 10 });
+  const [sessionForm, setSessionForm] = useState({ title: '', presenter: '', scheduled_at: '', time: '', format: '', summary: '', status: 'upcoming', photo: '', takeaways: [], registration_link: '', google_meet_link: '', notify_members: true, notify_timing: 'immediate', notify_send_at: '', reminder_10m_enabled: true, reminder_10m_minutes: 10, reminder_10m_audience: 'all' });
   const [blogForm, setBlogForm] = useState({ title: '', published_at: '', author: '', excerpt: '', content: '', cover_image: '' });
   const [memberForm, setMemberForm] = useState({ name: '', role: '', bio: '', photo: '', skills: [], is_visible: true });
 
@@ -1677,7 +1677,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       notify_timing: 'immediate',
       notify_send_at: '',
       reminder_10m_enabled: true,
-      reminder_10m_minutes: 10
+      reminder_10m_minutes: 10,
+      reminder_10m_audience: 'all'
     });
     setSessionSubTab('create');
   };
@@ -1698,7 +1699,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       google_meet_link: s.googleMeetLink || s.meetLink || s.google_meet_link || '',
       notify_members: false,
       reminder_10m_enabled: s.reminder_10m_enabled !== undefined ? Boolean(s.reminder_10m_enabled) : true,
-      reminder_10m_minutes: s.reminder_10m_minutes !== undefined ? s.reminder_10m_minutes : 10
+      reminder_10m_minutes: s.reminder_10m_minutes !== undefined ? s.reminder_10m_minutes : 10,
+      reminder_10m_audience: s.reminder_10m_audience || 'all'
     });
     setSessionSubTab('create');
   };
@@ -1819,8 +1821,31 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
   };
 
-  // Opens the 10-minute starting soon reminder modal
+  // Opens the starting soon reminder modal
   const handleOpenReminderModal = (s) => {
+    // 1. All unique email submitters across the entire site (applications, contacts, session registrations)
+    const allSubs = [
+      ...(submissions?.applications || []),
+      ...(submissions?.contacts || []),
+      ...(submissions?.sessionRegistrations || [])
+    ];
+    const allMap = new Map();
+    allSubs.forEach(sub => {
+      if (sub.email && sub.email.includes('@')) {
+        const k = sub.email.trim().toLowerCase();
+        if (!allMap.has(k)) {
+          allMap.set(k, {
+            email: k,
+            name: (sub.name || sub.fullName || '').trim() || 'Valued Member',
+            phone: sub.mobileNumber || sub.phone || '',
+            source: sub.type === 'session_registration' ? 'Session Registration' : (sub.type === 'contact' ? 'Contact Form' : 'Application')
+          });
+        }
+      }
+    });
+    const allMembers = Array.from(allMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+    // 2. Specific registered attendees for this session
     const allRegistrations = submissions?.sessionRegistrations || [];
     const sId = String(s.id || '');
     const sTitle = (s.title || '').trim().toLowerCase();
@@ -1836,32 +1861,85 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       if (a.email && a.email.includes('@')) {
         const k = a.email.trim().toLowerCase();
         if (!attendeeMap.has(k)) {
-          attendeeMap.set(k, { email: k, name: a.name || 'Valued Attendee', phone: a.mobileNumber || '' });
+          attendeeMap.set(k, {
+            email: k,
+            name: (a.name || '').trim() || 'Valued Attendee',
+            phone: a.mobileNumber || a.phone || '',
+            source: 'Session Registration'
+          });
         }
       }
     });
+    const registeredAttendees = Array.from(attendeeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 
     setReminderModal({
       session: s,
-      attendees: Array.from(attendeeMap.values()),
+      audienceMode: s.reminder_10m_audience || 'all', // 'all' | 'registered' | 'selected'
+      allMembers,
+      registeredAttendees,
+      selectedEmails: new Set(),
+      customEmailsInput: '',
       minutes: s.reminder_10m_minutes || 10,
       sending: false,
-      customMeetLink: s.googleMeetLink || s.meetLink || s.google_meet_link || ''
+      customMeetLink: s.googleMeetLink || s.meetLink || s.google_meet_link || '',
+      memberSearch: ''
     });
   };
 
-  // Dispatches the 10-minute starting soon reminder to registered attendees
+  // Dispatches the starting soon reminder to chosen audience (everyone, registered attendees, or specific selected emails)
   const handleSendReminderSubmit = async () => {
     if (!reminderModal) return;
-    const { session, attendees, minutes, customMeetLink } = reminderModal;
+    const { session, audienceMode, allMembers, registeredAttendees, selectedEmails, customEmailsInput, minutes, customMeetLink } = reminderModal;
+
+    let targetRecipients = [];
+    let targetDesc = '';
+
+    if (audienceMode === 'all') {
+      targetRecipients = allMembers;
+      targetDesc = 'all community members';
+    } else if (audienceMode === 'registered') {
+      targetRecipients = registeredAttendees;
+      targetDesc = 'registered attendees';
+    } else {
+      // audienceMode === 'selected': specific people + custom emails
+      const pool = [...allMembers, ...registeredAttendees];
+      const pickedMap = new Map();
+      pool.forEach(m => {
+        if (selectedEmails.has(m.email)) {
+          pickedMap.set(m.email, m);
+        }
+      });
+
+      const customParsed = (customEmailsInput || '')
+        .split(/[,\n;]+/)
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e.includes('@') && !pickedMap.has(e))
+        .map(e => ({ email: e, name: 'Guest', source: 'Custom Recipient' }));
+
+      targetRecipients = [...Array.from(pickedMap.values()), ...customParsed];
+      targetDesc = 'selected recipients';
+
+      if (targetRecipients.length === 0) {
+        triggerNotification('Please select at least one recipient or enter a valid email address.', 'error');
+        return;
+      }
+    }
+
+    const count = targetRecipients.length;
+    if (count === 0) {
+      triggerNotification('No recipients available to send to.', 'error');
+      return;
+    }
+
     setReminderModal(prev => ({ ...prev, sending: true }));
-    triggerNotification(`Sending ${minutes}-minute reminder to ${attendees.length} registered attendee${attendees.length === 1 ? '' : 's'}...`, 'info');
+    triggerNotification(`Sending ${minutes}-minute reminder to ${targetDesc} (${count} recipient${count === 1 ? '' : 's'})...`, 'info');
 
     try {
       const sessionPayload = {
         ...session,
         google_meet_link: customMeetLink || session.google_meet_link || session.googleMeetLink || '',
-        googleMeetLink: customMeetLink || session.google_meet_link || session.googleMeetLink || ''
+        googleMeetLink: customMeetLink || session.google_meet_link || session.googleMeetLink || '',
+        reminder_10m_audience: audienceMode
       };
 
       const res = await fetch('/api/content?type=sessions&action=notify-registered-10m', {
@@ -1873,7 +1951,9 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         body: JSON.stringify({
           sessionId: session.id,
           sessionData: sessionPayload,
-          minutes: parseInt(minutes, 10) || 10
+          minutes: parseInt(minutes, 10) || 10,
+          targetAudience: audienceMode,
+          recipients: targetRecipients
         })
       });
 
@@ -1882,17 +1962,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
         const sent = resData.emailStats?.sent ?? 0;
         const total = resData.emailStats?.total ?? 0;
         const simulated = resData.emailStats?.simulated;
-        let msg = `⚡ ${minutes}-minute reminder sent to ${sent}${total > 0 ? ` of ${total}` : ''} registered attendee${sent === 1 ? '' : 's'}!`;
+        let msg = `Reminder successfully dispatched to ${sent}${total > 0 ? ` of ${total}` : ''} recipient${sent === 1 ? '' : 's'}.`;
         if (simulated) msg += ' (SMTP simulated)';
         triggerNotification(msg, 'success');
         setReminderModal(null);
         fetchSubmissionsAndLogs();
       } else {
-        triggerNotification(resData.error || 'Failed to send session reminder.', 'error');
+        triggerNotification(resData.error || 'Failed to dispatch session reminder.', 'error');
         setReminderModal(prev => ({ ...prev, sending: false }));
       }
     } catch {
-      triggerNotification('Failed to send session reminder.', 'error');
+      triggerNotification('Failed to dispatch session reminder.', 'error');
       setReminderModal(prev => ({ ...prev, sending: false }));
     }
   };
@@ -1911,6 +1991,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     const notifyScheduled = notifyEnabled && sessionForm.notify_timing === 'scheduled' && sessionForm.notify_send_at;
     const isReminderEnabled = sessionForm.reminder_10m_enabled !== false;
     const reminderMinutes = parseInt(sessionForm.reminder_10m_minutes || '10', 10) || 10;
+    const reminderAudience = sessionForm.reminder_10m_audience || 'all';
 
     const body = isNew
       ? {
@@ -1920,13 +2001,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           notify_timing: sessionForm.notify_timing || 'immediate',
           notify_send_at: notifyScheduled ? new Date(sessionForm.notify_send_at).toISOString() : null,
           reminder_10m_enabled: isReminderEnabled,
-          reminder_10m_minutes: reminderMinutes
+          reminder_10m_minutes: reminderMinutes,
+          reminder_10m_audience: reminderAudience
         }
       : {
           id: editingSession.id,
           ...sessionForm,
           reminder_10m_enabled: isReminderEnabled,
-          reminder_10m_minutes: reminderMinutes
+          reminder_10m_minutes: reminderMinutes,
+          reminder_10m_audience: reminderAudience
         };
 
     try {
@@ -3831,10 +3914,10 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           />
                           <div style={{ flex: 1 }}>
                             <strong style={{ display: 'block', fontSize: '0.92rem', color: '#0b132b' }}>
-                              ⏰ Send &quot;Starting Soon&quot; reminder email to registered attendees (10 mins before)
+                              ⏰ Send &quot;Starting Soon&quot; reminder email (before session starts)
                             </strong>
                             <span style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.45, display: 'block', marginTop: '2px' }}>
-                              Automatically delivers an email with the session poster image, Google Meet room link, and live agenda 10 minutes prior to session start exclusively to users who registered for this session.
+                              Automatically delivers an email with the session poster image, Google Meet room link, and live agenda 10 minutes prior to session start.
                             </span>
                           </div>
                         </label>
@@ -3848,23 +3931,39 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             borderRadius: '0 0 8px 8px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '12px',
+                            gap: '14px',
                             flexWrap: 'wrap'
                           }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f766e', whiteSpace: 'nowrap' }}>⏱ Reminder lead time:</span>
-                            <select
-                              value={sessionForm.reminder_10m_minutes || 10}
-                              onChange={(e) => setSessionForm({ ...sessionForm, reminder_10m_minutes: parseInt(e.target.value, 10) })}
-                              className="form-input"
-                              style={{ padding: '6px 10px', fontSize: '0.85rem', width: 'auto', minWidth: '150px' }}
-                            >
-                              <option value={10}>10 minutes before (Standard)</option>
-                              <option value={15}>15 minutes before</option>
-                              <option value={30}>30 minutes before</option>
-                              <option value={60}>1 hour before</option>
-                            </select>
-                            <span style={{ fontSize: '0.8rem', color: '#0d9488' }}>
-                              ⚡ Admin can also trigger or resend this reminder anytime from the sessions list.
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#0f766e', whiteSpace: 'nowrap' }}>⏱ Lead time:</span>
+                              <select
+                                value={sessionForm.reminder_10m_minutes || 10}
+                                onChange={(e) => setSessionForm({ ...sessionForm, reminder_10m_minutes: parseInt(e.target.value, 10) })}
+                                className="form-input"
+                                style={{ padding: '5px 8px', fontSize: '0.84rem', width: 'auto' }}
+                              >
+                                <option value={10}>10 minutes before (Standard)</option>
+                                <option value={15}>15 minutes before</option>
+                                <option value={30}>30 minutes before</option>
+                                <option value={60}>1 hour before</option>
+                              </select>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#0f766e', whiteSpace: 'nowrap' }}>Audience:</span>
+                              <select
+                                value={sessionForm.reminder_10m_audience || 'all'}
+                                onChange={(e) => setSessionForm({ ...sessionForm, reminder_10m_audience: e.target.value })}
+                                className="form-input"
+                                style={{ padding: '5px 8px', fontSize: '0.84rem', width: 'auto' }}
+                              >
+                                <option value="all">● Everyone (All Email Submissions)</option>
+                                <option value="registered">● Registered Attendees Only</option>
+                              </select>
+                            </div>
+
+                            <span style={{ fontSize: '0.78rem', color: '#0d9488' }}>
+                              ✦ You can also manually trigger this reminder at any time from the sessions list.
                             </span>
                           </div>
                         )}
@@ -4198,8 +4297,34 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   STARTING SOON (10-MIN) REMINDER MODAL
                   ════════════════════════════════════════ */}
               {reminderModal && (() => {
-                const attendeesCount = reminderModal.attendees?.length || 0;
+                const mode = reminderModal.audienceMode || 'all';
+                const isAll = mode === 'all';
+                const isRegistered = mode === 'registered';
+                const isSelected = mode === 'selected';
+
+                const allMembers = reminderModal.allMembers || [];
+                const registeredAttendees = reminderModal.registeredAttendees || [];
                 const poster = reminderModal.session?.photo;
+
+                // Member pool for selection
+                const pool = isRegistered ? registeredAttendees : allMembers;
+
+                const query = (reminderModal.memberSearch || '').trim().toLowerCase();
+                const filteredList = query
+                  ? pool.filter(m => (m.name || '').toLowerCase().includes(query) || (m.email || '').toLowerCase().includes(query))
+                  : pool;
+
+                // Custom parsed emails count
+                const customEmailsList = (reminderModal.customEmailsInput || '')
+                  .split(/[,\n;]+/)
+                  .map(e => e.trim().toLowerCase())
+                  .filter(e => e.includes('@'));
+                const customCount = customEmailsList.length;
+                const selectedCount = reminderModal.selectedEmails?.size || 0;
+
+                const totalRecipients = isSelected
+                  ? (selectedCount + customCount)
+                  : (isAll ? allMembers.length : registeredAttendees.length);
 
                 return (
                   <div style={{
@@ -4209,19 +4334,19 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                   }} onClick={(e) => { if (e.target === e.currentTarget && !reminderModal.sending) setReminderModal(null); }}>
 
                     <div style={{
-                      background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '580px',
+                      background: '#ffffff', borderRadius: '16px', width: '100%', maxWidth: '620px',
                       boxShadow: '0 32px 80px rgba(7,14,35,0.4)', overflow: 'hidden',
                       maxHeight: '92vh', display: 'flex', flexDirection: 'column'
                     }}>
 
                       {/* ── Header ── */}
-                      <div style={{ background: 'linear-gradient(135deg, #0b132b 0%, #0369a1 100%)', padding: '22px 26px 18px', borderBottom: '3px solid #f59e0b', flexShrink: 0 }}>
+                      <div style={{ background: 'linear-gradient(135deg, #0b132b 0%, #1e293b 100%)', padding: '22px 26px 18px', borderBottom: '3px solid #c9a84c', flexShrink: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                              <span style={{ fontSize: '1.2rem' }}>⚡</span>
-                              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.12rem', fontWeight: 700 }}>Starting Soon Reminder</h3>
-                              <span style={{ background: '#f59e0b', color: '#0b132b', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', textTransform: 'uppercase' }}>
+                              <span style={{ color: '#c9a84c', fontSize: '1.05rem' }}>✦</span>
+                              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.12rem', fontWeight: 700, letterSpacing: '0.3px' }}>Session Starting Reminder</h3>
+                              <span style={{ background: 'rgba(201, 168, 76, 0.18)', border: '1px solid #c9a84c', color: '#fcd34d', fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', textTransform: 'uppercase' }}>
                                 {reminderModal.minutes}m Reminder
                               </span>
                             </div>
@@ -4233,52 +4358,280 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             disabled={reminderModal.sending}
                             onClick={() => setReminderModal(null)} 
                             style={{
-                              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
                               color: '#fff', borderRadius: '8px', width: '32px', height: '32px',
                               cursor: 'pointer', fontSize: '1rem', lineHeight: 1, flexShrink: 0
                             }}
                           >✕</button>
                         </div>
-                        <p style={{ margin: '8px 0 0', color: '#e0f2fe', fontSize: '0.78rem' }}>
-                          Sends a high-priority reminder email with the session poster and Google Meet access link exclusively to registered attendees.
+                        <p style={{ margin: '8px 0 0', color: '#cbd5e1', fontSize: '0.78rem' }}>
+                          Dispatches an official reminder email with the attached poster and Google Meet access link.
                         </p>
                       </div>
 
                       {/* ── Body ── */}
                       <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         
+                        {/* Target Audience Selector Tabs */}
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#0b132b', marginBottom: '8px' }}>
+                            Target Audience
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setReminderModal(prev => ({ ...prev, audienceMode: 'all' }))}
+                              style={{
+                                padding: '8px 6px', borderRadius: '8px', border: '1.5px solid',
+                                borderColor: isAll ? '#0b132b' : '#e2e8f0',
+                                background: isAll ? '#0b132b' : '#ffffff',
+                                color: isAll ? '#fcd34d' : '#475569',
+                                fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', textAlign: 'center',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                              }}
+                            >
+                              <span>● Everyone ({allMembers.length})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setReminderModal(prev => ({ ...prev, audienceMode: 'registered' }))}
+                              style={{
+                                padding: '8px 6px', borderRadius: '8px', border: '1.5px solid',
+                                borderColor: isRegistered ? '#0b132b' : '#e2e8f0',
+                                background: isRegistered ? '#0b132b' : '#ffffff',
+                                color: isRegistered ? '#fcd34d' : '#475569',
+                                fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', textAlign: 'center',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                              }}
+                            >
+                              <span>● Registered ({registeredAttendees.length})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setReminderModal(prev => ({ ...prev, audienceMode: 'selected' }))}
+                              style={{
+                                padding: '8px 6px', borderRadius: '8px', border: '1.5px solid',
+                                borderColor: isSelected ? '#0b132b' : '#e2e8f0',
+                                background: isSelected ? '#0b132b' : '#ffffff',
+                                color: isSelected ? '#fcd34d' : '#475569',
+                                fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', textAlign: 'center',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                              }}
+                            >
+                              <span>✎ Select People ({selectedCount + customCount})</span>
+                            </button>
+                          </div>
+                          <p style={{ margin: '6px 0 0', fontSize: '0.75rem', color: '#64748b' }}>
+                            {isAll && '● Sends to all unique email submitters across applications, contacts, and registrations.'}
+                            {isRegistered && '● Sends strictly to attendees who registered specifically for this session.'}
+                            {isSelected && '● Allows you to select individual members with checkboxes and/or add custom email addresses.'}
+                          </p>
+                        </div>
+
+                        {/* Specific Selection Section (When 'selected' tab is active) */}
+                        {isSelected && (
+                          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px' }}>
+                            
+                            {/* Select / Clear All Controls */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setReminderModal(prev => ({ ...prev, selectedEmails: new Set(allMembers.map(m => m.email)) }))}
+                                  style={{ background: 'none', border: 'none', color: '#0369a1', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                                >
+                                  ✓ Select all ({allMembers.length})
+                                </button>
+                                <span style={{ color: '#cbd5e1' }}>|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setReminderModal(prev => ({ ...prev, selectedEmails: new Set() }))}
+                                  style={{ background: 'none', border: 'none', color: '#64748b', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                                >
+                                  ✕ Clear
+                                </button>
+                              </div>
+                              <span style={{ fontSize: '0.75rem', color: '#0b132b', fontWeight: 700, background: '#fef3c7', padding: '2px 8px', borderRadius: '6px' }}>
+                                {selectedCount} selected
+                              </span>
+                            </div>
+
+                            {/* Member Search */}
+                            <input
+                              type="text"
+                              className="form-input"
+                              placeholder="Search member by name or email..."
+                              value={reminderModal.memberSearch || ''}
+                              onChange={(e) => setReminderModal(prev => ({ ...prev, memberSearch: e.target.value }))}
+                              style={{ fontSize: '0.8rem', padding: '6px 10px', marginBottom: '8px' }}
+                            />
+
+                            {/* Checkbox Member List */}
+                            <div style={{
+                              maxHeight: '140px', overflowY: 'auto', border: '1px solid #cbd5e1',
+                              borderRadius: '6px', background: '#ffffff', display: 'flex', flexDirection: 'column'
+                            }}>
+                              {filteredList.length === 0 ? (
+                                <p style={{ margin: 0, padding: '12px', color: '#94a3b8', fontSize: '0.8rem', textAlign: 'center' }}>No members match your search.</p>
+                              ) : filteredList.map((m, idx) => {
+                                const checked = reminderModal.selectedEmails?.has(m.email);
+                                return (
+                                  <label
+                                    key={idx}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: '10px',
+                                      padding: '7px 10px', cursor: 'pointer',
+                                      background: checked ? '#fffbeb' : 'transparent',
+                                      borderBottom: '1px solid #f1f5f9'
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={!!checked}
+                                      onChange={() => setReminderModal(prev => {
+                                        const next = new Set(prev.selectedEmails);
+                                        checked ? next.delete(m.email) : next.add(m.email);
+                                        return { ...prev, selectedEmails: next };
+                                      })}
+                                      style={{ accentColor: '#c9a84c', width: '15px', height: '15px', flexShrink: 0 }}
+                                    />
+                                    <div style={{
+                                      width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
+                                      background: checked ? '#0b132b' : '#e2e8f0',
+                                      color: checked ? '#c9a84c' : '#475569',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: '0.72rem', fontWeight: 800
+                                    }}>
+                                      {m.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</div>
+                                      <div style={{ fontSize: '0.73rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+                                    </div>
+                                    {m.source && (
+                                      <span style={{ fontSize: '0.66rem', color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', flexShrink: 0 }}>
+                                        {m.source}
+                                      </span>
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            {/* Custom Email Input */}
+                            <div style={{ marginTop: '12px' }}>
+                              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#0b132b', marginBottom: '4px' }}>
+                                Add Custom Emails <span style={{ fontWeight: 400, color: '#64748b' }}>(comma or line separated)</span>
+                              </label>
+                              <textarea
+                                rows={2}
+                                placeholder="name@company.org, attendee@example.com"
+                                value={reminderModal.customEmailsInput || ''}
+                                onChange={(e) => setReminderModal(prev => ({ ...prev, customEmailsInput: e.target.value }))}
+                                className="form-input"
+                                style={{ width: '100%', fontSize: '0.8rem', fontFamily: 'monospace', padding: '6px 10px', resize: 'vertical' }}
+                              />
+                              {customCount > 0 && (
+                                <span style={{ fontSize: '0.74rem', color: '#0369a1', fontWeight: 600, display: 'block', marginTop: '2px' }}>
+                                  ✓ {customCount} custom email{customCount === 1 ? '' : 's'} entered
+                                </span>
+                              )}
+                            </div>
+
+                          </div>
+                        )}
+
+                        {/* Recipient Roster Preview (for 'all' and 'registered' modes) */}
+                        {!isSelected && (
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0b132b' }}>
+                                {isAll ? 'Recipients from All Submissions' : 'Registered Attendees'} ({filteredList.length})
+                              </label>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                {isAll ? 'All verified emails' : 'Filtered by session registration'}
+                              </span>
+                            </div>
+
+                            {pool.length > 5 && (
+                              <input
+                                type="text"
+                                className="form-input"
+                                placeholder="Filter list by name or email..."
+                                value={reminderModal.memberSearch || ''}
+                                onChange={(e) => setReminderModal(prev => ({ ...prev, memberSearch: e.target.value }))}
+                                style={{ fontSize: '0.8rem', padding: '5px 10px', marginBottom: '8px' }}
+                              />
+                            )}
+
+                            {filteredList.length > 0 ? (
+                              <div style={{
+                                maxHeight: '130px', overflowY: 'auto', border: '1px solid #e2e8f0',
+                                borderRadius: '8px', padding: '6px', background: '#f8fafc',
+                                display: 'flex', flexDirection: 'column', gap: '4px'
+                              }}>
+                                {filteredList.map((att, idx) => (
+                                  <div key={idx} style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '5px 10px', background: '#ffffff', borderRadius: '6px',
+                                    border: '1px solid #e2e8f0', fontSize: '0.8rem'
+                                  }}>
+                                    <div>
+                                      <strong style={{ color: '#0f172a' }}>{att.name}</strong>
+                                      <span style={{ color: '#64748b', marginLeft: '6px' }}>&lt;{att.email}&gt;</span>
+                                    </div>
+                                    {att.source && (
+                                      <span style={{ fontSize: '0.66rem', background: '#f1f5f9', color: '#475569', padding: '1px 6px', borderRadius: '4px' }}>
+                                        {att.source}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ padding: '14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', textAlign: 'center' }}>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                                  {query ? 'No matching recipients found.' : (isAll ? 'No email submissions found.' : 'No registrations found for this session yet.')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Session Poster Status */}
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
                           {poster ? (
                             <img 
                               src={poster} 
                               alt="Poster preview" 
-                              style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #cbd5e1', flexShrink: 0 }} 
+                              style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #cbd5e1', flexShrink: 0 }} 
                             />
                           ) : (
-                            <div style={{ width: '64px', height: '64px', background: '#f1f5f9', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', color: '#94a3b8', flexShrink: 0 }}>
-                              🖼️
+                            <div style={{ width: '56px', height: '56px', background: '#f1f5f9', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', color: '#94a3b8', flexShrink: 0, border: '1px dashed #cbd5e1' }}>
+                              No Image
                             </div>
                           )}
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>Session Poster</strong>
+                              <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>Session Poster</strong>
                               {poster ? (
-                                <span style={{ background: '#dcfce7', color: '#166534', fontSize: '0.7rem', fontWeight: 600, padding: '1px 6px', borderRadius: '4px' }}>✓ Attached</span>
+                                <span style={{ background: '#dcfce7', color: '#166534', fontSize: '0.68rem', fontWeight: 600, padding: '1px 6px', borderRadius: '4px' }}>✓ Attached</span>
                               ) : (
-                                <span style={{ background: '#fee2e2', color: '#991b1b', fontSize: '0.7rem', fontWeight: 600, padding: '1px 6px', borderRadius: '4px' }}>No Poster</span>
+                                <span style={{ background: '#fee2e2', color: '#991b1b', fontSize: '0.68rem', fontWeight: 600, padding: '1px 6px', borderRadius: '4px' }}>No Poster</span>
                               )}
                             </div>
-                            <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
-                              {poster ? 'The poster image will be embedded at the top of the reminder email.' : 'No cover photo assigned yet. You can attach one in Edit Session or Media Library.'}
+                            <span style={{ fontSize: '0.76rem', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                              {poster ? 'The poster image will be embedded at the top of the reminder email.' : 'You can attach a cover photo in Edit Session.'}
                             </span>
                           </div>
                         </div>
 
                         {/* Google Meet Link Check / Override */}
                         <div>
-                          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
-                            🎥 Google Meet Room Link
+                          <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#0b132b', marginBottom: '6px' }}>
+                            Google Meet Room Link
                           </label>
                           <input 
                             type="url"
@@ -4286,76 +4639,31 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                             placeholder="https://meet.google.com/xxx-xxxx-xxx"
                             value={reminderModal.customMeetLink || ''}
                             onChange={(e) => setReminderModal(prev => ({ ...prev, customMeetLink: e.target.value }))}
-                            style={{ fontSize: '0.86rem', padding: '8px 12px' }}
+                            style={{ fontSize: '0.85rem', padding: '8px 12px' }}
                           />
                           {!reminderModal.customMeetLink && (
-                            <span style={{ fontSize: '0.76rem', color: '#dc2626', display: 'block', marginTop: '4px' }}>
-                              ⚠️ No meeting link attached! Paste the Google Meet URL so attendees can join.
+                            <span style={{ fontSize: '0.76rem', color: '#b91c1c', display: 'block', marginTop: '4px' }}>
+                              ● Note: No meeting link attached. Paste the Google Meet URL so recipients can join the room directly.
                             </span>
                           )}
                         </div>
 
                         {/* Reminder Lead Time */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap' }}>
-                            ⏱ Lead Time:
+                          <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0b132b', whiteSpace: 'nowrap' }}>
+                            Lead Time:
                           </label>
                           <select
                             value={reminderModal.minutes || 10}
                             onChange={(e) => setReminderModal(prev => ({ ...prev, minutes: parseInt(e.target.value, 10) }))}
                             className="form-input"
-                            style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+                            style={{ width: 'auto', padding: '6px 12px', fontSize: '0.84rem' }}
                           >
-                            <option value={10}>10 minutes before start (Recommended)</option>
+                            <option value={10}>10 minutes before start (Standard)</option>
                             <option value={15}>15 minutes before start</option>
                             <option value={30}>30 minutes before start</option>
                             <option value={5}>5 minutes before start (Urgent)</option>
                           </select>
-                        </div>
-
-                        {/* Registered Attendees */}
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#1e293b' }}>
-                              👥 Registered Attendees ({attendeesCount})
-                            </label>
-                            <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                              Filtered from session registrations
-                            </span>
-                          </div>
-
-                          {attendeesCount > 0 ? (
-                            <div style={{
-                              maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0',
-                              borderRadius: '8px', padding: '8px', background: '#f8fafc',
-                              display: 'flex', flexDirection: 'column', gap: '6px'
-                            }}>
-                              {reminderModal.attendees.map((att, idx) => (
-                                <div key={idx} style={{
-                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  padding: '6px 10px', background: '#ffffff', borderRadius: '6px',
-                                  border: '1px solid #e2e8f0', fontSize: '0.8rem'
-                                }}>
-                                  <div>
-                                    <strong style={{ color: '#0f172a' }}>{att.name}</strong>
-                                    <span style={{ color: '#64748b', marginLeft: '6px' }}>&lt;{att.email}&gt;</span>
-                                  </div>
-                                  {att.phone && (
-                                    <span style={{ color: '#0369a1', fontSize: '0.74rem' }}>{att.phone}</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div style={{ padding: '16px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', textAlign: 'center' }}>
-                              <p style={{ margin: 0, fontSize: '0.82rem', color: '#92400e', fontWeight: 600 }}>
-                                No registrations found specifically for this session yet.
-                              </p>
-                              <p style={{ margin: '4px 0 0', fontSize: '0.76rem', color: '#b45309' }}>
-                                Anyone who registers on the website will be added here automatically and receive the 10-minute reminder.
-                              </p>
-                            </div>
-                          )}
                         </div>
 
                       </div>
@@ -4363,7 +4671,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                       {/* ── Footer ── */}
                       <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                         <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                          {attendeesCount > 0 ? `Targeting ${attendeesCount} registered user${attendeesCount === 1 ? '' : 's'}` : 'Waiting for registrations'}
+                          {totalRecipients > 0 ? `Targeting ${totalRecipients} recipient${totalRecipients === 1 ? '' : 's'}` : 'Select at least one recipient'}
                         </span>
                         <div style={{ display: 'flex', gap: '10px' }}>
                           <button 
@@ -4376,17 +4684,17 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                           <button
                             className="btn btn-accent"
                             onClick={handleSendReminderSubmit}
-                            disabled={reminderModal.sending || attendeesCount === 0}
+                            disabled={reminderModal.sending || totalRecipients === 0}
                             style={{
-                              background: '#0284c7',
-                              borderColor: '#0284c7',
-                              color: '#ffffff',
-                              opacity: (reminderModal.sending || attendeesCount === 0) ? 0.5 : 1,
-                              cursor: (reminderModal.sending || attendeesCount === 0) ? 'not-allowed' : 'pointer',
-                              display: 'flex', alignItems: 'center', gap: '6px'
+                              background: '#0b132b',
+                              borderColor: '#c9a84c',
+                              color: '#f6d887',
+                              opacity: (reminderModal.sending || totalRecipients === 0) ? 0.5 : 1,
+                              cursor: (reminderModal.sending || totalRecipients === 0) ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600
                             }}
                           >
-                            {reminderModal.sending ? '⏳ Sending...' : `⚡ Send ${reminderModal.minutes}m Reminder Now`}
+                            {reminderModal.sending ? 'Sending...' : `Send ${reminderModal.minutes}m Reminder`}
                           </button>
                         </div>
                       </div>
@@ -4453,7 +4761,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                   fontWeight: 600, background: '#fef3c7', color: '#b45309'
                                 }}
                               >
-                                🖼️ Poster
+                                ✓ Poster
                               </span>
                             )}
                             {(s.googleMeetLink || s.meetLink || s.google_meet_link) && (
@@ -4495,9 +4803,9 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                   padding: '2px 6px', borderRadius: '6px', fontSize: '0.72rem',
                                   fontWeight: 600, background: '#e0f2fe', color: '#0369a1'
                                 }}
-                                title={`Auto reminder active: ${s.reminder_10m_minutes || 10}m before session`}
+                                title={`Auto reminder active: ${s.reminder_10m_minutes || 10}m before session to ${s.reminder_10m_audience === 'registered' ? 'registered attendees' : 'everyone'}`}
                               >
-                                ⏰ {s.reminder_10m_minutes || 10}m Auto
+                                ● {s.reminder_10m_minutes || 10}m Auto ({s.reminder_10m_audience === 'registered' ? 'Reg' : 'All'})
                               </span>
                             ) : (
                               <span 
@@ -4519,15 +4827,15 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                                 onClick={() => handleOpenReminderModal(s)}
                                 className="btn-table"
                                 style={{
-                                  backgroundColor: '#0284c7',
-                                  color: '#ffffff',
-                                  border: '1px solid #0284c7',
+                                  backgroundColor: '#0b132b',
+                                  color: '#f6d887',
+                                  border: '1px solid #c9a84c',
                                   fontWeight: 600,
                                   whiteSpace: 'nowrap'
                                 }}
-                                title="Send 10-minute starting soon reminder with poster & meet link to registered attendees"
+                                title="Send starting soon reminder with poster & meet link"
                               >
-                                ⚡ 10m Reminder
+                                ● 10m Reminder
                               </button>
                               <button
                                 type="button"

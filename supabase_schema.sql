@@ -602,6 +602,7 @@ ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS reminder_10m_enab
 ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS reminder_10m_minutes INT DEFAULT 10;
 ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS reminder_10m_status TEXT DEFAULT 'pending'; -- 'pending' | 'sent' | 'disabled'
 ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS reminder_10m_sent_at TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE IF EXISTS public.sessions ADD COLUMN IF NOT EXISTS reminder_10m_audience TEXT DEFAULT 'all'; -- 'all' (all submissions) | 'registered' (only session registered)
 
 -- Reload again after migration
 NOTIFY pgrst, 'reload schema';

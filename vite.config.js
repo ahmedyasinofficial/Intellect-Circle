@@ -286,7 +286,8 @@ const localDbPlugin = () => ({
                   localDataPath: dataPath,
                   siteBaseUrl,
                   recipients: Array.isArray(payload.recipients) && payload.recipients.length > 0 ? payload.recipients : null,
-                  minutes: payload.minutes || 10
+                  minutes: payload.minutes || 10,
+                  targetAudience: payload.targetAudience || 'all'
                 });
                 if (targetSession.id && Array.isArray(data.sessions)) {
                   const sIdx = data.sessions.findIndex(s => s.id === targetSession.id);
