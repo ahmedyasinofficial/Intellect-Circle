@@ -1675,10 +1675,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       google_meet_link: '',
       notify_members: true,
       notify_timing: 'immediate',
-      notify_send_at: '',
-      reminder_10m_enabled: true,
-      reminder_10m_minutes: 10,
-      reminder_10m_audience: 'all'
+      notify_send_at: ''
     });
     setSessionSubTab('create');
   };
@@ -1697,10 +1694,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
       takeaways: s.takeaways || [],
       registration_link: s.registrationLink || s.registration_link || '',
       google_meet_link: s.googleMeetLink || s.meetLink || s.google_meet_link || '',
-      notify_members: false,
-      reminder_10m_enabled: s.reminder_10m_enabled !== undefined ? Boolean(s.reminder_10m_enabled) : true,
-      reminder_10m_minutes: s.reminder_10m_minutes !== undefined ? s.reminder_10m_minutes : 10,
-      reminder_10m_audience: s.reminder_10m_audience || 'all'
+      notify_members: false
     });
     setSessionSubTab('create');
   };
@@ -1989,9 +1983,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     const method = isNew ? 'POST' : 'PUT';
     const notifyEnabled = sessionForm.notify_members !== false;
     const notifyScheduled = notifyEnabled && sessionForm.notify_timing === 'scheduled' && sessionForm.notify_send_at;
-    const isReminderEnabled = sessionForm.reminder_10m_enabled !== false;
-    const reminderMinutes = parseInt(sessionForm.reminder_10m_minutes || '10', 10) || 10;
-    const reminderAudience = sessionForm.reminder_10m_audience || 'all';
 
     const body = isNew
       ? {
@@ -1999,17 +1990,11 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
           notifyMembers: notifyEnabled,
           notify_enabled: notifyEnabled,
           notify_timing: sessionForm.notify_timing || 'immediate',
-          notify_send_at: notifyScheduled ? new Date(sessionForm.notify_send_at).toISOString() : null,
-          reminder_10m_enabled: isReminderEnabled,
-          reminder_10m_minutes: reminderMinutes,
-          reminder_10m_audience: reminderAudience
+          notify_send_at: notifyScheduled ? new Date(sessionForm.notify_send_at).toISOString() : null
         }
       : {
           id: editingSession.id,
-          ...sessionForm,
-          reminder_10m_enabled: isReminderEnabled,
-          reminder_10m_minutes: reminderMinutes,
-          reminder_10m_audience: reminderAudience
+          ...sessionForm
         };
 
     try {
@@ -3893,81 +3878,6 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                         </div>
                       )}
 
-                      {/* ── 10-Minute Pre-Session Reminder to Registered Attendees ── */}
-                      <div style={{ marginTop: '16px' }}>
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                          cursor: 'pointer',
-                          padding: '14px 16px',
-                          background: sessionForm.reminder_10m_enabled !== false ? '#ecfeff' : '#f8fafc',
-                          border: `1px solid ${sessionForm.reminder_10m_enabled !== false ? '#06b6d4' : '#cbd5e1'}`,
-                          borderRadius: sessionForm.reminder_10m_enabled !== false ? '8px 8px 0 0' : '8px',
-                          transition: 'background 0.2s, border-color 0.2s'
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={sessionForm.reminder_10m_enabled !== false}
-                            onChange={(e) => setSessionForm({ ...sessionForm, reminder_10m_enabled: e.target.checked })}
-                            style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#0891b2', flexShrink: 0 }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <strong style={{ display: 'block', fontSize: '0.92rem', color: '#0b132b' }}>
-                              ⏰ Send &quot;Starting Soon&quot; reminder email (before session starts)
-                            </strong>
-                            <span style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.45, display: 'block', marginTop: '2px' }}>
-                              Automatically delivers an email with the session poster image, Google Meet room link, and live agenda 10 minutes prior to session start.
-                            </span>
-                          </div>
-                        </label>
-
-                        {sessionForm.reminder_10m_enabled !== false && (
-                          <div style={{
-                            padding: '12px 16px',
-                            background: '#f0fdfa',
-                            border: '1px solid #99f6e4',
-                            borderTop: 'none',
-                            borderRadius: '0 0 8px 8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '14px',
-                            flexWrap: 'wrap'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#0f766e', whiteSpace: 'nowrap' }}>⏱ Lead time:</span>
-                              <select
-                                value={sessionForm.reminder_10m_minutes || 10}
-                                onChange={(e) => setSessionForm({ ...sessionForm, reminder_10m_minutes: parseInt(e.target.value, 10) })}
-                                className="form-input"
-                                style={{ padding: '5px 8px', fontSize: '0.84rem', width: 'auto' }}
-                              >
-                                <option value={10}>10 minutes before (Standard)</option>
-                                <option value={15}>15 minutes before</option>
-                                <option value={30}>30 minutes before</option>
-                                <option value={60}>1 hour before</option>
-                              </select>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#0f766e', whiteSpace: 'nowrap' }}>Audience:</span>
-                              <select
-                                value={sessionForm.reminder_10m_audience || 'all'}
-                                onChange={(e) => setSessionForm({ ...sessionForm, reminder_10m_audience: e.target.value })}
-                                className="form-input"
-                                style={{ padding: '5px 8px', fontSize: '0.84rem', width: 'auto' }}
-                              >
-                                <option value="all">● Everyone (All Email Submissions)</option>
-                                <option value="registered">● Registered Attendees Only</option>
-                              </select>
-                            </div>
-
-                            <span style={{ fontSize: '0.78rem', color: '#0d9488' }}>
-                              ✦ You can also manually trigger this reminder at any time from the sessions list.
-                            </span>
-                          </div>
-                        )}
-                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                       <button type="submit" className="btn btn-accent">
