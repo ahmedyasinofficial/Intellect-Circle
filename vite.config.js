@@ -809,5 +809,9 @@ const localDbPlugin = () => ({
 export default defineConfig({
   base: '/',
   plugins: [react(), localDbPlugin()],
+  optimizeDeps: {
+    include: ['xlsx', 'pdfjs-dist/build/pdf.mjs'],
+    exclude: [],
+  },
 })
 

@@ -5922,3 +5922,624 @@ p, li, a, span { font-size: clamp(0.9rem, 1.5vw, 1rem); }
     padding: 12px 16px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE-FIRST GLOBAL OPTIMIZATION PASS
+   Covers all pages: Home, About, Sessions, Blog, Team, Contact,
+   Apply, AI Assistant, Verify, and all shared components.
+   Breakpoints: 768px · 480px · 375px · 320px
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Touch target minimum 44×44px (WCAG 2.5.5) ── */
+.btn,
+.nav-link,
+.mobile-toggle,
+.social-icon,
+.footer-links a {
+  min-height: 44px;
+}
+
+/* ── Smooth momentum scrolling on iOS ── */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Safe area insets for notched phones ── */
+.header-wrapper {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.footer {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Prevent font inflation on landscape rotation ── */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ── Fluid images & embeds ── */
+iframe,
+video,
+embed,
+object {
+  max-width: 100%;
+}
+
+/* ══════════════════════════════
+   ≤ 768px  — Tablet / Large Phone
+   ══════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Header ── */
+  :root {
+    --header-height: 64px;
+  }
+
+  .logo-img {
+    height: 64px;
+  }
+
+  .header-container {
+    padding: 0 16px;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding-top: calc(var(--header-height) + 20px);
+    padding-bottom: 40px;
+  }
+
+  .hero-content h1 {
+    font-size: clamp(1.9rem, 7vw, 2.6rem);
+  }
+
+  .hero-content p {
+    font-size: 1rem;
+    margin-bottom: 24px;
+  }
+
+  .hero-ctas {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-ctas .btn {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .hero-image-frame {
+    max-width: 280px;
+    padding: 20px;
+  }
+
+  /* ── Section spacing ── */
+  .section {
+    padding: 56px 0;
+  }
+
+  .section-header {
+    margin-bottom: 36px;
+    padding: 0 8px;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    padding: 28px 0;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .stat-number {
+    font-size: clamp(1.8rem, 6vw, 2.4rem);
+  }
+
+  /* ── Teaser cards ── */
+  .teaser-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .teaser-card {
+    padding: 28px 20px;
+  }
+
+  /* ── Featured session ── */
+  .featured-session {
+    padding: 24px 16px;
+  }
+
+  /* ── Archive search ── */
+  .archive-search-bar {
+    flex-direction: column;
+  }
+
+  /* ── Archive meta ── */
+  .archive-meta {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* ── Blog cards ── */
+  .blog-card {
+    padding: 24px 18px;
+  }
+
+  /* ── Modal ── */
+  .modal-content {
+    padding: 36px 20px 24px 20px;
+    max-height: 92vh;
+    border-radius: var(--radius-md);
+  }
+
+  .modal-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  /* ── Team ── */
+  .team-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .exec-cards-row .team-card {
+    min-width: 220px;
+  }
+
+  /* ── Contact ── */
+  .contact-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  /* ── Footer ── */
+  .footer-inner {
+    padding: 48px 0 28px 0;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .footer-tagline {
+    max-width: 100%;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+
+  /* ── Apply page ── */
+  .apply-layout {
+    grid-template-columns: 1fr !important;
+    gap: 32px;
+  }
+
+  .apply-form-card {
+    padding: 28px 18px !important;
+  }
+
+  /* ── Verify page ── */
+  .verify-card {
+    padding: 32px 16px !important;
+    margin: 0 12px;
+  }
+
+  /* ── Session register modal ── */
+  .session-register-modal-inner {
+    padding: 28px 16px !important;
+    max-height: 92vh;
+  }
+
+  /* ── About page story / values grids ── */
+  .about-story-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .values-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-vm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Geographic flow ── */
+  .geo-flow {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .geo-connector {
+    transform: rotate(90deg);
+    margin: 4px 0;
+  }
+
+  /* ── How-it-works ── */
+  .how-it-works-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .how-step-connector {
+    display: none;
+  }
+
+  /* ── Pillars ── */
+  .pillars-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── AI Assistant page ── */
+  .assistant-page-wrapper {
+    height: calc(100dvh - var(--header-height));
+    max-height: calc(100dvh - var(--header-height));
+  }
+
+  .assistant-input-textarea {
+    font-size: 16px; /* prevent iOS zoom */
+  }
+
+  .assistant-prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Chatbot widget ── */
+  .wc-panel {
+    bottom: 80px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100dvh - 100px);
+  }
+
+  .wc-trigger {
+    bottom: 20px;
+    right: 16px;
+  }
+
+  /* ── Session register modal inner scroll ── */
+  .session-register-modal {
+    align-items: flex-end !important;
+  }
+}
+
+/* ══════════════════════════════
+   ≤ 480px  — Small phones
+   ══════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* Typography scale-down */
+  .section-header h2 {
+    font-size: clamp(1.5rem, 6vw, 1.9rem);
+  }
+
+  h1 { font-size: clamp(1.7rem, 7vw, 2.2rem); }
+  h2 { font-size: clamp(1.4rem, 5.5vw, 1.8rem); }
+  h3 { font-size: clamp(1.1rem, 4.5vw, 1.4rem); }
+
+  /* ── Section ── */
+  .section {
+    padding: 40px 0;
+  }
+
+  .container {
+    padding: 0 14px;
+  }
+
+  /* ── Hero ── */
+  .hero-content h1 {
+    font-size: clamp(1.7rem, 8vw, 2.2rem);
+  }
+
+  .hero-content p {
+    font-size: 0.95rem;
+  }
+
+  .hero-image-frame {
+    max-width: 220px;
+    padding: 14px;
+  }
+
+  /* ── Stats — single column ── */
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .stat-item::after {
+    display: none !important;
+  }
+
+  .stat-number {
+    font-size: 2.2rem;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 12px 20px;
+    font-size: 0.9rem;
+  }
+
+  .hero-ctas .btn {
+    max-width: 100%;
+  }
+
+  /* ── Blog / sessions / team — single col ── */
+  .blog-grid,
+  .sessions-layout,
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Team card in exec row ── */
+  .exec-cards-row .team-card {
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  /* ── Featured session ── */
+  .featured-session {
+    padding: 16px 12px;
+  }
+
+  /* ── Blog card ── */
+  .blog-card {
+    padding: 20px 14px;
+  }
+
+  /* ── Form inputs ── */
+  .form-input,
+  .form-input[type="text"],
+  .form-input[type="email"],
+  .form-input[type="date"],
+  select.form-input,
+  textarea.form-input {
+    font-size: 16px; /* prevent iOS zoom */
+    padding: 12px 14px;
+  }
+
+  /* ── Modal ── */
+  .modal-content {
+    padding: 28px 14px 20px 14px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    margin: 0;
+    max-height: 95vh;
+  }
+
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  /* ── Footer ── */
+  .footer-inner {
+    padding: 36px 0 20px 0;
+  }
+
+  .footer-socials {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* ── Apply form ── */
+  .apply-form-card {
+    padding: 20px 14px !important;
+  }
+
+  /* ── Verify card ── */
+  .verify-card {
+    padding: 24px 14px !important;
+    margin: 0 8px;
+  }
+
+  /* ── Archive search ── */
+  .archive-card {
+    padding: 20px 14px;
+  }
+
+  /* ── Format box ── */
+  .format-box {
+    padding: 22px 16px;
+  }
+
+  /* ── Session register modal ── */
+  .session-register-modal-inner {
+    padding: 20px 14px !important;
+    border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+  }
+
+  /* ── AI Assistant suggestions ── */
+  .assistant-quick-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── Geo model ── */
+  .geo-level {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* ── Pillar card ── */
+  .pillar-card {
+    padding: 24px 16px;
+  }
+
+  /* ── Teaser card ── */
+  .teaser-card {
+    padding: 24px 16px;
+  }
+}
+
+/* ══════════════════════════════
+   ≤ 375px  — Very small phones
+   ══════════════════════════════ */
+@media (max-width: 375px) {
+
+  :root {
+    --header-height: 58px;
+  }
+
+  .logo-img {
+    height: 52px;
+  }
+
+  .container {
+    width: 100%;
+    padding: 0 12px;
+  }
+
+  .hero-content h1 {
+    font-size: 1.65rem;
+  }
+
+  .btn {
+    padding: 11px 16px;
+    font-size: 0.875rem;
+  }
+
+  .section-header h2 {
+    font-size: 1.45rem;
+  }
+
+  .footer-grid {
+    gap: 24px;
+  }
+
+  .footer-title {
+    font-size: 0.7rem;
+  }
+
+  .footer-links a {
+    font-size: 0.85rem;
+  }
+
+  /* Shrink stat numbers a bit more */
+  .stat-number {
+    font-size: 1.9rem;
+  }
+
+  /* Nav links bigger tap area */
+  .nav-link {
+    font-size: 1.15rem;
+    padding: 12px 0;
+  }
+
+  /* Single-col stats stays as-is */
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Apply / contact form labels */
+  .form-label {
+    font-size: 0.82rem;
+  }
+}
+
+/* ══════════════════════════════
+   ≤ 320px  — Tiny phones
+   ══════════════════════════════ */
+@media (max-width: 320px) {
+
+  .logo-img {
+    height: 44px !important;
+  }
+
+  .btn {
+    padding: 10px 12px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .hero-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .section-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .container {
+    padding: 0 10px;
+  }
+
+  .modal-content {
+    padding: 20px 10px 16px 10px;
+  }
+}
+
+/* ══════════════════════════════
+   Landscape phone (short height)
+   ══════════════════════════════ */
+@media (max-height: 500px) and (orientation: landscape) {
+
+  .hero {
+    min-height: auto;
+    padding-top: calc(var(--header-height) + 16px);
+    padding-bottom: 32px;
+  }
+
+  .hero-image-container {
+    display: none; /* hide decorative image in landscape to save space */
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-ctas {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .hero-ctas .btn {
+    width: auto;
+  }
+
+  .nav-menu {
+    padding: 20px;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  .section {
+    padding: 32px 0;
+  }
+}
+
+/* ══════════════════════════════
+   Print / high-contrast safety
+   ══════════════════════════════ */
+@media print {
+  .header-wrapper,
+  .mobile-toggle,
+  .wc-trigger,
+  .wc-panel,
+  .assistant-voice-overlay {
+    display: none !important;
+  }
+
+  body {
+    font-size: 12pt;
+    color: #000;
+    background: #fff;
+  }
+
+  .container {
+    max-width: 100%;
+    padding: 0;
+  }
+}
+

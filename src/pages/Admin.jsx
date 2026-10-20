@@ -221,7 +221,7 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [certSearch, setCertSearch] = useState('');
 
-  // CSV Import & Batch automation state
+  // CSV/Excel/PDF Import & Batch automation state
   const [parsedAttendees, setParsedAttendees] = useState([]);
   const [selectedAttendees, setSelectedAttendees] = useState({});
   const [attendeeSearch, setAttendeeSearch] = useState('');
@@ -237,6 +237,8 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
   const [previewError, setPreviewError] = useState(null);
   const previewBlobUrlRef = useRef(null);
   const [previewKey, setPreviewKey] = useState(0);
+  const [pasteText, setPasteText] = useState('');
+  const [importTab, setImportTab] = useState('file'); // 'file' | 'paste'
 
   // Search & Pagination States
   const [sessionSearch, setSessionSearch] = useState('');
@@ -1016,103 +1018,296 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
     }
   };
 
-  // === Attendance CSV Import & Automation ===
-  const handleCSVImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // === Universal Attendance Import (CSV / Excel / PDF / Paste) ===
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target.result;
-      const lines = text.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length === 0) return;
+  /**
+   * Core deduplication & normalization shared by all import methods.
+   * Accepts an array of { name, email } raw objects.
+   */
+  const processAttendeeRows = (rows) => {
+    const results = [];
+    const dupes = [];
+    const seenEmails = new Set();
 
-      const results = [];
-      const dupes = [];
-      const seenEmails = new Set();
-
-      // Parse a CSV line respecting quoted fields
-      const parseLine = (line) =>
-        line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
-
-      // Detect header row and name column index
-      const nameHeaderVariants = [
-        'name', 'full name', 'fullname', 'participant name', 'participantname',
-        'student name', 'studentname', 'recipient name', 'recipientname',
-        'attendee name', 'attendeename', 'first name', 'firstname',
-        'member name', 'membername', 'person', 'person name'
-      ];
-
-      const firstCols = parseLine(lines[0]);
-      const hasHeader = firstCols.some(col =>
-        nameHeaderVariants.includes(col.toLowerCase()) ||
-        /^(email|e-mail|email\s*address)$/i.test(col)
-      );
-
-      let nameColIdx = -1;
-      let startRow = 0;
-
-      if (hasHeader) {
-        startRow = 1;
-        nameColIdx = firstCols.findIndex(col =>
-          nameHeaderVariants.includes(col.toLowerCase())
-        );
+    rows.forEach(({ name: rawName, email: rawEmail }) => {
+      const email = rawEmail.trim().toLowerCase();
+      let name = (rawName || '').trim();
+      if (!name || name.toLowerCase() === email.toLowerCase()) {
+        name = email.split('@')[0].replace(/[._-]/g, ' ');
       }
+      name = name.replace(/\b\w/g, c => c.toUpperCase());
 
-      for (let i = startRow; i < lines.length; i++) {
-        const cols = parseLine(lines[i]);
-        const emailIdx = cols.findIndex(col => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(col));
+      const record = {
+        id: `att-${Date.now()}-${Math.random().toString(36).slice(-4)}`,
+        name,
+        email,
+        status: 'ready'
+      };
 
-        if (emailIdx !== -1) {
-          const email = cols[emailIdx].toLowerCase();
+      if (seenEmails.has(email)) {
+        dupes.push(record);
+      } else {
+        seenEmails.add(email);
+        results.push(record);
+      }
+    });
 
-          // Determine name: use detected header column, else first non-email column
-          let name = '';
-          if (nameColIdx !== -1 && nameColIdx < cols.length) {
-            name = cols[nameColIdx];
-          } else {
-            // Pick the first column that isn't the email
-            for (let c = 0; c < cols.length; c++) {
-              if (c !== emailIdx && cols[c]) {
-                name = cols[c];
-                break;
-              }
-            }
-          }
+    setParsedAttendees(results);
+    setAttendanceDuplicates(dupes);
+    const sel = {};
+    results.forEach(r => { sel[r.id] = true; });
+    setSelectedAttendees(sel);
+    triggerNotification(`Imported ${results.length} attendees. ${dupes.length} duplicates skipped.`);
+  };
 
-          if (!name || name === email) {
-            name = email.split('@')[0].replace(/[._-]/g, ' ');
-          }
-          name = name.replace(/\b\w/g, c => c.toUpperCase());
+  /**
+   * Intelligent name+email extractor from any plain text.
+   * Handles: "Name <email>", "Name, email", "Name\temail", email-only lines,
+   * table-like structures from PDF/copied spreadsheets.
+   */
+  const extractAttendeesFromText = (text) => {
+    const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+    const rows = [];
 
-          const record = {
-            id: `att-${Date.now()}-${Math.random().toString(36).slice(-4)}`,
-            name,
-            email,
-            status: 'ready'
-          };
+    // Strategy 1: "Full Name <email@domain.com>" or "Name (email)"
+    const angleBracket = /([A-Za-z][^<\n(]{1,60}?)\s*[<(]([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})[>)]/g;
+    let m;
+    const foundByAngle = new Set();
+    while ((m = angleBracket.exec(text)) !== null) {
+      const name = m[1].trim().replace(/[,;]+$/, '');
+      const email = m[2].toLowerCase();
+      if (name && email) {
+        rows.push({ name, email });
+        foundByAngle.add(email);
+      }
+    }
 
-          if (seenEmails.has(email)) {
-            dupes.push(record);
-          } else {
-            seenEmails.add(email);
-            results.push(record);
+    // Strategy 2: line-by-line — find email in line and infer name from rest
+    const lines = text.split(/\r?\n/);
+    const nameHeaderVariants = [
+      'name', 'full name', 'fullname', 'participant name', 'participantname',
+      'student name', 'studentname', 'recipient name', 'recipientname',
+      'attendee name', 'attendeename', 'first name', 'firstname',
+      'member name', 'membername', 'person', 'person name', 'email', 'e-mail'
+    ];
+
+    const parseLine = (line) =>
+      line.split(/(?:,|\t|\s{2,})(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+          .map(col => col.replace(/^"|"$/g, '').trim())
+          .filter(Boolean);
+
+    // Detect header row
+    const firstLineCols = parseLine(lines[0] || '');
+    let nameColIdx = -1;
+    let startRow = 0;
+    const hasHeader = firstLineCols.some(col => nameHeaderVariants.includes(col.toLowerCase()));
+    if (hasHeader) {
+      startRow = 1;
+      nameColIdx = firstLineCols.findIndex(col =>
+        ['name', 'full name', 'fullname', 'participant name', 'student name',
+         'recipient name', 'attendee name', 'first name', 'member name', 'person'].includes(col.toLowerCase())
+      );
+    }
+
+    for (let i = startRow; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const emailMatches = line.match(EMAIL_RE);
+      if (!emailMatches) continue;
+      const email = emailMatches[0].toLowerCase();
+      if (foundByAngle.has(email)) continue; // already captured
+
+      const cols = parseLine(line);
+      const emailColIdx = cols.findIndex(col => col.toLowerCase() === email);
+
+      let name = '';
+      if (nameColIdx !== -1 && nameColIdx < cols.length && nameColIdx !== emailColIdx) {
+        name = cols[nameColIdx];
+      } else {
+        // Pick first non-email, non-numeric column
+        for (let c = 0; c < cols.length; c++) {
+          const col = cols[c];
+          if (c !== emailColIdx && col && !/^[\d:.\-/]+$/.test(col) && !EMAIL_RE.test(col)) {
+            name = col;
+            break;
           }
         }
       }
 
-      setParsedAttendees(results);
-      setAttendanceDuplicates(dupes);
+      rows.push({ name, email });
+    }
 
-      // Select all by default
-      const initialSelection = {};
-      results.forEach(r => {
-        initialSelection[r.id] = true;
-      });
-      setSelectedAttendees(initialSelection);
-      triggerNotification(`Imported ${results.length} attendees. ${dupes.length} duplicates detected.`);
+    return rows;
+  };
+
+  /**
+   * CSV parser — handles quoted fields with embedded commas.
+   */
+  const parseCSVText = (text) => {
+    const parseLine = (line) =>
+      line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length === 0) return [];
+
+    const nameHeaderVariants = [
+      'name', 'full name', 'fullname', 'participant name', 'participantname',
+      'student name', 'studentname', 'recipient name', 'recipientname',
+      'attendee name', 'attendeename', 'first name', 'firstname',
+      'member name', 'membername', 'person', 'person name'
+    ];
+
+    const firstCols = parseLine(lines[0]);
+    const hasHeader = firstCols.some(col =>
+      nameHeaderVariants.includes(col.toLowerCase()) ||
+      /^(email|e-mail|email\s*address)$/i.test(col)
+    );
+
+    let nameColIdx = -1;
+    let startRow = 0;
+    if (hasHeader) {
+      startRow = 1;
+      nameColIdx = firstCols.findIndex(col => nameHeaderVariants.includes(col.toLowerCase()));
+    }
+
+    const rows = [];
+    for (let i = startRow; i < lines.length; i++) {
+      const cols = parseLine(lines[i]);
+      const emailIdx = cols.findIndex(col => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(col));
+      if (emailIdx === -1) continue;
+      const email = cols[emailIdx];
+      let name = '';
+      if (nameColIdx !== -1 && nameColIdx < cols.length) {
+        name = cols[nameColIdx];
+      } else {
+        for (let c = 0; c < cols.length; c++) {
+          if (c !== emailIdx && cols[c]) { name = cols[c]; break; }
+        }
+      }
+      rows.push({ name, email });
+    }
+    return rows;
+  };
+
+  /**
+   * Universal file upload handler — routes to CSV, Excel, or PDF parser.
+   */
+  const handleAttendanceImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    const isExcel = ext === 'xlsx' || ext === 'xls';
+    const isPDF   = ext === 'pdf';
+
+    if (isExcel) {
+      // --- Excel via SheetJS (xlsx) ---
+      try {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        if (jsonRows.length === 0) {
+          triggerNotification('Excel file appears empty or has no parseable rows.', 'error');
+          return;
+        }
+
+        // Auto-detect columns: find the key that looks like a name and email
+        const sampleKeys = Object.keys(jsonRows[0] || {});
+        const emailKey = sampleKeys.find(k => /email/i.test(k)) ||
+          sampleKeys.find(k => String(jsonRows[0][k]).includes('@'));
+        const nameKey  = sampleKeys.find(k =>
+          /name|participant|student|attendee|recipient|person/i.test(k) && k !== emailKey
+        ) || sampleKeys.find(k => k !== emailKey);
+
+        const rows = jsonRows
+          .map(r => {
+            // Find email in any cell of the row if no explicit emailKey column
+            let email = emailKey ? String(r[emailKey] || '') : '';
+            let name  = nameKey  ? String(r[nameKey]  || '') : '';
+            if (!email) {
+              // Scan all cells for an email pattern
+              for (const v of Object.values(r)) {
+                if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim())) {
+                  email = String(v).trim();
+                  break;
+                }
+              }
+            }
+            return { name, email };
+          })
+          .filter(r => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email));
+
+        processAttendeeRows(rows);
+      } catch (err) {
+        console.error('Excel parse error:', err);
+        triggerNotification('Failed to parse Excel file. Make sure it is a valid .xlsx / .xls file.', 'error');
+      }
+      return;
+    }
+
+    if (isPDF) {
+      // --- PDF via pdfjs-dist (browser-compatible) ---
+      try {
+        const pdfjsLib = await import('pdfjs-dist/build/pdf.mjs');
+        // Use a CDN-hosted worker to avoid Vite worker bundling complexity
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+        const buffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+        let fullText = '';
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const content = await page.getTextContent();
+          fullText += content.items.map(item => item.str).join(' ') + '\n';
+        }
+
+        const rows = extractAttendeesFromText(fullText);
+        if (rows.length === 0) {
+          triggerNotification('No email addresses found in the PDF. It may be a scanned/image PDF.', 'error');
+          return;
+        }
+        processAttendeeRows(rows);
+      } catch (err) {
+        console.error('PDF parse error:', err);
+        triggerNotification('Failed to extract text from PDF. Scanned/image PDFs are not supported.', 'error');
+      }
+      return;
+    }
+
+    // --- CSV / plain text fallback ---
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const rows = parseCSVText(text);
+      if (rows.length === 0) {
+        triggerNotification('No valid email entries found in the CSV.', 'error');
+        return;
+      }
+      processAttendeeRows(rows);
     };
     reader.readAsText(file);
+  };
+
+  /**
+   * Paste / free-text import handler.
+   */
+  const handlePasteImport = () => {
+    if (!pasteText.trim()) {
+      triggerNotification('Please paste some text first.', 'error');
+      return;
+    }
+    const rows = extractAttendeesFromText(pasteText);
+    if (rows.length === 0) {
+      triggerNotification('Could not find any email addresses in the pasted text.', 'error');
+      return;
+    }
+    processAttendeeRows(rows);
+    setPasteText('');
   };
 
   const handleBatchIssue = async () => {
@@ -5835,23 +6030,75 @@ function Admin({ data, saveDatabase, deleteSubmission, isLoggedIn, onLogin, onLo
                 </>
               )}
 
-              {/* Google Meet Attendance CSV Automated Certificate Generator */}
+              {/* Attendance Import — CSV / Excel / PDF / Paste */}
               <div className="admin-box" style={{ marginBottom: '30px', border: '1px solid var(--accent-color)' }}>
-                <div className="admin-box-title" style={{ color: 'var(--accent-color)' }}>Attendance-Based Automation (Google Meet CSV)</div>
+                <div className="admin-box-title" style={{ color: 'var(--accent-color)' }}>Attendance-Based Automation — Collective Certificate Generator</div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                  Import a Google Meet attendance report CSV. The system automatically extracts unique attendee names and emails, filters out duplicates, and allows you to preview, select, and batch generate digital certificates.
+                  Upload an attendance list (<strong>CSV, Excel .xlsx/.xls, or PDF</strong>) or paste data directly. The system intelligently extracts attendee names &amp; emails, removes duplicates, and lets you batch-issue digital certificates.
                 </p>
-                
-                <div className="form-group" style={{ marginBottom: '20px' }}>
-                  <label className="form-label">Upload Attendance CSV File</label>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleCSVImport}
-                    className="form-input"
-                    style={{ padding: '8px' }}
-                  />
+
+                {/* Import mode tabs */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+                  {[
+                    { key: 'file',  label: '📁 Upload File' },
+                    { key: 'paste', label: '📋 Paste Text'  }
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setImportTab(tab.key)}
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1.5px solid ' + (importTab === tab.key ? 'var(--accent-color)' : 'var(--border-color)'),
+                        background: importTab === tab.key ? 'var(--accent-color)' : 'transparent',
+                        color: importTab === tab.key ? '#fff' : 'var(--text-muted)',
+                        fontWeight: 600,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
+
+                {importTab === 'file' ? (
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label className="form-label">Upload Attendance File</label>
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls,.pdf"
+                      onChange={handleAttendanceImport}
+                      className="form-input"
+                      style={{ padding: '8px' }}
+                    />
+                    <div style={{ marginTop: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      Supports <strong>.csv</strong>, <strong>.xlsx</strong> / <strong>.xls</strong> (Excel), and <strong>.pdf</strong> (text-based) files.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label className="form-label">Paste Attendee Data</label>
+                    <textarea
+                      className="form-input"
+                      rows={7}
+                      value={pasteText}
+                      onChange={e => setPasteText(e.target.value)}
+                      placeholder={'Paste anything — emails, a list of names + emails, a copied spreadsheet, an email thread, etc.\n\nExamples:\n  John Doe <john@example.com>\n  jane@example.com, Jane Smith\n  Name\t\tEmail\n  Ali Hassan\tali@gmail.com'}
+                      style={{ fontFamily: 'monospace', fontSize: '0.82rem', resize: 'vertical' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      style={{ marginTop: '10px' }}
+                      onClick={handlePasteImport}
+                    >
+                      ✨ Extract Names &amp; Emails
+                    </button>
+                  </div>
+                )}
 
                 {parsedAttendees.length > 0 && (
                   <div style={{ marginTop: '20px' }}>
